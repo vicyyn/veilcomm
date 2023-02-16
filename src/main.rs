@@ -1,58 +1,113 @@
-use std::env;
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::fmt::{Binary, Debug, Error, Formatter};
+use std::fs::create_dir_all;
+use std::io::Write;
+use std::net::UdpSocket;
+use std::str;
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
 
-fn main() -> std::io::Result<()> {
-    let args: Vec<String> = env::args().collect();
-    if args.len() < 2 {
-        eprintln!("Usage: ./program server|client");
-        std::process::exit(1);
+pub mod kademlia;
+
+pub use kademlia::*;
+
+// 256 bits --> 32 bytes
+const KEY_LEN: usize = 32;
+
+// a list for each bit of the node ID
+// 32*8 --> 256
+const N_BUCKETS: usize = KEY_LEN * 8;
+
+// number entries in a list
+const K_PARAM: usize = 20;
+
+// buffer size used for streaming UDP
+const BUF_SIZE: usize = 4096 * 2;
+
+// response timeout 5000ms
+const TIMEOUT: u64 = 5000;
+
+// number of concurrent lookups in node lookup
+const ALPHA: usize = 3;
+
+const VERBOSE: bool = false;
+
+const BIG_TEST: bool = true;
+
+// be careful with the net size, for example my computer can't spawn too many threads
+// messages may also exceed the buffer size used for streaming (see issue #1)
+const NET_SIZE: usize = 10;
+
+fn test_big_net() {
+    let mut interfaces: Vec<Protocol> = Vec::with_capacity(NET_SIZE);
+    let mut base_port = 8000;
+
+    let root = Node::new(utils::get_local_ip().unwrap(), 7999);
+    let root_interface = Protocol::new(root.ip.clone(), root.port.clone(), None);
+    root_interface.put("MAIN_KEY".to_owned(), "MAIN_VALUE".to_owned());
+
+    for i in 0..(NET_SIZE - 1) {
+        let node = Node::new(utils::get_local_ip().unwrap(), base_port);
+
+        interfaces.push(Protocol::new(node.ip, node.port, Some(root.clone())));
+        println!(
+            "[+] Created interface for index: {} on port: {}",
+            i, base_port
+        );
+
+        base_port += 1;
     }
 
-    match args[1].as_str() {
-        "server" => run_server(),
-        "client" => run_client(),
-        _ => {
-            eprintln!("Invalid argument. Usage: ./program server|client");
-            std::process::exit(1);
-        }
+    for (index, interface) in interfaces.iter().enumerate() {
+        println!("[+] Putting <key, value> pair for index: {}", index);
+        interface.put(format!("key_{}", index), format!("value_{}", index));
+    }
+
+    for (index, interface) in interfaces.iter().enumerate() {
+        let res = interface.get(format!("key_{}", index));
+        println!("[*] Looking for key_{}, got {}", index, res.unwrap());
     }
 }
 
-fn run_server() -> std::io::Result<()> {
-    let listener = TcpListener::bind("127.0.0.1:8080")?;
+fn main() {
+    if BIG_TEST {
+        test_big_net();
+    } else {
+        let node0 = Node::new(utils::get_local_ip().unwrap(), 1337);
+        println!("[+] Created node0: {:?}", node0);
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(mut stream) => {
-                let mut buffer = [0; 512];
-                stream.read(&mut buffer)?;
+        let node1 = Node::new(utils::get_local_ip().unwrap(), 1338);
+        println!("[+] Created node1: {:?}", node1);
 
-                let message = String::from_utf8_lossy(&buffer[..]);
-                println!("Received message: {}", message);
+        let node2 = Node::new(utils::get_local_ip().unwrap(), 1339);
+        println!("[+] Created node2: {:?}", node2);
 
-                stream.write_all(b"Message received.")?;
-            }
-            Err(e) => {
-                println!("Error: {}", e);
-            }
-        }
+        let interface0 = Protocol::new(node0.ip.clone(), node0.port.clone(), None);
+        println!("[+] Initialized Kademlia Protocol for node0 (interface0)");
+
+        let interface1 = Protocol::new(node1.ip.clone(), node1.port.clone(), Some(node0.clone()));
+        println!("[+] Initialized Kademlia Protocol for node1 (interface1)");
+
+        let interface2 = Protocol::new(node2.ip.clone(), node2.port.clone(), Some(node0.clone()));
+        println!("[+] Initialized Kademlia Protocol for node2 (interface2)");
+
+        println!("\n--------------------------------------");
+        println!("Calling Kademlia API");
+
+        interface0.put("some_key".to_owned(), "some_value".to_owned());
+        println!("\t[*] node0 > called PUT for key: 'some_key' and value: 'some_value'");
+
+        let get_res = interface2.get("some_key".to_owned());
+        println!("\t[*] node2 > called GET on key: 'some_key'");
+        println!("\t\t[+] Extracted: {:?}", get_res);
+        println!("--------------------------------------\n");
+
+        utils::dump_interface_state(&interface0, "dumps/interface0.json");
+        utils::dump_interface_state(&interface1, "dumps/interface1.json");
+        utils::dump_interface_state(&interface2, "dumps/interface2.json");
+        println!("[*] Dumped protocol states for node0, node1 and node2. Check out the 'dumps' folder for a complete tracelog");
+        println!("Exiting...");
     }
-
-    Ok(())
-}
-
-fn run_client() -> std::io::Result<()> {
-    let mut stream = TcpStream::connect("127.0.0.1:8080")?;
-
-    let message = "Hello, server!";
-    stream.write_all(message.as_bytes())?;
-
-    let mut buffer = [0; 512];
-    stream.read(&mut buffer)?;
-
-    let message = String::from_utf8_lossy(&buffer[..]);
-    println!("Received message: {}", message);
-
-    Ok(())
 }
