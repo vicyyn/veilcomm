@@ -32,7 +32,7 @@ const TIMEOUT: u64 = 5000;
 // number of concurrent lookups in node lookup
 const ALPHA: usize = 3;
 
-const VERBOSE: bool = false;
+const VERBOSE: bool = true;
 
 const BIG_TEST: bool = true;
 

@@ -14,7 +14,6 @@ pub enum Response {
     FindNode(Vec<NodeAndDistance>),
     FindValue(FindValueResult),
 }
-
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Message {
     Abort,
@@ -55,6 +54,7 @@ impl Rpc {
             node,
         }
     }
+
     pub fn open(rpc: Rpc, sender: mpsc::Sender<ReqWrapper>) {
         thread::spawn(move || {
             let mut buf = [0u8; BUF_SIZE];
