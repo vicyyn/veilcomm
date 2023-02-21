@@ -1,14 +1,11 @@
 // UDP connection with another node in the network.
 use crate::*;
-use std::collections::HashMap;
 use std::net::UdpSocket;
-use std::str;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 
 pub struct Connection {
     pub socket: Arc<UdpSocket>,
-    pub pending: Arc<Mutex<HashMap<Key, mpsc::Sender<Option<Cell>>>>>,
     pub node: Node,
 }
 
@@ -19,35 +16,29 @@ impl Connection {
 
         Self {
             socket: Arc::new(socket),
-            pending: Arc::new(Mutex::new(HashMap::new())),
             node,
         }
     }
 
-    pub fn open(connection: Connection) {
+    pub fn open(self: Arc<Self>) {
         thread::spawn(move || {
-            let mut buf = [0u8; 512];
-
+            let mut buffer = [0u8; CELL_SIZE];
             loop {
-                let (len, src_addr) = connection
+                let (len, src_addr) = self
                     .socket
-                    .recv_from(&mut buf)
+                    .recv_from(&mut buffer)
                     .expect("[FAILED] Rpc::open --> Failed to receive data from peer");
 
-                let mut decoded: Cell = bincode::deserialize(&buf.to_vec())
-                    .expect("[FAILED] Rpc::open, serde_json --> Unable to decode string payload");
-
-                println!("{:?}", decoded);
+                println!("Received :  {} bytes from {}", len, src_addr);
+                let cell = Cell::deserialize(&buffer);
+                println!("{:?}", cell);
             }
         });
     }
 
     pub fn send_cell(&self, cell: &Cell, destination: Node) {
-        let encoded = bincode::serialize(cell)
-            .expect("[FAILED] Rpc::send_msg --> Unable to serialize message");
-
         self.socket
-            .send_to(&encoded, destination.get_addr())
+            .send_to(&cell.serialize(), destination.get_addr())
             .expect("[FAILED] Rpc::send_msg --> Error while sending message to specified address");
     }
 }
@@ -60,13 +51,21 @@ mod tests {
     fn test_connection() {
         let node1 = Node::new("127.0.0.1".to_string(), 7999);
         let node2 = Node::new("127.0.0.1".to_string(), 8000);
+        let node3 = Node::new("127.0.0.1".to_string(), 8001);
 
-        let connection1 = Connection::new(node1.clone());
-        let connection2 = Connection::new(node2.clone());
+        let connection1 = Arc::new(Connection::new(node1.clone()));
+        let connection2 = Arc::new(Connection::new(node2.clone()));
+        let connection3 = Arc::new(Connection::new(node3.clone()));
 
-        Connection::open(connection1);
+        Arc::clone(&connection1).open();
+        Arc::clone(&connection2).open();
+        Arc::clone(&connection3).open();
 
-        connection2.send_cell(&Cell::default(), node1);
-        loop {}
+        connection2.send_cell(&Cell::default(), node1.clone());
+        connection2.send_cell(&Cell::default(), node3.clone());
+        connection3.send_cell(&Cell::default(), node1.clone());
+        connection3.send_cell(&Cell::default(), node2.clone());
+        connection1.send_cell(&Cell::default(), node2.clone());
+        connection1.send_cell(&Cell::default(), node3.clone());
     }
 }

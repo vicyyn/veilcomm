@@ -4,7 +4,7 @@ use std::fmt::{Debug, Error, Formatter};
 
 const KEY_LEN: usize = 32;
 
-#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Key(pub [u8; KEY_LEN]);
 
 impl Key {
