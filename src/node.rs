@@ -1,15 +1,16 @@
 use crate::*;
 use serde::{Deserialize, Serialize};
+use std::net::Ipv4Addr;
 
-#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct Node {
-    pub ip: String,
+    pub ip: Ipv4Addr,
     pub port: u16,
     pub key: Key,
 }
 
 impl Node {
-    pub fn new(ip: String, port: u16) -> Self {
+    pub fn new(ip: Ipv4Addr, port: u16) -> Self {
         let addr = format!("{}:{}", ip, port);
         let key = Key::new(addr);
         Node { ip, port, key }

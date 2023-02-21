@@ -36,7 +36,7 @@ impl Connection {
         });
     }
 
-    pub fn send_cell(&self, cell: &Cell, destination: Node) {
+    pub fn send_cell(&self, cell: &Cell, destination: &Node) {
         self.socket
             .send_to(&cell.serialize(), destination.get_addr())
             .expect("[FAILED] Rpc::send_msg --> Error while sending message to specified address");
@@ -46,26 +46,27 @@ impl Connection {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::Ipv4Addr;
 
     #[test]
     fn test_connection() {
-        let node1 = Node::new("127.0.0.1".to_string(), 7999);
-        let node2 = Node::new("127.0.0.1".to_string(), 8000);
-        let node3 = Node::new("127.0.0.1".to_string(), 8001);
+        let node1 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 7999);
+        let node2 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8000);
+        let node3 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8001);
 
-        let connection1 = Arc::new(Connection::new(node1.clone()));
-        let connection2 = Arc::new(Connection::new(node2.clone()));
-        let connection3 = Arc::new(Connection::new(node3.clone()));
+        let connection1 = Arc::new(Connection::new(node1));
+        let connection2 = Arc::new(Connection::new(node2));
+        let connection3 = Arc::new(Connection::new(node3));
 
         Arc::clone(&connection1).open();
         Arc::clone(&connection2).open();
         Arc::clone(&connection3).open();
 
-        connection2.send_cell(&Cell::default(), node1.clone());
-        connection2.send_cell(&Cell::default(), node3.clone());
-        connection3.send_cell(&Cell::default(), node1.clone());
-        connection3.send_cell(&Cell::default(), node2.clone());
-        connection1.send_cell(&Cell::default(), node2.clone());
-        connection1.send_cell(&Cell::default(), node3.clone());
+        connection2.send_cell(&Cell::default(), &node1);
+        connection2.send_cell(&Cell::default(), &node3);
+        connection3.send_cell(&Cell::default(), &node1);
+        connection3.send_cell(&Cell::default(), &node2);
+        connection1.send_cell(&Cell::default(), &node2);
+        connection1.send_cell(&Cell::default(), &node3);
     }
 }
