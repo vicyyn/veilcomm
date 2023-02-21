@@ -2,18 +2,22 @@
 // proxies is a fixed-width "cell". 512 bytes size.
 use crate::*;
 use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 
-pub const CELL_SIZE: usize = 512;
 pub const CELL_PAYLOAD_SIZE: usize = 509;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Cell {
-    pub circ_id: u16,
-    pub command: u8,
-    pub payload: Payload,
+pub struct Payload {
+    pub relay_command: u8,
+    pub recognized: u16,
+    pub stream_id: u16,
+    pub digest: u32,
+    pub length: u16,
+    #[serde(with = "BigArray")]
+    pub data: [u8; 498],
 }
 
-impl Cell {
+impl Payload {
     pub fn serialize(&self) -> Vec<u8> {
         bincode::serialize(self).expect("[FAILED] Rpc::send_msg --> Unable to serialize message")
     }
@@ -24,12 +28,15 @@ impl Cell {
     }
 }
 
-impl Default for Cell {
+impl Default for Payload {
     fn default() -> Self {
         Self {
-            circ_id: 0,
-            command: 0,
-            payload: Payload::default(),
+            relay_command: 0,
+            recognized: 0,
+            stream_id: 0,
+            digest: 0,
+            length: 0,
+            data: [0; 498],
         }
     }
 }
