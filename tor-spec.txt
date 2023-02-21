@@ -1689,33 +1689,33 @@ see tor-design.pdf.
    * directory servers (RELAY_BEGIN_DIR, anonymous or non-anonymous),
    * onion services (RELAY_BEGIN, anonymous via a rendezvous point).
 
-   The payload of each unencrypted RELAY cell consists of:
-
-         Relay command           [1 byte]
-         'Recognized'            [2 bytes]
-         StreamID                [2 bytes]
-         Digest                  [4 bytes]
-         Length                  [2 bytes]
-         Data                    [Length bytes]
-         Padding                 [PAYLOAD_LEN - 11 - Length bytes]
-
-   The relay commands are:
-
-         1 -- RELAY_BEGIN     [forward]
-         2 -- RELAY_DATA      [forward or backward]
-         3 -- RELAY_END       [forward or backward]
-         4 -- RELAY_CONNECTED [backward]
-         5 -- RELAY_SENDME    [forward or backward] [sometimes control]
-         6 -- RELAY_EXTEND    [forward]             [control]
-         7 -- RELAY_EXTENDED  [backward]            [control]
-         8 -- RELAY_TRUNCATE  [forward]             [control]
-         9 -- RELAY_TRUNCATED [backward]            [control]
-        10 -- RELAY_DROP      [forward or backward] [control]
-        11 -- RELAY_RESOLVE   [forward]
-        12 -- RELAY_RESOLVED  [backward]
-        13 -- RELAY_BEGIN_DIR [forward]
-        14 -- RELAY_EXTEND2   [forward]             [control]
-        15 -- RELAY_EXTENDED2 [backward]            [control]
+#   The payload of each unencrypted RELAY cell consists of:
+#
+#         Relay command           [1 byte]
+#         'Recognized'            [2 bytes]
+#         StreamID                [2 bytes]
+#         Digest                  [4 bytes]
+#         Length                  [2 bytes]
+#         Data                    [Length bytes]
+#         Padding                 [PAYLOAD_LEN - 11 - Length bytes]
+#
+#   The relay commands are:
+#
+#         1 -- RELAY_BEGIN     [forward]
+#         2 -- RELAY_DATA      [forward or backward]
+#         3 -- RELAY_END       [forward or backward]
+#         4 -- RELAY_CONNECTED [backward]
+#         5 -- RELAY_SENDME    [forward or backward] [sometimes control]
+#         6 -- RELAY_EXTEND    [forward]             [control]
+#         7 -- RELAY_EXTENDED  [backward]            [control]
+#         8 -- RELAY_TRUNCATE  [forward]             [control]
+#         9 -- RELAY_TRUNCATED [backward]            [control]
+#        10 -- RELAY_DROP      [forward or backward] [control]
+#        11 -- RELAY_RESOLVE   [forward]
+#        12 -- RELAY_RESOLVED  [backward]
+#        13 -- RELAY_BEGIN_DIR [forward]
+#        14 -- RELAY_EXTEND2   [forward]             [control]
+#        15 -- RELAY_EXTENDED2 [backward]            [control]
 
         16..18 -- Reserved for UDP; Not yet in use, see prop339.
 
