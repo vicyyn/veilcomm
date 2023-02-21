@@ -1,0 +1,63 @@
+use openssl::{pkey::PKey, pkey::Private, rsa::Rsa};
+use std::str::from_utf8;
+
+pub const KEY_LEN: usize = 32;
+
+pub struct Keys {
+    pub relay_id_rsa: Rsa<Private>,
+    pub onion_tap: Rsa<Private>,
+    pub conn_tls: Rsa<Private>,
+    pub ntor: PKey<Private>,
+    pub relay_id_ed: PKey<Private>,
+    pub relay_sign_ed: PKey<Private>,
+    pub link_ed: PKey<Private>,
+}
+
+impl Keys {
+    pub fn new() -> Self {
+        let relay_id_rsa = Rsa::generate(2048).unwrap();
+        let onion_tap = Rsa::generate(2048).unwrap();
+        let conn_tls = Rsa::generate(2048).unwrap();
+
+        let ntor = PKey::generate_x25519().unwrap();
+
+        let relay_id_ed = PKey::generate_ed25519().unwrap();
+        let relay_sign_ed = PKey::generate_ed25519().unwrap();
+        let link_ed = PKey::generate_ed25519().unwrap();
+
+        Self {
+            relay_id_rsa,
+            onion_tap,
+            conn_tls,
+            ntor,
+            relay_id_ed,
+            relay_sign_ed,
+            link_ed,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use openssl::rsa::Padding;
+
+    use super::*;
+
+    #[test]
+    fn test_rsa() {
+        let my_keys = Keys::new();
+        let rsa = my_keys.relay_id_rsa;
+        let data = b"foobar";
+        println!("{}", data.len());
+        let mut encrypted = vec![0; rsa.size() as usize];
+        let _ = rsa
+            .public_encrypt(data, &mut encrypted, Padding::PKCS1)
+            .unwrap();
+        println!("{} ", encrypted.len());
+        let mut decrypted = vec![0; encrypted.len() as usize];
+        let bytes = rsa
+            .private_decrypt(&encrypted, &mut decrypted, Padding::PKCS1)
+            .unwrap();
+        println!("{:?}", from_utf8(&decrypted[0..bytes]).unwrap());
+    }
+}

@@ -1,5 +1,4 @@
-// The basic unit of communication for onion routers and onion
-// proxies is a fixed-width "cell". 512 bytes size.
+// Payload that gets sent in the cell
 use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;

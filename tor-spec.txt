@@ -134,11 +134,11 @@ see tor-design.pdf.
 
    HASH_LEN -- the length of the hash function's output, in bytes.
 
-   PAYLOAD_LEN -- The longest allowable cell payload, in bytes. (509)
-
-   CELL_LEN(v) -- The length of a Tor cell, in bytes, for link protocol
-      version v.
-       CELL_LEN(v) = 512    if v is less than 4;
+#   PAYLOAD_LEN -- The longest allowable cell payload, in bytes. (509)
+#
+#   CELL_LEN(v) -- The length of a Tor cell, in bytes, for link protocol
+#      version v.
+#       CELL_LEN(v) = 512    if v is less than 4;
                    = 514    otherwise.
 
 0.3. Ciphers

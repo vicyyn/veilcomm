@@ -4,7 +4,6 @@ use crate::*;
 use serde::{Deserialize, Serialize};
 
 pub const CELL_SIZE: usize = 512;
-pub const CELL_PAYLOAD_SIZE: usize = 509;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Cell {
