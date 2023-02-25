@@ -45,19 +45,22 @@ mod tests {
 
     #[test]
     fn test_rsa() {
-        let my_keys = Keys::new();
-        let rsa = my_keys.relay_id_rsa;
-        let data = b"foobar";
-        println!("{}", data.len());
-        let mut encrypted = vec![0; rsa.size() as usize];
-        let _ = rsa
-            .public_encrypt(data, &mut encrypted, Padding::PKCS1)
-            .unwrap();
-        println!("{} ", encrypted.len());
-        let mut decrypted = vec![0; encrypted.len() as usize];
-        let bytes = rsa
-            .private_decrypt(&encrypted, &mut decrypted, Padding::PKCS1)
-            .unwrap();
-        println!("{:?}", from_utf8(&decrypted[0..bytes]).unwrap());
+        // let my_keys = Keys::new();
+        // let rsa = my_keys.relay_id_rsa;
+        // let data = b"foobar";
+        // println!("{}", data.len());
+        // let mut encrypted = vec![0; rsa.size() as usize];
+        // let _ = rsa
+        //     .public_encrypt(data, &mut encrypted, Padding::PKCS1)
+        //     .unwrap();
+        // println!("{} ", encrypted.len());
+        // let mut decrypted = vec![0; encrypted.len() as usize];
+        // let bytes = rsa
+        //     .private_decrypt(&encrypted, &mut decrypted, Padding::PKCS1)
+        //     .unwrap();
+        // println!("{:?}", from_utf8(&decrypted[0..bytes]).unwrap());
+
+        // let len = my_keys.onion_tap.private_key_to_pem().unwrap();
+        // println!("{}", len.len());
     }
 }

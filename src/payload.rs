@@ -25,6 +25,11 @@ impl Payload {
         bincode::deserialize(&buffer.to_vec())
             .expect("[FAILED] Rpc::open, serde_json --> Unable to decode string payload")
     }
+
+    pub fn set_data(&mut self, data: &[u8]) {
+        self.data[..data.len()].copy_from_slice(&data);
+        self.length = data.len().try_into().unwrap();
+    }
 }
 
 impl Default for Payload {

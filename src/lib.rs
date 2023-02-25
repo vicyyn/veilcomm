@@ -5,6 +5,7 @@ pub mod key;
 pub mod keys;
 pub mod node;
 pub mod payload;
+pub mod payload_data;
 pub mod relay_command;
 
 pub use cell::*;
@@ -14,4 +15,5 @@ pub use key::*;
 pub use keys::*;
 pub use node::*;
 pub use payload::*;
+pub use payload_data::*;
 pub use relay_command::*;
