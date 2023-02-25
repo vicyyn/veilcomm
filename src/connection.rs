@@ -48,7 +48,7 @@ impl Connection {
         self.streams.insert(key, stream);
     }
 
-    pub fn open(self: Arc<Self>) {
+    pub fn open(connection: Arc<Mutex<Self>>) {
         // let keys = Keys::new();
 
         thread::spawn(move || {
@@ -80,17 +80,20 @@ impl Connection {
             //    .unwrap();
             //let sslconf = acceptor.build().configure().unwrap();
 
-            for stream in self.socket.incoming() {
-                match stream {
-                    Ok(mut stream) => {
+            let mut connection_mutex = connection.lock().unwrap();
+            loop {
+                match connection_mutex.socket.accept() {
+                    Ok((stream, addr)) => {
                         println!(
                             "[SUCCESS] Connection::open --> New client connected: {:?}",
-                            stream.peer_addr().unwrap()
+                            addr
                         );
 
                         let key = Key::new((&stream).peer_addr().unwrap().to_string());
-                        //self.add_stream(key, Arc::clone(&stream_arc));
-                        self.receive(&mut stream);
+                        let stream_mutex = Arc::new(Mutex::new(stream));
+
+                        connection_mutex.add_stream(key, Arc::clone(&stream_mutex));
+                        connection_mutex.receive(stream_mutex);
                     }
                     Err(e) => {
                         println!(
@@ -103,18 +106,19 @@ impl Connection {
         });
     }
 
-    pub fn receive(&self, stream: &mut TcpStream) {
+    pub fn receive(&self, stream: Arc<Mutex<TcpStream>>) {
         let mut buffer = [0u8; CELL_SIZE];
+        let mut stream_mutex = stream.lock().unwrap();
         loop {
-            match stream.read(&mut buffer) {
+            match stream_mutex.read(&mut buffer) {
                 Ok(0) => {
                     break;
                 }
                 Ok(n) => {
                     println!(
-                        "Received : {} bytes from {:?}",
+                        "[INFO] Connection:receive --> Received : {} bytes from {:?}",
                         n,
-                        stream.peer_addr().unwrap()
+                        stream_mutex.peer_addr().unwrap()
                     );
                     let cell = Cell::deserialize(&buffer);
 
@@ -126,17 +130,39 @@ impl Connection {
                         .compute_key(&BigNum::from_slice(&received_public_key_bytes).unwrap())
                         .unwrap();
 
-                    println!("Shared secret: {}", hex::encode(received_public_key));
+                    println!(
+                        "[INFO] Connection::receive --> Shared secret: {}",
+                        hex::encode(received_public_key)
+                    );
                 }
                 Err(e) => {
-                    println!("Error reading from socket: {}", e);
+                    println!(
+                        "[FAILED] Connection::receive --> Error reading from socket: {}",
+                        e
+                    );
                     break;
                 }
             }
         }
     }
 
-    pub fn send_cell(&self, cell: &mut Cell, destination: &Node) {
+    pub fn establish_connection(&mut self, destination: &Node) {
+        match TcpStream::connect(destination.get_addr()) {
+            Ok(stream) => {
+                let key = Key::new((&stream).peer_addr().unwrap().to_string());
+                self.add_stream(key, Arc::new(Mutex::new(stream)));
+                println!(
+                    "[SUCCESS] Connection::establish_connection --> Connected to Peer: {:?}",
+                    destination.get_addr()
+                );
+            }
+            Err(e) => {
+                println!("Error connecting to server: {}", e);
+            }
+        }
+    }
+
+    pub fn send_cell(&mut self, cell: &mut Cell, key: &Key) {
         //let connector = SslConnector::builder(SslMethod::tls()).unwrap();
         //let sslconf = connector.build().configure().unwrap();
         let public_key = self.dh.public_key();
@@ -144,14 +170,8 @@ impl Connection {
         let public_key_bytes = public_key.to_vec();
         cell.payload.set_data(&public_key_bytes);
         //let mut socket = sslconf.connect(&destination.get_addr(), &stream).unwrap();
-        match TcpStream::connect(destination.get_addr()) {
-            Ok(mut stream) => {
-                stream.write(&cell.serialize()).unwrap();
-            }
-            Err(e) => {
-                println!("Error connecting to server: {}", e);
-            }
-        }
+        let stream = self.streams.get(key).unwrap();
+        stream.lock().unwrap().write(&cell.serialize()).unwrap();
 
         //stream
         //    .write(&cell.serialize())
@@ -170,15 +190,20 @@ mod tests {
         let node2 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8000);
         let node3 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8001);
 
-        let connection1 = Arc::new(Connection::new(node1));
-        let connection2 = Arc::new(Connection::new(node2));
-        let connection3 = Arc::new(Connection::new(node3));
+        let connection1 = Arc::new(Mutex::new(Connection::new(node1)));
+        let connection2 = Arc::new(Mutex::new(Connection::new(node2)));
+        let connection3 = Arc::new(Mutex::new(Connection::new(node3)));
 
         Connection::open(Arc::clone(&connection1));
         Connection::open(Arc::clone(&connection2));
         Connection::open(Arc::clone(&connection3));
 
-        connection2.send_cell(&mut Cell::default(), &node1);
+        let mut connection2_mutex = connection2.lock().unwrap();
+
+        connection2_mutex.establish_connection(&node1);
+        connection2_mutex.send_cell(&mut Cell::default(), &node1.key);
+        connection2_mutex.send_cell(&mut Cell::default(), &node1.key);
+        connection2_mutex.send_cell(&mut Cell::default(), &node1.key);
 
         //connection1.send_cell(&mut Cell::default(), &node2);
         //connection2.send_cell(&mut Cell::default(), &node3);
