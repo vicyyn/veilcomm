@@ -1,4 +1,4 @@
-// Payload that gets sent in the cell
+// Cell Payload
 use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
@@ -17,14 +17,30 @@ impl Payload {
         bincode::serialize(self).expect("[FAILED] Rpc::send_msg --> Unable to serialize message")
     }
 
-    pub fn deserialize(buffer: &[u8]) -> Cell {
+    pub fn deserialize(buffer: &[u8]) -> Payload {
         bincode::deserialize(&buffer.to_vec())
             .expect("[FAILED] Rpc::open, serde_json --> Unable to decode string payload")
+    }
+
+    pub fn deserialize_into_create_payload(&self) -> CreatePayload {
+        CreatePayload::deserialize(&self.0)
     }
 }
 
 impl Default for Payload {
     fn default() -> Self {
         Self([0; PAYLOAD_SIZE])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_payload() {
+        let payload = Payload::default();
+        let create_payload = payload.deserialize_into_create_payload();
+        println!("{:?}", create_payload);
     }
 }

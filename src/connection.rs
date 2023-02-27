@@ -1,15 +1,7 @@
 use openssl::bn::BigNum;
-use openssl::hash::MessageDigest;
-use openssl::nid::Nid;
-use openssl::pkey::{PKey, Private};
-use openssl::ssl::{
-    SslAcceptor, SslConnector, SslFiletype, SslMethod, SslStream, SslVerifyMode, SslVersion,
-};
-
 use openssl::dh::Dh;
-use openssl::error::ErrorStack;
+use openssl::pkey::Private;
 
-use openssl::x509::{X509Builder, X509Name, X509};
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, TcpListener, TcpStream};
 use std::str::FromStr;
@@ -23,6 +15,7 @@ pub struct Connection {
     pub socket: TcpListener,
     pub node: Node,
     pub dh: Dh<Private>,
+    pub aes_keys: HashMap<Node, u16>,
     pub streams: HashMap<Node, Arc<Mutex<TcpStream>>>,
 }
 
@@ -40,6 +33,7 @@ impl Connection {
             socket,
             node,
             dh: Dh::get_2048_256().unwrap().generate_key().unwrap(),
+            aes_keys: HashMap::new(),
             streams: HashMap::new(),
         }
     }
@@ -86,6 +80,10 @@ impl Connection {
         loop {
             match stream_mutex.read(&mut buffer) {
                 Ok(0) => {
+                    println!(
+                        "[WARNING] Connection:receive --> Connection has disconnected from {}",
+                        stream_mutex.peer_addr().unwrap()
+                    );
                     break;
                 }
                 Ok(n) => {
@@ -95,19 +93,7 @@ impl Connection {
                         stream_mutex.peer_addr().unwrap()
                     );
 
-                    let cell = Cell::deserialize(&buffer);
-                    println!("{:?}", cell);
-                    //let received_public_key_bytes = cell.payload.dh_key;
-
-                    //let received_public_key = self
-                    //    .dh
-                    //    .compute_key(&BigNum::from_slice(&received_public_key_bytes).unwrap())
-                    //    .unwrap();
-
-                    //println!(
-                    //    "[INFO] Connection::receive --> Shared secret: {}",
-                    //    hex::encode(received_public_key)
-                    //);
+                    self.handle_cell(Cell::deserialize(&buffer));
                 }
                 Err(e) => {
                     println!(
@@ -118,6 +104,34 @@ impl Connection {
                 }
             }
         }
+    }
+
+    pub fn handle_cell(&self, cell: Cell) {
+        match CellCommand::try_from(cell.command) {
+            Ok(command) => match command {
+                CellCommand::Create => self.handle_create_cell(cell),
+                _ => println!("Other"),
+            },
+            Err(e) => println!(
+                "[FAILED] Connection::handle_cell --> Error getting cell command: {}",
+                e
+            ),
+        };
+    }
+
+    pub fn handle_create_cell(&self, cell: Cell) {
+        let create_payload = cell.payload.deserialize_into_create_payload();
+        let received_public_key_bytes = create_payload.dh_key;
+
+        let received_public_key = self
+            .dh
+            .compute_key(&BigNum::from_slice(&received_public_key_bytes).unwrap())
+            .unwrap();
+
+        println!(
+            "[INFO] Connection::receive --> Shared secret: {}",
+            hex::encode(received_public_key)
+        );
     }
 
     pub fn establish_connection(&mut self, destination: &Node) {
@@ -136,6 +150,17 @@ impl Connection {
     }
 
     pub fn send_cell(&mut self, cell: &mut Cell, destination: &Node) {
+        match CellCommand::try_from(cell.command) {
+            Ok(command) => match command {
+                CellCommand::Create => {}
+                _ => println!("Other"),
+            },
+            Err(e) => println!(
+                "[FAILED] Connection::handle_cell --> Error getting cell command: {}",
+                e
+            ),
+        };
+
         let stream = self.streams.get(destination).unwrap();
         let cell_serialized = cell.serialize();
         stream.lock().unwrap().write(&cell_serialized).unwrap();
@@ -144,10 +169,9 @@ impl Connection {
 
 #[cfg(test)]
 mod tests {
-    use openssl::bn::BigNumRef;
 
     use super::*;
-    use std::net::Ipv4Addr;
+    use openssl::bn::BigNumRef;
 
     #[test]
     fn test_connection() {
@@ -171,7 +195,7 @@ mod tests {
             public_key = connection2_mutex.dh.public_key();
         }
         let public_key_bytes = public_key.to_vec();
-        let cell = &mut Cell::get_create_cell(0, Payload::new(&public_key_bytes));
+        let cell = &mut Cell::get_create_cell(0, 1, Payload::new(&public_key_bytes));
 
         connection2_mutex.establish_connection(&node1);
         connection2_mutex.send_cell(cell, &node1);

@@ -2,11 +2,9 @@
 // proxies is a fixed-width "cell". 512 bytes size.
 use crate::*;
 use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Cell {
-    // header
     pub circ_id: u16,
     pub command: u8,
     pub payload: Payload,
@@ -21,10 +19,10 @@ impl Cell {
         bincode::deserialize(&buffer.to_vec()).unwrap()
     }
 
-    pub fn get_create_cell(circ_id: u16, payload: Payload) -> Cell {
+    pub fn get_create_cell(circ_id: u16, command: u8, payload: Payload) -> Cell {
         Self {
             circ_id,
-            command: 1,
+            command,
             payload,
         }
     }

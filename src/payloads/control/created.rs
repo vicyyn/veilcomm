@@ -26,8 +26,8 @@ impl CreatedPayload {
         self.dh_key[..dh_key.len()].copy_from_slice(&dh_key);
     }
 
-    pub fn get_create_cell(dh_key: &[u8]) -> CreatePayload {
-        let mut create_payload = CreatePayload::default();
+    pub fn get_create_cell(dh_key: &[u8]) -> CreatedPayload {
+        let mut create_payload = CreatedPayload::default();
         create_payload.set_dh_key(dh_key);
         create_payload
     }
