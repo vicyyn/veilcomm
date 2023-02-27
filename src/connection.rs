@@ -96,17 +96,18 @@ impl Connection {
                     );
 
                     let cell = Cell::deserialize(&buffer);
-                    let received_public_key_bytes = cell.payload.dh_key;
+                    println!("{:?}", cell);
+                    //let received_public_key_bytes = cell.payload.dh_key;
 
-                    let received_public_key = self
-                        .dh
-                        .compute_key(&BigNum::from_slice(&received_public_key_bytes).unwrap())
-                        .unwrap();
+                    //let received_public_key = self
+                    //    .dh
+                    //    .compute_key(&BigNum::from_slice(&received_public_key_bytes).unwrap())
+                    //    .unwrap();
 
-                    println!(
-                        "[INFO] Connection::receive --> Shared secret: {}",
-                        hex::encode(received_public_key)
-                    );
+                    //println!(
+                    //    "[INFO] Connection::receive --> Shared secret: {}",
+                    //    hex::encode(received_public_key)
+                    //);
                 }
                 Err(e) => {
                     println!(
@@ -170,8 +171,7 @@ mod tests {
             public_key = connection2_mutex.dh.public_key();
         }
         let public_key_bytes = public_key.to_vec();
-        let create_payload = CreatePayload::get_create_cell(&public_key_bytes);
-        let cell = &mut Cell::get_create_cell(0, create_payload);
+        let cell = &mut Cell::get_create_cell(0, Payload::new(&public_key_bytes));
 
         connection2_mutex.establish_connection(&node1);
         connection2_mutex.send_cell(cell, &node1);
