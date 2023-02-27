@@ -3,23 +3,30 @@
 use crate::*;
 use serde::{Deserialize, Serialize};
 
-pub const CELL_SIZE: usize = 512;
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Cell {
+    // header
     pub circ_id: u16,
     pub command: u8,
+    // payload
     pub payload: Payload,
 }
 
 impl Cell {
     pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self).expect("[FAILED] Rpc::send_msg --> Unable to serialize message")
+        bincode::serialize(self).expect("[FAILED] Cell::serialize --> Unable to serialize cell")
     }
 
     pub fn deserialize(buffer: &[u8]) -> Cell {
-        bincode::deserialize(&buffer.to_vec())
-            .expect("[FAILED] Rpc::open, serde_json --> Unable to decode string payload")
+        bincode::deserialize(&buffer.to_vec()).unwrap()
+    }
+
+    pub fn get_create_cell(circ_id: u16, payload: Payload) -> Cell {
+        Self {
+            circ_id,
+            command: 1,
+            payload,
+        }
     }
 }
 
