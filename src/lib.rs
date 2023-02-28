@@ -1,3 +1,4 @@
+pub mod aes_key;
 pub mod cell;
 pub mod cell_command;
 pub mod connection;
@@ -9,6 +10,7 @@ pub mod payloads;
 pub mod relay_command;
 pub mod utils;
 
+pub use aes_key::*;
 pub use cell::*;
 pub use cell_command::*;
 pub use connection::*;

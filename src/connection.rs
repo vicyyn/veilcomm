@@ -10,28 +10,16 @@ use std::io::{Read, Write};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-pub type Aeskey = [u8; 16];
-
 pub struct Connection {
-    pub socket: TcpListener,
     pub node: Node,
     pub dh: Dh<Private>,
-    pub aes_keys: HashMap<Node, Aeskey>,
+    pub aes_keys: HashMap<Node, AESKey>,
     pub streams: HashMap<Node, Arc<Mutex<TcpStream>>>,
 }
 
 impl Connection {
     pub fn new(node: Node) -> Self {
-        let socket = TcpListener::bind(node.get_addr())
-            .expect("[FAILED] Connection::new --> Error while binding TcpSocket to specified addr");
-
-        println!(
-            "[SUCCESS] Connection::open --> Listening for incoming connections: {:?}",
-            node.get_addr()
-        );
-
         Self {
-            socket,
             node,
             dh: Dh::get_2048_256().unwrap().generate_key().unwrap(),
             aes_keys: HashMap::new(),
@@ -43,25 +31,32 @@ impl Connection {
         self.streams.insert(node, stream);
     }
 
-    pub fn add_aes_key(&mut self, node: Node, aes_key: Aeskey) {
+    pub fn add_aes_key(&mut self, node: Node, aes_key: AESKey) {
         self.aes_keys.insert(node, aes_key);
     }
 
-    pub fn open(connection: Arc<Mutex<Self>>) {
-        println!("qsd");
-        thread::spawn(move || {
-            let mut connection_mutex = connection.lock().unwrap();
+    pub fn open(connection: Arc<Mutex<Self>>, node: Node) {
+        thread::spawn(move || loop {
+            let socket = TcpListener::bind(node.get_addr()).expect(
+                "[FAILED] Connection::new --> Error while binding TcpSocket to specified addr",
+            );
+            println!(
+                "[SUCCESS] Connection::open --> Listening for incoming connections: {:?}",
+                node.get_addr()
+            );
+
             loop {
-                match connection_mutex.socket.accept() {
+                match socket.accept() {
                     Ok((stream, addr)) => {
                         println!(
                             "[SUCCESS] Connection::open --> New client connected: {:?}",
                             addr
                         );
 
+                        let mut connection_mutex = connection.lock().unwrap();
                         let stream_mutex = Arc::new(Mutex::new(stream));
                         connection_mutex.add_stream(addr.into(), Arc::clone(&stream_mutex));
-                        connection_mutex.receive(stream_mutex);
+                        Connection::receive(Arc::clone(&connection), stream_mutex);
                     }
                     Err(e) => {
                         println!(
@@ -74,10 +69,11 @@ impl Connection {
         });
     }
 
-    pub fn receive(&mut self, stream: Arc<Mutex<TcpStream>>) {
+    pub fn receive(connection: Arc<Mutex<Self>>, stream: Arc<Mutex<TcpStream>>) {
         let mut buffer = [0u8; CELL_SIZE];
-        let mut stream_mutex = stream.lock().unwrap();
-        loop {
+
+        thread::spawn(move || loop {
+            let mut stream_mutex = stream.lock().unwrap();
             match stream_mutex.read(&mut buffer) {
                 Ok(0) => {
                     println!(
@@ -94,7 +90,8 @@ impl Connection {
                     );
 
                     let node: Node = stream_mutex.peer_addr().unwrap().into();
-                    self.handle_cell(node, Cell::deserialize(&buffer));
+                    let mut connection_mutex = connection.lock().unwrap();
+                    connection_mutex.handle_cell(node, Cell::deserialize(&buffer));
                 }
                 Err(e) => {
                     println!(
@@ -104,7 +101,7 @@ impl Connection {
                     break;
                 }
             }
-        }
+        });
     }
 
     pub fn handle_cell(&mut self, node: Node, cell: Cell) {
@@ -129,13 +126,15 @@ impl Connection {
             .compute_key(&BigNum::from_slice(&received_public_key_bytes).unwrap())
             .unwrap();
 
-        let aes_key: [u8; 16] = received_public_key_bytes[0..16].try_into().unwrap();
+        let aes_key: AESKey = received_public_key_bytes[0..16].try_into().unwrap();
         self.add_aes_key(node, aes_key);
 
         println!(
             "[INFO] Connection::receive --> Shared secret: {}",
             hex::encode(received_public_key)
         );
+
+        println!("{:?}", self.aes_keys);
     }
 
     pub fn establish_connection(&mut self, destination: &Node) {
@@ -159,7 +158,12 @@ impl Connection {
     pub fn send_cell(&mut self, cell: &mut Cell, destination: &Node) {
         match CellCommand::try_from(cell.command) {
             Ok(command) => match command {
-                CellCommand::Create => {}
+                CellCommand::Create => {
+                    println!(
+                        "[INFO] Connection::send_cell --> Sent Create Cell to: {}",
+                        destination.get_info()
+                    );
+                }
                 _ => println!("Other"),
             },
             Err(e) => println!(
@@ -192,9 +196,9 @@ mod tests {
         let connection2 = Arc::new(Mutex::new(Connection::new(node2)));
         let connection3 = Arc::new(Mutex::new(Connection::new(node3)));
 
-        Connection::open(Arc::clone(&connection1));
-        Connection::open(Arc::clone(&connection2));
-        Connection::open(Arc::clone(&connection3));
+        Connection::open(Arc::clone(&connection1), node1);
+        Connection::open(Arc::clone(&connection2), node2);
+        Connection::open(Arc::clone(&connection3), node3);
 
         {
             let mut connection2_mutex = connection2.lock().unwrap();
@@ -212,25 +216,20 @@ mod tests {
             drop(connection2_mutex)
         }
 
-        let mut connection3_mutex = connection3.lock().unwrap();
-
-        // create cell
-        let public_key: &BigNumRef;
         {
-            public_key = connection3_mutex.dh.public_key();
+            let mut connection3_mutex = connection3.lock().unwrap();
+
+            // create cell
+            let public_key: &BigNumRef;
+            {
+                public_key = connection3_mutex.dh.public_key();
+            }
+            let public_key_bytes = public_key.to_vec();
+            let cell = &mut Cell::new_create_cell(0, Payload::new(&public_key_bytes));
+
+            connection3_mutex.establish_connection(&node1);
+            connection3_mutex.send_cell(cell, &node1);
         }
-        let public_key_bytes = public_key.to_vec();
-        let cell = &mut Cell::new_create_cell(0, Payload::new(&public_key_bytes));
-
-        connection3_mutex.establish_connection(&node1);
-
-        connection3_mutex.send_cell(cell, &node1);
-
-        //connection1.send_cell(&mut Cell::default(), &node2);
-        //connection2.send_cell(&mut Cell::default(), &node3);
-        //connection3.send_cell(&mut Cell::default(), &node1);
-        //connection3.send_cell(&mut Cell::default(), &node2);
-        //connection1.send_cell(&mut Cell::default(), &node3);
 
         loop {}
     }

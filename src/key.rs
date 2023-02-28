@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fmt::{Debug, Error, Formatter};
 
-pub const KEY_LEN: usize = 32;
+const KEY_LEN: usize = 32;
 
 #[derive(Copy, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct Key(pub [u8; KEY_LEN]);
