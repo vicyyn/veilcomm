@@ -54,13 +54,7 @@ impl Connection {
                         );
 
                         let stream_mutex = Arc::new(Mutex::new(stream));
-                        connection_mutex.add_stream(
-                            Node::new(
-                                Ipv4Addr::from_str(&addr.ip().to_string()).unwrap(),
-                                addr.port(),
-                            ),
-                            Arc::clone(&stream_mutex),
-                        );
+                        connection_mutex.add_stream(addr.into(), Arc::clone(&stream_mutex));
                         connection_mutex.receive(stream_mutex);
                     }
                     Err(e) => {
@@ -120,7 +114,7 @@ impl Connection {
     }
 
     pub fn handle_create_cell(&self, cell: Cell) {
-        let create_payload = cell.payload.deserialize_into_create_payload();
+        let create_payload: CreatePayload = cell.payload.into();
         let received_public_key_bytes = create_payload.dh_key;
 
         let received_public_key = self
@@ -137,14 +131,17 @@ impl Connection {
     pub fn establish_connection(&mut self, destination: &Node) {
         match TcpStream::connect(destination.get_addr()) {
             Ok(stream) => {
-                self.add_stream(*destination, Arc::new(Mutex::new(stream)));
                 println!(
                     "[SUCCESS] Connection::establish_connection --> Connected to Peer: {:?}",
                     destination.get_addr()
                 );
+                self.add_stream(*destination, Arc::new(Mutex::new(stream)));
             }
             Err(e) => {
-                println!("Error connecting to server: {}", e);
+                println!(
+                    "[FAILED] Connection::establish_connection --> Error Connecting to Peer: {}",
+                    e
+                );
             }
         }
     }
@@ -156,7 +153,7 @@ impl Connection {
                 _ => println!("Other"),
             },
             Err(e) => println!(
-                "[FAILED] Connection::handle_cell --> Error getting cell command: {}",
+                "[FAILED] Connection::handle_cell --> Error Getting Cell Command: {}",
                 e
             ),
         };

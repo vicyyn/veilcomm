@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 pub enum CellCommand {
     // The 'Command' field of a fixed-length cell holds one of the following
     Padding = 0,

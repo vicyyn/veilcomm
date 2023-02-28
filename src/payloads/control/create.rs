@@ -1,12 +1,20 @@
 // The basic unit of communication for onion routers and onion
 // proxies is a fixed-width "cell". 512 bytes size.
+use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
+use std::convert::From;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CreatePayload {
     #[serde(with = "BigArray")]
     pub dh_key: [u8; 256],
+}
+
+impl From<Payload> for CreatePayload {
+    fn from(value: Payload) -> Self {
+        Self::deserialize(value.get_buffer())
+    }
 }
 
 impl CreatePayload {

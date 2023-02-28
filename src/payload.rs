@@ -22,8 +22,8 @@ impl Payload {
             .expect("[FAILED] Rpc::open, serde_json --> Unable to decode string payload")
     }
 
-    pub fn deserialize_into_create_payload(&self) -> CreatePayload {
-        CreatePayload::deserialize(&self.0)
+    pub fn get_buffer(&self) -> &[u8] {
+        &self.0
     }
 }
 
@@ -40,7 +40,7 @@ mod tests {
     #[test]
     fn test_payload() {
         let payload = Payload::default();
-        let create_payload = payload.deserialize_into_create_payload();
+        let create_payload: CreatePayload = payload.into();
         println!("{:?}", create_payload);
     }
 }

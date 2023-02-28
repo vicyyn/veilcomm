@@ -1,12 +1,23 @@
 use crate::*;
 use serde::{Deserialize, Serialize};
-use std::net::Ipv4Addr;
+use std::convert::From;
+use std::net::{Ipv4Addr, SocketAddr};
+use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct Node {
     pub ip: Ipv4Addr,
     pub port: u16,
     pub key: Key,
+}
+
+impl From<SocketAddr> for Node {
+    fn from(addr: SocketAddr) -> Self {
+        Node::new(
+            Ipv4Addr::from_str(&addr.ip().to_string()).unwrap(),
+            addr.port(),
+        )
+    }
 }
 
 impl Node {
