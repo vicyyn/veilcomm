@@ -11,6 +11,14 @@ pub struct Cell {
 }
 
 impl Cell {
+    pub fn new(circ_id: u16, command: u8, payload: Payload) -> Self {
+        Self {
+            circ_id,
+            command,
+            payload,
+        }
+    }
+
     pub fn serialize(&self) -> Vec<u8> {
         bincode::serialize(self).expect("[FAILED] Cell::serialize --> Unable to serialize cell")
     }
@@ -19,12 +27,8 @@ impl Cell {
         bincode::deserialize(&buffer.to_vec()).unwrap()
     }
 
-    pub fn get_create_cell(circ_id: u16, command: u8, payload: Payload) -> Cell {
-        Self {
-            circ_id,
-            command,
-            payload,
-        }
+    pub fn new_create_cell(circ_id: u16, payload: Payload) -> Cell {
+        Cell::new(circ_id, 1, payload)
     }
 }
 

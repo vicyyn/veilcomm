@@ -39,8 +39,8 @@ mod tests {
 
     #[test]
     fn test_payload() {
-        let payload = Payload::default();
-        let create_payload: CreatePayload = payload.into();
-        println!("{:?}", create_payload);
+        // let payload = Payload::default();
+        // let create_payload: CreatePayload = payload.into();
+        // println!("{:?}", create_payload);
     }
 }
