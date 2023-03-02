@@ -39,9 +39,8 @@ impl Keys {
 
 #[cfg(test)]
 mod tests {
-    use openssl::rsa::Padding;
-
     use super::*;
+    use openssl::rsa::Padding;
 
     #[test]
     fn test_rsa() {

@@ -1,6 +1,7 @@
 pub mod aes_key;
 pub mod cell;
 pub mod cell_command;
+pub mod circuit;
 pub mod connection;
 pub mod key;
 pub mod keys;
@@ -13,6 +14,7 @@ pub mod utils;
 pub use aes_key::*;
 pub use cell::*;
 pub use cell_command::*;
+pub use circuit::*;
 pub use connection::*;
 pub use key::*;
 pub use keys::*;

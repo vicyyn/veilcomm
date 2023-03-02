@@ -2,11 +2,10 @@ use openssl::bn::BigNum;
 use openssl::dh::Dh;
 use openssl::pkey::Private;
 
-use std::collections::HashMap;
-use std::net::{TcpListener, TcpStream};
-
 use crate::*;
+use std::collections::HashMap;
 use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -14,7 +13,7 @@ pub struct Connection {
     pub node: Node,
     pub dh: Dh<Private>,
     pub aes_keys: HashMap<Node, AESKey>,
-    pub streams: HashMap<Node, Arc<Mutex<TcpStream>>>,
+    pub tcp_streams: HashMap<Node, Arc<Mutex<TcpStream>>>,
 }
 
 impl Connection {
@@ -23,12 +22,12 @@ impl Connection {
             node,
             dh: Dh::get_2048_256().unwrap().generate_key().unwrap(),
             aes_keys: HashMap::new(),
-            streams: HashMap::new(),
+            tcp_streams: HashMap::new(),
         }
     }
 
     pub fn add_stream(&mut self, node: Node, stream: Arc<Mutex<TcpStream>>) {
-        self.streams.insert(node, stream);
+        self.tcp_streams.insert(node, stream);
     }
 
     pub fn add_aes_key(&mut self, node: Node, aes_key: AESKey) {
@@ -172,7 +171,7 @@ impl Connection {
             ),
         };
 
-        let stream = self.streams.get(destination).unwrap();
+        let stream = self.tcp_streams.get(destination).unwrap();
         let cell_serialized = cell.serialize();
         stream.lock().unwrap().write(&cell_serialized).unwrap();
     }
@@ -213,7 +212,6 @@ mod tests {
 
             connection2_mutex.establish_connection(&node1);
             connection2_mutex.send_cell(cell, &node1);
-            drop(connection2_mutex)
         }
 
         {

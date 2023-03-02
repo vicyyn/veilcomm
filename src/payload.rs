@@ -3,7 +3,7 @@ use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
 pub struct Payload(#[serde(with = "BigArray")] [u8; PAYLOAD_SIZE]);
 
 impl Payload {
