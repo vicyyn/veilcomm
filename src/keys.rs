@@ -1,5 +1,7 @@
-use openssl::{pkey::PKey, pkey::Private, rsa::Rsa};
-use std::str::from_utf8;
+use openssl::{bn::BigNum, dh::Dh, pkey::PKey, pkey::Private, rsa::Rsa};
+use std::{collections::HashMap, str::from_utf8};
+
+use crate::{AESKey, Node};
 
 pub const KEY_LEN: usize = 32;
 
@@ -11,6 +13,8 @@ pub struct Keys {
     pub relay_id_ed: PKey<Private>,
     pub relay_sign_ed: PKey<Private>,
     pub link_ed: PKey<Private>,
+    pub dh: Dh<Private>,
+    pub aes_keys: HashMap<Node, AESKey>,
 }
 
 impl Keys {
@@ -33,7 +37,20 @@ impl Keys {
             relay_id_ed,
             relay_sign_ed,
             link_ed,
+            dh: Dh::get_2048_256().unwrap().generate_key().unwrap(),
+            aes_keys: HashMap::new(),
         }
+    }
+
+    pub fn compute_dh(&self, half_dh: &[u8]) -> Vec<u8> {
+        self.dh
+            .compute_key(&BigNum::from_slice(half_dh).unwrap())
+            .unwrap()
+    }
+
+    pub fn compute_aes_key(&self, half_dh: &[u8]) -> AESKey {
+        let dh = self.compute_dh(half_dh);
+        dh[0..16].try_into().unwrap()
     }
 }
 

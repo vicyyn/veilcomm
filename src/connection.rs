@@ -1,6 +1,4 @@
 use openssl::bn::BigNum;
-use openssl::dh::Dh;
-use openssl::pkey::Private;
 
 use crate::*;
 use std::collections::HashMap;
@@ -11,8 +9,7 @@ use std::thread;
 
 pub struct Connection {
     pub node: Node,
-    pub dh: Dh<Private>,
-    pub aes_keys: HashMap<Node, AESKey>,
+    pub keys: Keys,
     pub tcp_streams: HashMap<Node, Arc<Mutex<TcpStream>>>,
 }
 
@@ -20,8 +17,7 @@ impl Connection {
     pub fn new(node: Node) -> Self {
         Self {
             node,
-            dh: Dh::get_2048_256().unwrap().generate_key().unwrap(),
-            aes_keys: HashMap::new(),
+            keys: Keys::new(),
             tcp_streams: HashMap::new(),
         }
     }
@@ -31,7 +27,7 @@ impl Connection {
     }
 
     pub fn add_aes_key(&mut self, node: Node, aes_key: AESKey) {
-        self.aes_keys.insert(node, aes_key);
+        self.keys.aes_keys.insert(node, aes_key);
     }
 
     pub fn open(connection: Arc<Mutex<Self>>, node: Node) {
@@ -52,9 +48,10 @@ impl Connection {
                             addr
                         );
 
+                        let node = stream.local_addr().unwrap();
                         let mut connection_mutex = connection.lock().unwrap();
                         let stream_mutex = Arc::new(Mutex::new(stream));
-                        connection_mutex.add_stream(addr.into(), Arc::clone(&stream_mutex));
+                        connection_mutex.add_stream(node.into(), Arc::clone(&stream_mutex));
                         Connection::receive(Arc::clone(&connection), stream_mutex);
                     }
                     Err(e) => {
@@ -118,22 +115,9 @@ impl Connection {
 
     pub fn handle_create_cell(&mut self, node: Node, cell: Cell) {
         let create_payload: CreatePayload = cell.payload.into();
-
-        let received_public_key_bytes = create_payload.dh_key;
-        let received_public_key = self
-            .dh
-            .compute_key(&BigNum::from_slice(&received_public_key_bytes).unwrap())
-            .unwrap();
-
-        let aes_key: AESKey = received_public_key_bytes[0..16].try_into().unwrap();
+        let aes_key = self.keys.compute_aes_key(&create_payload.dh_key);
         self.add_aes_key(node, aes_key);
-
-        println!(
-            "[INFO] Connection::receive --> Shared secret: {}",
-            hex::encode(received_public_key)
-        );
-
-        println!("{:?}", self.aes_keys);
+        println!("{:?}", self.tcp_streams)
     }
 
     pub fn establish_connection(&mut self, destination: &Node) {
@@ -205,7 +189,7 @@ mod tests {
             // create cell
             let public_key: &BigNumRef;
             {
-                public_key = connection2_mutex.dh.public_key();
+                public_key = connection2_mutex.keys.dh.public_key();
             }
             let public_key_bytes = public_key.to_vec();
             let cell = &mut Cell::new_create_cell(0, Payload::new(&public_key_bytes));
@@ -220,13 +204,28 @@ mod tests {
             // create cell
             let public_key: &BigNumRef;
             {
-                public_key = connection3_mutex.dh.public_key();
+                public_key = connection3_mutex.keys.dh.public_key();
             }
             let public_key_bytes = public_key.to_vec();
             let cell = &mut Cell::new_create_cell(0, Payload::new(&public_key_bytes));
 
             connection3_mutex.establish_connection(&node1);
             connection3_mutex.send_cell(cell, &node1);
+        }
+
+        {
+            let mut connection1_mutex = connection1.lock().unwrap();
+
+            // create cell
+            let public_key: &BigNumRef;
+            {
+                public_key = connection1_mutex.keys.dh.public_key();
+            }
+            let public_key_bytes = public_key.to_vec();
+            let cell = &mut Cell::new_create_cell(0, Payload::new(&public_key_bytes));
+
+            connection1_mutex.establish_connection(&node2);
+            connection1_mutex.send_cell(cell, &node2);
         }
 
         loop {}
