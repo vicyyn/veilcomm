@@ -30,6 +30,10 @@ impl Cell {
     pub fn new_create_cell(circ_id: u16, payload: Payload) -> Cell {
         Cell::new(circ_id, 1, payload)
     }
+
+    pub fn new_created_cell(circ_id: u16, payload: Payload) -> Cell {
+        Cell::new(circ_id, 2, payload)
+    }
 }
 
 impl Default for Cell {
