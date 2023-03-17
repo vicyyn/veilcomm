@@ -8,7 +8,7 @@ use std::str::FromStr;
 pub struct Node {
     pub ip: Ipv4Addr,
     pub port: u16,
-    pub key: Key,
+    pub id: Id,
 }
 
 impl From<SocketAddr> for Node {
@@ -23,12 +23,12 @@ impl From<SocketAddr> for Node {
 impl Node {
     pub fn new(ip: Ipv4Addr, port: u16) -> Self {
         let addr = format!("{}:{}", ip, port);
-        let key = Key::new(addr);
-        Node { ip, port, key }
+        let id = Id::new(addr);
+        Node { ip, port, id }
     }
 
     pub fn get_info(&self) -> String {
-        let mut parsed_id = hex::encode(self.key.0);
+        let mut parsed_id = hex::encode(self.id.0);
         parsed_id = parsed_id.to_ascii_uppercase();
         format!("{}:{}:{}", self.ip, self.port, parsed_id)
     }

@@ -23,6 +23,8 @@ impl Connection {
         }
     }
 
+    pub fn update(connection: Arc<Mutex<Connection>>, receiver: Receiver<Cell>) {}
+
     pub fn add_stream(&mut self, node: Node, stream: TcpStream) {
         self.tcp_streams.write().unwrap().insert(node, stream);
     }
