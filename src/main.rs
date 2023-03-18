@@ -29,15 +29,14 @@ pub use utils::*;
 use std::{
     collections::HashMap,
     env,
-    io::Write,
-    net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
+    net::{Ipv4Addr, TcpListener, TcpStream},
     sync::mpsc::{self, Receiver, Sender},
     thread,
 };
 
 #[derive(Debug)]
 pub enum Event {
-    NewConnection(TcpStream, SocketAddr),
+    NewConnection(Node, TcpStream),
     ReceiveCell(Node, Cell),
 }
 
@@ -52,7 +51,9 @@ pub fn listen_for_connections(node: Node, sender: Sender<Event>) {
                     "[SUCCESS] main::listen_for_connections - New client connected: {:?}",
                     addr
                 );
-                sender.send(Event::NewConnection(stream, addr)).unwrap()
+                sender
+                    .send(Event::NewConnection(addr.into(), stream))
+                    .unwrap()
             }
             Err(e) => {
                 println!(
@@ -64,32 +65,14 @@ pub fn listen_for_connections(node: Node, sender: Sender<Event>) {
     });
 }
 
-pub fn listen_for_peer(peer: Peer, sender: Sender<Event>) {
-    thread::spawn(move || loop {
-        let cell = peer.connection_channels.read_receiver.recv().unwrap();
-        sender.send(Event::ReceiveCell(peer.node, cell)).unwrap();
-    });
-}
-
-fn main() {
-    let args: Vec<String> = env::args().collect();
-    let node = Node::new(Ipv4Addr::new(127, 0, 0, 1), args[1].parse().unwrap());
-    let (events_sender, events_receiver): (Sender<Event>, Receiver<Event>) = mpsc::channel();
-
-    let mut peers: HashMap<Id, Peer> = HashMap::new();
-
-    let destination = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8001);
-    match TcpStream::connect(destination.get_addr()) {
-        Ok(mut stream) => {
+pub fn connect_to_peer(node: Node, sender: Sender<Event>) {
+    match TcpStream::connect(node.get_addr()) {
+        Ok(stream) => {
             println!(
                 "[SUCCESS] Connection::establish_connection --> Connected to Peer: {:?}",
-                destination.get_addr()
+                node.get_addr()
             );
-            let peer = Peer::new(destination, stream.try_clone().unwrap());
-            peers.insert(destination.id, peer);
-
-            let cell = Cell::default();
-            stream.write(&cell.serialize()).unwrap();
+            sender.send(Event::NewConnection(node, stream)).unwrap()
         }
         Err(e) => {
             println!(
@@ -98,15 +81,41 @@ fn main() {
             );
         }
     }
+}
 
+pub fn listen_peer(node: Node, receiver: Receiver<Cell>, sender: Sender<Event>) {
+    thread::spawn(move || loop {
+        let cell = receiver.recv().unwrap();
+        sender.send(Event::ReceiveCell(node, cell)).unwrap();
+    });
+}
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    let node = Node::new(Ipv4Addr::new(127, 0, 0, 1), args[1].parse().unwrap());
+    let (events_sender, events_receiver): (Sender<Event>, Receiver<Event>) = mpsc::channel();
+
+    let mut peers: HashMap<Node, Sender<Cell>> = HashMap::new();
+    let destination = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8000);
+    connect_to_peer(destination, events_sender.clone());
     listen_for_connections(node, events_sender.clone());
+
     loop {
         let event = events_receiver.recv().unwrap();
         match event {
-            Event::NewConnection(stream, addr) => {
-                let peer = Peer::new(addr.into(), stream);
-                // peers.insert(peer.node.id, peer);
-                listen_for_peer(peer, events_sender.clone());
+            Event::NewConnection(node, stream) => {
+                let connections_channel = Connection::open(stream.try_clone().unwrap());
+                peers.insert(node, connections_channel.write_sender.clone());
+
+                listen_peer(
+                    node,
+                    connections_channel.read_receiver,
+                    events_sender.clone(),
+                );
+                connections_channel
+                    .write_sender
+                    .send(Cell::default())
+                    .unwrap();
             }
             Event::ReceiveCell(node, cell) => {
                 println!("{:?} , {:?}", node, cell);

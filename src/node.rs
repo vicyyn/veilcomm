@@ -37,3 +37,25 @@ impl Node {
         format!("{}:{}", self.ip, self.port)
     }
 }
+
+pub fn connect_to_peers(nodes: Vec<Node>, sender: Sender<Event>) {
+    for node in nodes {
+        match TcpStream::connect(node.get_addr()) {
+            Ok(stream) => {
+                println!(
+                    "[SUCCESS] Connection::establish_connection --> Connected to Peer: {:?}",
+                    node.get_addr()
+                );
+                // let cell = Cell::default();
+                // stream.write(&cell.serialize()).unwrap();
+                sender.send(Event::NewConnection(node, stream)).unwrap()
+            }
+            Err(e) => {
+                println!(
+                    "[FAILED] Connection::establish_connection --> Error Connecting to Peer: {}",
+                    e
+                );
+            }
+        }
+    }
+}
