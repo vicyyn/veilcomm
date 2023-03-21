@@ -1,7 +1,7 @@
 use crate::*;
 use serde::{Deserialize, Serialize};
 use std::convert::From;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use std::str::FromStr;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]

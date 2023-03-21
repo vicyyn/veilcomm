@@ -14,6 +14,8 @@ pub enum CellCommand {
     Create2 = 10,
     Created2 = 11,
     PaddingNegotiate = 12,
+    Ping = 13,
+    Pong = 14,
 
     // Variable-length command values are:
     Versions = 7,
@@ -42,6 +44,8 @@ impl TryFrom<u8> for CellCommand {
             10 => Ok(Self::Create2),
             11 => Ok(Self::Created2),
             12 => Ok(Self::PaddingNegotiate),
+            13 => Ok(Self::Ping),
+            14 => Ok(Self::Pong),
             128 => Ok(Self::VPadding),
             129 => Ok(Self::Certs),
             130 => Ok(Self::AuthChallenge),

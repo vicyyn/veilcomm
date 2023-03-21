@@ -34,6 +34,14 @@ impl Cell {
     pub fn new_created_cell(circ_id: u16, payload: Payload) -> Cell {
         Cell::new(circ_id, 2, payload)
     }
+
+    pub fn new_ping_cell() -> Cell {
+        Cell::new(0, 13, Payload::default())
+    }
+
+    pub fn new_pong_cell() -> Cell {
+        Cell::new(0, 14, Payload::default())
+    }
 }
 
 impl Default for Cell {

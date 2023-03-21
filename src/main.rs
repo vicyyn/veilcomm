@@ -82,7 +82,7 @@ pub fn connect_to_peer(node: Node, sender: Sender<Event>) {
 fn main() {
     let args: Vec<String> = env::args().collect();
     let node = Node::new(Ipv4Addr::new(127, 0, 0, 1), args[1].parse().unwrap());
-    let mut peers: HashMap<Node, SyncSender<Cell>> = HashMap::new();
+    let mut peers: HashMap<Node, Connection> = HashMap::new();
     let (events_sender, events_receiver) = Event::initialize_channels();
 
     let directory = Directory::new();
@@ -99,12 +99,26 @@ fn main() {
             Event::NewConnection(node, stream) => {
                 let connection =
                     Connection::new(stream.try_clone().unwrap(), events_sender.clone());
-                connection.write(Cell::default());
-                peers.insert(node, connection.get_writer());
+                connection.write(Cell::new_ping_cell());
+                peers.insert(node, connection);
             }
-            Event::ReceiveCell(node, cell) => {
-                println!("{:?} , {:?}", node, cell);
-            }
+            Event::ReceiveCell(node, cell) => match CellCommand::try_from(cell.command) {
+                Ok(command) => match command {
+                    CellCommand::Ping => {
+                        println!("Received Ping!");
+                        let connection = peers.get(&node).unwrap();
+                        connection.write(Cell::new_pong_cell());
+                    }
+                    CellCommand::Pong => {
+                        println!("Received Pong!");
+                    }
+                    _ => println!("Other"),
+                },
+                Err(e) => println!(
+                    "[FAILED] Connection::handle_cell --> Error getting cell command: {}",
+                    e
+                ),
+            },
             _ => {}
         }
     }
