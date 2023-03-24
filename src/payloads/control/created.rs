@@ -8,36 +8,31 @@ use serde_big_array::BigArray;
 pub struct CreatedPayload {
     #[serde(with = "BigArray")]
     pub dh_key: [u8; 256],
-    #[serde(with = "BigArray")]
-    pub padding: [u8; PAYLOAD_SIZE - 256],
+}
+
+impl From<Payload> for CreatedPayload {
+    fn from(value: Payload) -> Self {
+        Self::deserialize(value.get_buffer())
+    }
 }
 
 impl CreatedPayload {
+    pub fn new(dh_key: [u8; 256]) -> CreatedPayload {
+        CreatedPayload { dh_key }
+    }
+
     pub fn serialize(&self) -> Vec<u8> {
         bincode::serialize(self).expect("[FAILED] Rpc::send_msg --> Unable to serialize message")
     }
 
-    pub fn deserialize(buffer: &[u8]) -> Cell {
+    pub fn deserialize(buffer: &[u8]) -> CreatedPayload {
         bincode::deserialize(&buffer.to_vec())
             .expect("[FAILED] Rpc::open, serde_json --> Unable to decode string payload")
-    }
-
-    pub fn set_dh_key(&mut self, dh_key: &[u8]) {
-        self.dh_key[..dh_key.len()].copy_from_slice(&dh_key);
-    }
-
-    pub fn get_create_cell(dh_key: &[u8]) -> CreatedPayload {
-        let mut create_payload = CreatedPayload::default();
-        create_payload.set_dh_key(dh_key);
-        create_payload
     }
 }
 
 impl Default for CreatedPayload {
     fn default() -> Self {
-        Self {
-            dh_key: [0; 256],
-            padding: [0; PAYLOAD_SIZE - 256],
-        }
+        Self { dh_key: [0; 256] }
     }
 }

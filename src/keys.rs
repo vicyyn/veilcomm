@@ -52,6 +52,10 @@ impl Keys {
         let dh = self.compute_dh(half_dh);
         dh[0..16].try_into().unwrap()
     }
+
+    pub fn add_aes_key(&mut self, node: Node, aes_key: AESKey) {
+        self.aes_keys.insert(node, aes_key);
+    }
 }
 
 #[cfg(test)]

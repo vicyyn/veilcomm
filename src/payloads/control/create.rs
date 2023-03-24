@@ -3,7 +3,6 @@
 use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
-use std::convert::From;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CreatePayload {
