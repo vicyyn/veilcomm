@@ -17,15 +17,15 @@ impl From<Payload> for CreatedPayload {
 }
 
 impl CreatedPayload {
-    pub fn new(dh_key: [u8; 256]) -> CreatedPayload {
-        CreatedPayload { dh_key }
+    pub fn new(dh_key: [u8; 256]) -> Self {
+        Self { dh_key }
     }
 
     pub fn serialize(&self) -> Vec<u8> {
         bincode::serialize(self).expect("[FAILED] Rpc::send_msg --> Unable to serialize message")
     }
 
-    pub fn deserialize(buffer: &[u8]) -> CreatedPayload {
+    pub fn deserialize(buffer: &[u8]) -> Self {
         bincode::deserialize(&buffer.to_vec())
             .expect("[FAILED] Rpc::open, serde_json --> Unable to decode string payload")
     }

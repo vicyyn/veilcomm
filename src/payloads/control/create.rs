@@ -17,8 +17,8 @@ impl From<Payload> for CreatePayload {
 }
 
 impl CreatePayload {
-    pub fn new(dh_key: [u8; 256]) -> CreatePayload {
-        CreatePayload { dh_key }
+    pub fn new(dh_key: [u8; 256]) -> Self {
+        Self { dh_key }
     }
 
     pub fn serialize(&self) -> Vec<u8> {
@@ -26,7 +26,7 @@ impl CreatePayload {
             .expect("[FAILED] CreatePayload::serialize --> Unable to serialize payload")
     }
 
-    pub fn deserialize(buffer: &[u8]) -> CreatePayload {
+    pub fn deserialize(buffer: &[u8]) -> Self {
         bincode::deserialize(&buffer.to_vec())
             .expect("[FAILED] CreatePayload::deserialize --> Unable to deserialize payload")
     }

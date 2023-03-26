@@ -61,12 +61,14 @@ impl Keys {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openssl::rsa::Padding;
+    use openssl::{pkey::Public, rsa::Padding};
 
     #[test]
     fn test_rsa() {
-        // let my_keys = Keys::new();
-        // let rsa = my_keys.relay_id_rsa;
+        let my_keys = Keys::new();
+        let rsa = my_keys.relay_id_rsa;
+        let public_key = Rsa::public_key_from_pem(&rsa.public_key_to_pem().unwrap()).unwrap();
+
         // let data = b"foobar";
         // println!("{}", data.len());
         // let mut encrypted = vec![0; rsa.size() as usize];

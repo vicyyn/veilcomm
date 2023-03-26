@@ -13,7 +13,7 @@ pub struct Node {
 
 impl From<SocketAddr> for Node {
     fn from(addr: SocketAddr) -> Self {
-        Node::new(
+        Self::new(
             Ipv4Addr::from_str(&addr.ip().to_string()).unwrap(),
             addr.port(),
         )
@@ -24,7 +24,7 @@ impl Node {
     pub fn new(ip: Ipv4Addr, port: u16) -> Self {
         let addr = format!("{}:{}", ip, port);
         let id = Id::new(addr);
-        Node { ip, port, id }
+        Self { ip, port, id }
     }
 
     pub fn get_info(&self) -> String {
@@ -35,6 +35,10 @@ impl Node {
 
     pub fn get_addr(&self) -> String {
         format!("{}:{}", self.ip, self.port)
+    }
+
+    pub fn default() -> Self {
+        Self::new(Ipv4Addr::new(127, 0, 0, 1), 8000)
     }
 }
 

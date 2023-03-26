@@ -1,5 +1,9 @@
 // Cell Payload
 use crate::*;
+use openssl::{
+    aes::AesKey,
+    symm::{decrypt, encrypt, Cipher},
+};
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
@@ -20,6 +24,28 @@ impl Payload {
     pub fn deserialize(buffer: &[u8]) -> Payload {
         bincode::deserialize(&buffer.to_vec())
             .expect("[FAILED] Rpc::open, serde_json --> Unable to decode string payload")
+    }
+
+    pub fn encrypt(&self, aes_key: AESKey) -> Payload {
+        let encrypted_payload = encrypt(
+            Cipher::aes_128_ctr(),
+            &aes_key.get_key(),
+            None,
+            &self.get_buffer()[..],
+        )
+        .unwrap();
+        Payload::new(&encrypted_payload)
+    }
+
+    pub fn decrypt(&self, aes_key: AESKey) -> Payload {
+        let payload = decrypt(
+            Cipher::aes_128_ctr(),
+            &aes_key.get_key(),
+            None,
+            &self.get_buffer()[..],
+        )
+        .unwrap();
+        Payload::new(&payload)
     }
 
     pub fn get_buffer(&self) -> &[u8] {

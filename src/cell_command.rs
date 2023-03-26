@@ -16,6 +16,8 @@ pub enum CellCommand {
     PaddingNegotiate = 12,
     Ping = 13,
     Pong = 14,
+    Extend = 15,
+    Extended = 16,
 
     // Variable-length command values are:
     Versions = 7,

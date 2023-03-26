@@ -42,6 +42,14 @@ impl Cell {
     pub fn new_pong_cell() -> Cell {
         Cell::new(0, 14, Payload::default())
     }
+
+    pub fn new_extend_cell(circ_id: u16, extend_payload: ExtendPayload) -> Cell {
+        Cell::new(circ_id, 15, Payload::new(&extend_payload.serialize()))
+    }
+
+    pub fn new_extended_cell(circ_id: u16, extended_payload: ExtendedPayload) -> Cell {
+        Cell::new(circ_id, 16, Payload::new(&extended_payload.serialize()))
+    }
 }
 
 impl Default for Cell {
