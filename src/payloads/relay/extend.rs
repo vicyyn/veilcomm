@@ -18,20 +18,15 @@ impl From<Payload> for ExtendPayload {
     }
 }
 
-impl Into<CreatePayload> for ExtendPayload {
-    fn into(self) -> CreatePayload {
-        CreatePayload {
-            dh_key: self.dh_key,
-        }
-    }
-}
-
 impl ExtendPayload {
-    pub fn new(node: Node, dh_key: [u8; 256]) -> Self {
+    pub fn new(node: Node, dh_key: &[u8]) -> Self {
+        let mut buffer = [0; 256];
+        buffer[..dh_key.len()].copy_from_slice(&dh_key);
+
         Self {
             address: node.ip.octets(),
             port: node.port.to_be_bytes(),
-            dh_key,
+            dh_key: buffer,
         }
     }
 

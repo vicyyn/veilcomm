@@ -48,7 +48,7 @@ impl Cell {
     }
 
     pub fn new_extended_cell(circ_id: u16, extended_payload: ExtendedPayload) -> Cell {
-        Cell::new(circ_id, 16, Payload::new(&extended_payload.serialize()))
+        Cell::new(circ_id, 16, extended_payload.into())
     }
 }
 

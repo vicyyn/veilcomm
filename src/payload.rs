@@ -1,14 +1,23 @@
 // Cell Payload
 use crate::*;
-use openssl::{
-    aes::AesKey,
-    symm::{decrypt, encrypt, Cipher},
-};
+use openssl::symm::{decrypt, encrypt, Cipher};
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 
 #[derive(Copy, Clone, Serialize, Deserialize, Debug)]
 pub struct Payload(#[serde(with = "BigArray")] [u8; PAYLOAD_SIZE]);
+
+impl From<ExtendedPayload> for Payload {
+    fn from(value: ExtendedPayload) -> Self {
+        Payload::new(&value.serialize())
+    }
+}
+
+impl From<ExtendPayload> for Payload {
+    fn from(value: ExtendPayload) -> Self {
+        Payload::new(&value.serialize())
+    }
+}
 
 impl Payload {
     pub fn new(data: &[u8]) -> Self {
@@ -56,17 +65,5 @@ impl Payload {
 impl Default for Payload {
     fn default() -> Self {
         Self([0; PAYLOAD_SIZE])
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_payload() {
-        // let payload = Payload::default();
-        // let create_payload: CreatePayload = payload.into();
-        // println!("{:?}", create_payload);
     }
 }

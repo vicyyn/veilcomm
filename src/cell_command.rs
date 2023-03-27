@@ -48,6 +48,8 @@ impl TryFrom<u8> for CellCommand {
             12 => Ok(Self::PaddingNegotiate),
             13 => Ok(Self::Ping),
             14 => Ok(Self::Pong),
+            15 => Ok(Self::Extend),
+            16 => Ok(Self::Extended),
             128 => Ok(Self::VPadding),
             129 => Ok(Self::Certs),
             130 => Ok(Self::AuthChallenge),

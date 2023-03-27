@@ -28,6 +28,7 @@ pub use payloads::*;
 pub use relay_command::*;
 pub use utils::*;
 
+use core::time;
 use std::{
     collections::HashMap,
     env,
@@ -61,20 +62,24 @@ pub fn listen_for_connections(node: Node, sender: Sender<Event>) {
     });
 }
 
-pub fn connect_to_peer(node: Node, sender: Sender<Event>) {
+pub fn connect_to_peer(node: Node, sender: Sender<Event>) -> Option<Connection> {
     match TcpStream::connect(node.get_addr()) {
         Ok(stream) => {
             println!(
                 "[SUCCESS] Connection::establish_connection --> Connected to Peer: {:?}",
                 node.get_addr()
             );
-            sender.send(Event::NewConnection(node, stream)).unwrap()
+            sender
+                .send(Event::NewConnection(node, stream.try_clone().unwrap()))
+                .unwrap();
+            Some(Connection::new(stream, sender.clone()))
         }
         Err(e) => {
             println!(
                 "[FAILED] Connection::establish_connection --> Error Connecting to Peer: {}",
                 e
             );
+            None
         }
     }
 }
@@ -82,18 +87,18 @@ pub fn connect_to_peer(node: Node, sender: Sender<Event>) {
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let node = Node::new(Ipv4Addr::new(127, 0, 0, 1), args[1].parse().unwrap());
+    let main_node = Node::new(Ipv4Addr::new(127, 0, 0, 1), args[1].parse().unwrap());
     let mut peers: HashMap<Node, Connection> = HashMap::new();
     let (events_sender, events_receiver) = Event::initialize_channels();
     let mut keys = Keys::new();
+    let mut pending: Vec<Node> = vec![];
 
-    let directory = Directory::default();
-    let bootstrap_nodes = directory.get_bootstrap_nodes();
-    for destination in bootstrap_nodes {
+    listen_for_connections(main_node, events_sender.clone());
+
+    if main_node.port == 8000 {
+        let destination = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8001);
         connect_to_peer(destination, events_sender.clone());
     }
-
-    listen_for_connections(node, events_sender.clone());
 
     loop {
         let event = events_receiver.recv().unwrap();
@@ -102,9 +107,15 @@ fn main() {
                 let connection =
                     Connection::new(stream.try_clone().unwrap(), events_sender.clone());
 
-                let extend_cell = Cell::new_extend_cell(0, ExtendPayload::default());
+                if main_node.port == 8001 {
+                    let public_key_bytes = keys.dh.public_key().to_vec();
+                    let next_node = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8002);
+                    let extend_payload = ExtendPayload::new(next_node, &public_key_bytes);
+                    let extend_cell = Cell::new_extend_cell(0, extend_payload);
 
-                connection.write(extend_cell);
+                    connection.write(extend_cell);
+                }
+
                 peers.insert(node, connection);
             }
             Event::ReceiveCell(node, cell) => match CellCommand::try_from(cell.command) {
@@ -135,22 +146,34 @@ fn main() {
                         let aes_key = keys.compute_aes_key(&created_payload.dh_key);
                         keys.add_aes_key(node, aes_key);
                         println!("shared secret (AES) : {:?}", hex::encode(aes_key.get_key()));
+
+                        if !pending.is_empty() {
+                            let extended_payload: ExtendedPayload = created_payload.into();
+                            let extended_cell = Cell::new_extended_cell(0, extended_payload);
+                            let node = pending.pop().unwrap();
+                            let connection = peers.get(&node).unwrap();
+                            connection.write(extended_cell);
+                        }
                     }
                     CellCommand::Extend => {
                         println!("Received Extend Cell!");
                         let extend_payload: ExtendPayload = cell.payload.into();
                         let next_node = extend_payload.get_node();
+                        let connection = connect_to_peer(next_node, events_sender.clone());
 
                         let create_payload: CreatePayload = extend_payload.into();
                         let cell =
                             Cell::new_create_cell(0, Payload::new(&create_payload.serialize()));
 
-                        let connection = peers.get(&next_node).unwrap();
-                        connection.write(cell);
+                        connection.unwrap().write(cell);
+                        pending.push(node);
                     }
                     CellCommand::Extended => {
                         println!("Received Extended Cell!");
                         let extended_payload: ExtendedPayload = cell.payload.into();
+                        let aes_key = keys.compute_aes_key(&extended_payload.dh_key);
+                        keys.add_aes_key(node, aes_key);
+                        println!("shared secret (AES) : {:?}", hex::encode(aes_key.get_key()));
                     }
                     _ => println!("Other"),
                 },

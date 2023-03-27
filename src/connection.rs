@@ -16,10 +16,6 @@ impl Connection {
         }
     }
 
-    pub fn get_writer(&self) -> SyncSender<Cell> {
-        return self.writer.clone();
-    }
-
     pub fn write(&self, cell: Cell) {
         self.writer.send(cell).unwrap();
     }

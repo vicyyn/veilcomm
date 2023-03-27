@@ -16,6 +16,14 @@ impl From<Payload> for CreatePayload {
     }
 }
 
+impl From<ExtendPayload> for CreatePayload {
+    fn from(value: ExtendPayload) -> Self {
+        Self {
+            dh_key: value.dh_key,
+        }
+    }
+}
+
 impl CreatePayload {
     pub fn new(dh_key: [u8; 256]) -> Self {
         Self { dh_key }
