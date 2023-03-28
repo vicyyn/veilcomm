@@ -1,11 +1,12 @@
-use crate::Keys;
 use network::*;
+use tor::{Keys, TorEvent};
 
 use std::{
     collections::HashMap,
-    net::{TcpListener, TcpStream},
-    sync::mpsc::{channel, Sender},
-    thread::{self, JoinHandle},
+    env,
+    net::{Ipv4Addr, TcpListener, TcpStream},
+    sync::mpsc::{channel, Receiver, Sender},
+    thread,
 };
 
 pub fn listen_for_connections(node: Node, sender: Sender<ConnectionEvent>) {
@@ -58,21 +59,41 @@ pub fn connect_to_peer(node: Node, sender: Sender<ConnectionEvent>) -> Option<Co
     }
 }
 
-fn start_peer(main_node: Node) -> JoinHandle<()> {
+pub fn start_client(
+    tor_events_receiver: Receiver<TorEvent>,
+    connection_events_sender: Sender<ConnectionEvent>,
+) {
     std::thread::spawn(move || {
+        let tor_event = tor_events_receiver.recv().unwrap();
+        match tor_event {
+            TorEvent::Connect(node) => {
+                connect_to_peer(node, connection_events_sender.clone()).unwrap();
+            }
+            TorEvent::Send(node, cell) => {}
+        }
+    });
+}
+
+fn start_peer(main_node: Node) -> Sender<TorEvent> {
+    let (tor_events_sender, tor_events_receiver) = channel();
+
+    std::thread::spawn(move || {
+        let (connection_events_sender, connection_events_receiver) = channel();
         let mut peers: HashMap<Node, Connection> = HashMap::new();
-        let (events_sender, events_receiver) = channel();
         let mut keys = Keys::new();
         let mut pending: Vec<Node> = vec![];
 
-        listen_for_connections(main_node, events_sender.clone());
+        listen_for_connections(main_node, connection_events_sender.clone());
+        start_client(tor_events_receiver, connection_events_sender.clone());
 
         loop {
-            let connection_event = events_receiver.recv().unwrap();
+            let connection_event = connection_events_receiver.recv().unwrap();
             match connection_event {
                 ConnectionEvent::NewConnection(node, stream) => {
-                    let connection =
-                        Connection::new(stream.try_clone().unwrap(), events_sender.clone());
+                    let connection = Connection::new(
+                        stream.try_clone().unwrap(),
+                        connection_events_sender.clone(),
+                    );
 
                     peers.insert(node, connection);
                 }
@@ -126,7 +147,8 @@ fn start_peer(main_node: Node) -> JoinHandle<()> {
                                 println!("Received Extend Cell!");
                                 let extend_payload: ExtendPayload = cell.payload.into();
                                 let next_node = extend_payload.get_node();
-                                let connection = connect_to_peer(next_node, events_sender.clone());
+                                let connection =
+                                    connect_to_peer(next_node, connection_events_sender.clone());
 
                                 let create_payload: CreatePayload = extend_payload.into();
                                 let cell = Cell::new_create_cell(
@@ -158,23 +180,22 @@ fn start_peer(main_node: Node) -> JoinHandle<()> {
                 _ => {}
             }
         }
-    })
+    });
+    return tor_events_sender.clone();
 }
 
-// fn main() {
-//     let args: Vec<String> = env::args().collect();
-//     start_peer(Node::new(
-//         Ipv4Addr::new(127, 0, 0, 1),
-//         args[1].parse().unwrap(),
-//     ))
-//     .join()
-//     .unwrap();
-// }
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    start_peer(Node::new(
+        Ipv4Addr::new(127, 0, 0, 1),
+        args[1].parse().unwrap(),
+    ));
+    loop {}
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::Ipv4Addr;
 
     #[test]
     fn test_tor() {
@@ -182,9 +203,12 @@ mod tests {
         let t3 = start_peer(Node::new(Ipv4Addr::new(127, 0, 0, 1), 8002));
         let t2 = start_peer(Node::new(Ipv4Addr::new(127, 0, 0, 1), 8000));
         let t4 = start_peer(Node::new(Ipv4Addr::new(127, 0, 0, 1), 8003));
-        t1.join().unwrap();
-        t2.join().unwrap();
-        t3.join().unwrap();
-        t4.join().unwrap();
+
+        t1.send(TorEvent::Connect(Node::new(
+            Ipv4Addr::new(127, 0, 0, 1),
+            8001,
+        )))
+        .unwrap();
+        loop {}
     }
 }

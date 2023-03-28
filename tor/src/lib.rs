@@ -1,8 +1,8 @@
 pub mod keys;
-pub mod peer;
+pub mod tor_event;
 
 pub use keys::*;
-pub use peer::*;
+pub use tor_event::*;
 
 pub const KEY_LEN: usize = 16;
 pub const DH_LEN: usize = 128;
