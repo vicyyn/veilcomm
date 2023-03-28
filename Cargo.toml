@@ -6,3 +6,7 @@ members = [
     "directory"
 ]
 
+[workspace.package]
+name = "veilcomm"
+version = "0.1.0"
+edition = "2021"

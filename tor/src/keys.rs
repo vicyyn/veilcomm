@@ -1,9 +1,24 @@
+use network::Node;
 use openssl::{bn::BigNum, dh::Dh, pkey::PKey, pkey::Private, rsa::Rsa};
-use std::{collections::HashMap, str::from_utf8};
-
-use crate::{AESKey, Node};
+use std::collections::HashMap;
+use std::convert::From;
 
 pub const KEY_LEN: usize = 32;
+
+#[derive(Debug, Copy, Clone)]
+pub struct AESKey([u8; 16]);
+
+impl From<&[u8]> for AESKey {
+    fn from(value: &[u8]) -> Self {
+        Self(value.try_into().unwrap())
+    }
+}
+
+impl AESKey {
+    pub fn get_key(&self) -> [u8; 16] {
+        self.0
+    }
+}
 
 pub struct Keys {
     pub relay_id_rsa: Rsa<Private>,

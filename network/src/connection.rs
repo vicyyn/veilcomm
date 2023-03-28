@@ -10,7 +10,7 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn new(stream: TcpStream, events_sender: Sender<Event>) -> Connection {
+    pub fn new(stream: TcpStream, events_sender: Sender<ConnectionEvent>) -> Connection {
         Connection::open_read(stream.try_clone().unwrap(), events_sender);
         Self {
             writer: Connection::open_write(stream.try_clone().unwrap()),
@@ -35,7 +35,7 @@ impl Connection {
         return write_sender;
     }
 
-    fn open_read(stream: TcpStream, events_sender: Sender<Event>) {
+    fn open_read(stream: TcpStream, events_sender: Sender<ConnectionEvent>) {
         let mut buffer = [0u8; CELL_SIZE];
         let mut stream = stream.try_clone().unwrap();
         let node: Node = stream.peer_addr().unwrap().into();
@@ -56,7 +56,10 @@ impl Connection {
                     );
 
                     events_sender
-                        .send(Event::ReceiveCell(node, Cell::deserialize(&buffer)))
+                        .send(ConnectionEvent::ReceiveCell(
+                            node,
+                            Cell::deserialize(&buffer),
+                        ))
                         .unwrap();
                 }
                 Err(e) => {
