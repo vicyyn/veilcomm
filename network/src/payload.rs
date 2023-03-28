@@ -1,8 +1,9 @@
-// Cell Payload
 use crate::*;
-use openssl::symm::{decrypt, encrypt, Cipher};
+// use openssl::symm::{decrypt, encrypt, Cipher};
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
+
+pub const PAYLOAD_SIZE: usize = 509;
 
 #[derive(Copy, Clone, Serialize, Deserialize, Debug)]
 pub struct Payload(#[serde(with = "BigArray")] [u8; PAYLOAD_SIZE]);
@@ -35,27 +36,27 @@ impl Payload {
             .expect("[FAILED] Rpc::open, serde_json --> Unable to decode string payload")
     }
 
-    pub fn encrypt(&self, aes_key: AESKey) -> Payload {
-        let encrypted_payload = encrypt(
-            Cipher::aes_128_ctr(),
-            &aes_key.get_key(),
-            None,
-            &self.get_buffer()[..],
-        )
-        .unwrap();
-        Payload::new(&encrypted_payload)
-    }
+    // pub fn encrypt(&self, aes_key: AESKey) -> Payload {
+    //     let encrypted_payload = encrypt(
+    //         Cipher::aes_128_ctr(),
+    //         &aes_key.get_key(),
+    //         None,
+    //         &self.get_buffer()[..],
+    //     )
+    //     .unwrap();
+    //     Payload::new(&encrypted_payload)
+    // }
 
-    pub fn decrypt(&self, aes_key: AESKey) -> Payload {
-        let payload = decrypt(
-            Cipher::aes_128_ctr(),
-            &aes_key.get_key(),
-            None,
-            &self.get_buffer()[..],
-        )
-        .unwrap();
-        Payload::new(&payload)
-    }
+    // pub fn decrypt(&self, aes_key: AESKey) -> Payload {
+    //     let payload = decrypt(
+    //         Cipher::aes_128_ctr(),
+    //         &aes_key.get_key(),
+    //         None,
+    //         &self.get_buffer()[..],
+    //     )
+    //     .unwrap();
+    //     Payload::new(&payload)
+    // }
 
     pub fn get_buffer(&self) -> &[u8] {
         &self.0

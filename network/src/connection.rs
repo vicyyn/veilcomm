@@ -1,3 +1,4 @@
+// Communicate with other peers
 use crate::*;
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -28,6 +29,7 @@ impl Connection {
             let cell = write_receiver
                 .recv()
                 .expect("[FAILED] Connection::open_write --> Error reading from socket");
+            println!("Sending {:?} to {:?}", cell, stream.peer_addr());
             stream.write(&cell.serialize()).unwrap();
         });
         return write_sender;

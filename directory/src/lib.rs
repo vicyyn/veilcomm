@@ -1,8 +1,11 @@
-use crate::*;
 use openssl::{pkey::Private, rsa::Rsa};
+use std::{
+    collections::HashMap,
+    net::{Ipv4Addr, SocketAddr},
+};
 
 pub struct Directory {
-    peers: HashMap<Node, Rsa<Private>>,
+    peers: HashMap<SocketAddr, Rsa<Private>>,
 }
 
 impl Directory {
@@ -12,11 +15,11 @@ impl Directory {
         }
     }
 
-    pub fn get_key(&self, node: Node) -> Rsa<Private> {
+    pub fn get_key(&self, node: SocketAddr) -> Rsa<Private> {
         self.peers.get(&node).unwrap().clone()
     }
 
-    pub fn get_bootstrap_nodes(&self) -> Vec<Node> {
+    pub fn get_bootstrap_nodes(&self) -> Vec<SocketAddr> {
         self.peers
             .clone()
             .into_iter()
@@ -27,7 +30,7 @@ impl Directory {
     pub fn default() -> Self {
         let mut directory = Directory::new();
         directory.peers.insert(
-            Node::new(Ipv4Addr::new(127, 0, 0, 1), 8000),
+            SocketAddr::new(Ipv4Addr::new(127, 0, 0, 1).into(), 8000),
             Rsa::private_key_from_pem(&[
                 45, 45, 45, 45, 45, 66, 69, 71, 73, 78, 32, 82, 83, 65, 32, 80, 82, 73, 86, 65, 84,
                 69, 32, 75, 69, 89, 45, 45, 45, 45, 45, 10, 77, 73, 73, 69, 111, 119, 73, 66, 65,

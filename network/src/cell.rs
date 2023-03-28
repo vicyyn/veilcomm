@@ -3,6 +3,8 @@
 use crate::*;
 use serde::{Deserialize, Serialize};
 
+pub const CELL_SIZE: usize = 512;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Cell {
     pub circ_id: u16,
