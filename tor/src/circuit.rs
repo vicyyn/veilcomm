@@ -1,4 +1,5 @@
 use crate::*;
+use network::Payload;
 use openssl::symm::{decrypt, encrypt, Cipher};
 
 pub struct Circuit {

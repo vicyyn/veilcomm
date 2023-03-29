@@ -26,6 +26,7 @@ impl Connection {
         let (write_sender, write_receiver): (SyncSender<Cell>, Receiver<Cell>) =
             mpsc::sync_channel(0);
         thread::spawn(move || loop {
+            println!("{:?}", write_receiver);
             let cell = write_receiver
                 .recv()
                 .expect("[FAILED] Connection::open_write --> Error reading from socket");

@@ -5,7 +5,10 @@ use std::{
     collections::HashMap,
     env,
     net::{Ipv4Addr, TcpListener, TcpStream},
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc, RwLock,
+    },
     thread,
 };
 
@@ -62,29 +65,44 @@ pub fn connect_to_peer(node: Node, sender: Sender<ConnectionEvent>) -> Option<Co
 pub fn start_client(
     tor_events_receiver: Receiver<TorEvent>,
     connection_events_sender: Sender<ConnectionEvent>,
+    peers: Arc<RwLock<HashMap<Node, Connection>>>,
+    keys: Arc<RwLock<Keys>>,
 ) {
-    std::thread::spawn(move || {
+    std::thread::spawn(move || loop {
         let tor_event = tor_events_receiver.recv().unwrap();
         match tor_event {
             TorEvent::Connect(node) => {
                 connect_to_peer(node, connection_events_sender.clone()).unwrap();
             }
-            TorEvent::Send(node, cell) => {}
+            TorEvent::SendExtend(node) => {
+                let peers_lock = peers.read().unwrap();
+                let connection = peers_lock.get(&node).unwrap();
+
+                let public_key_bytes = keys.read().unwrap().dh.public_key().to_vec();
+                let cell = Cell::new_extend_cell(0, ExtendPayload::new(node, &public_key_bytes));
+
+                connection.write(cell);
+            }
         }
     });
 }
 
 fn start_peer(main_node: Node) -> Sender<TorEvent> {
     let (tor_events_sender, tor_events_receiver) = channel();
+    let peers: Arc<RwLock<HashMap<Node, Connection>>> = Arc::new(RwLock::new(HashMap::new()));
+    let keys = Arc::new(RwLock::new(Keys::new()));
 
     std::thread::spawn(move || {
         let (connection_events_sender, connection_events_receiver) = channel();
-        let mut peers: HashMap<Node, Connection> = HashMap::new();
-        let mut keys = Keys::new();
         let mut pending: Vec<Node> = vec![];
 
         listen_for_connections(main_node, connection_events_sender.clone());
-        start_client(tor_events_receiver, connection_events_sender.clone());
+        start_client(
+            tor_events_receiver,
+            connection_events_sender.clone(),
+            Arc::clone(&peers),
+            Arc::clone(&keys),
+        );
 
         loop {
             let connection_event = connection_events_receiver.recv().unwrap();
@@ -95,14 +113,16 @@ fn start_peer(main_node: Node) -> Sender<TorEvent> {
                         connection_events_sender.clone(),
                     );
 
-                    peers.insert(node, connection);
+                    peers.clone().write().unwrap().insert(node, connection);
+                    println!("Updated!");
                 }
                 ConnectionEvent::ReceiveCell(node, cell) => {
                     match CellCommand::try_from(cell.command) {
                         Ok(command) => match command {
                             CellCommand::Ping => {
                                 println!("Received Ping!");
-                                let connection = peers.get(&node).unwrap();
+                                let peers_lock = peers.read().unwrap();
+                                let connection = peers_lock.get(&node).unwrap();
                                 connection.write(Cell::new_pong_cell());
                             }
                             CellCommand::Pong => {
@@ -111,24 +131,32 @@ fn start_peer(main_node: Node) -> Sender<TorEvent> {
                             CellCommand::Create => {
                                 println!("Received Create!");
                                 let create_payload: CreatePayload = cell.payload.into();
-                                let aes_key = keys.compute_aes_key(&create_payload.dh_key);
-                                keys.add_aes_key(node, aes_key);
+
+                                let aes_key =
+                                    keys.read().unwrap().compute_aes_key(&create_payload.dh_key);
+                                keys.write().unwrap().add_aes_key(node, aes_key);
                                 println!(
                                     "shared secret (AES) : {:?}",
                                     hex::encode(aes_key.get_key())
                                 );
 
-                                let public_key_bytes = keys.dh.public_key().to_vec();
+                                let public_key_bytes =
+                                    keys.read().unwrap().dh.public_key().to_vec();
                                 let cell =
                                     Cell::new_created_cell(0, Payload::new(&public_key_bytes));
-                                let connection = peers.get(&node).unwrap();
+                                let peers_lock = peers.read().unwrap();
+                                let connection = peers_lock.get(&node).unwrap();
                                 connection.write(cell);
                             }
                             CellCommand::Created => {
                                 println!("Received Created!");
                                 let created_payload: CreatedPayload = cell.payload.into();
-                                let aes_key = keys.compute_aes_key(&created_payload.dh_key);
-                                keys.add_aes_key(node, aes_key);
+
+                                let aes_key = keys
+                                    .read()
+                                    .unwrap()
+                                    .compute_aes_key(&created_payload.dh_key);
+                                keys.write().unwrap().add_aes_key(node, aes_key);
                                 println!(
                                     "shared secret (AES) : {:?}",
                                     hex::encode(aes_key.get_key())
@@ -139,7 +167,8 @@ fn start_peer(main_node: Node) -> Sender<TorEvent> {
                                     let extended_cell =
                                         Cell::new_extended_cell(0, extended_payload);
                                     let node = pending.pop().unwrap();
-                                    let connection = peers.get(&node).unwrap();
+                                    let peers_lock = peers.read().unwrap();
+                                    let connection = peers_lock.get(&node).unwrap();
                                     connection.write(extended_cell);
                                 }
                             }
@@ -162,8 +191,13 @@ fn start_peer(main_node: Node) -> Sender<TorEvent> {
                             CellCommand::Extended => {
                                 println!("Received Extended Cell!");
                                 let extended_payload: ExtendedPayload = cell.payload.into();
-                                let aes_key = keys.compute_aes_key(&extended_payload.dh_key);
-                                keys.add_aes_key(node, aes_key);
+
+                                let aes_key = keys
+                                    .read()
+                                    .unwrap()
+                                    .compute_aes_key(&extended_payload.dh_key);
+
+                                keys.write().unwrap().add_aes_key(node, aes_key);
                                 println!(
                                     "shared secret (AES) : {:?}",
                                     hex::encode(aes_key.get_key())
@@ -186,7 +220,7 @@ fn start_peer(main_node: Node) -> Sender<TorEvent> {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    start_peer(Node::new(
+    let tor_events_sender = start_peer(Node::new(
         Ipv4Addr::new(127, 0, 0, 1),
         args[1].parse().unwrap(),
     ));
@@ -195,20 +229,28 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    use core::time;
+
     use super::*;
 
     #[test]
     fn test_tor() {
-        let t1 = start_peer(Node::new(Ipv4Addr::new(127, 0, 0, 1), 8001));
-        let t3 = start_peer(Node::new(Ipv4Addr::new(127, 0, 0, 1), 8002));
-        let t2 = start_peer(Node::new(Ipv4Addr::new(127, 0, 0, 1), 8000));
-        let t4 = start_peer(Node::new(Ipv4Addr::new(127, 0, 0, 1), 8003));
+        let node1 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8001);
+        let node2 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8002);
+        let node3 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8003);
+        let node4 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8004);
 
-        t1.send(TorEvent::Connect(Node::new(
-            Ipv4Addr::new(127, 0, 0, 1),
-            8001,
-        )))
-        .unwrap();
+        let t1 = start_peer(node1);
+        let t2 = start_peer(node2);
+        let t3 = start_peer(node3);
+        let t4 = start_peer(node4);
+
+        t1.send(TorEvent::Connect(node2)).unwrap();
+        thread::sleep(time::Duration::from_millis(1000));
+
+        t1.send(TorEvent::SendExtend(node2)).unwrap();
+        thread::sleep(time::Duration::from_millis(1000));
+
         loop {}
     }
 }
