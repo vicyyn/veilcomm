@@ -20,6 +20,18 @@ impl From<ExtendPayload> for Payload {
     }
 }
 
+impl From<CreatePayload> for Payload {
+    fn from(value: CreatePayload) -> Self {
+        Payload::new(&value.serialize())
+    }
+}
+
+impl From<CreatedPayload> for Payload {
+    fn from(value: CreatedPayload) -> Self {
+        Payload::new(&value.serialize())
+    }
+}
+
 impl Payload {
     pub fn new(data: &[u8]) -> Self {
         let mut buffer = [0; PAYLOAD_SIZE];

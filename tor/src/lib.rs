@@ -1,10 +1,10 @@
 pub mod circuit;
 pub mod keys;
-pub mod tor_event;
+pub mod pending_response;
 
 pub use circuit::*;
 pub use keys::*;
-pub use tor_event::*;
+pub use pending_response::*;
 
 // pub const KEY_LEN: usize = 16;
 // pub const DH_LEN: usize = 128;

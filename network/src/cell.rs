@@ -29,12 +29,12 @@ impl Cell {
         bincode::deserialize(&buffer.to_vec()).unwrap()
     }
 
-    pub fn new_create_cell(circ_id: u16, payload: Payload) -> Cell {
-        Cell::new(circ_id, 1, payload)
+    pub fn new_create_cell(circ_id: u16, create_payload: CreatePayload) -> Cell {
+        Cell::new(circ_id, 1, create_payload.into())
     }
 
-    pub fn new_created_cell(circ_id: u16, payload: Payload) -> Cell {
-        Cell::new(circ_id, 2, payload)
+    pub fn new_created_cell(circ_id: u16, created_payload: CreatedPayload) -> Cell {
+        Cell::new(circ_id, 2, created_payload.into())
     }
 
     pub fn new_ping_cell() -> Cell {
@@ -46,7 +46,7 @@ impl Cell {
     }
 
     pub fn new_extend_cell(circ_id: u16, extend_payload: ExtendPayload) -> Cell {
-        Cell::new(circ_id, 15, Payload::new(&extend_payload.serialize()))
+        Cell::new(circ_id, 15, extend_payload.into())
     }
 
     pub fn new_extended_cell(circ_id: u16, extended_payload: ExtendedPayload) -> Cell {
