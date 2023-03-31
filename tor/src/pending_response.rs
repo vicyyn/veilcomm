@@ -4,5 +4,5 @@ use network::Node;
 pub enum PendingResponse {
     Pong,
     Extended,
-    Created(Option<Node>), // return extend request
+    Created(Option<Node>), // optional node is the node trying to extend the circuit
 }

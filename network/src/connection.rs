@@ -54,7 +54,7 @@ impl Connection {
                 }
                 Ok(n) => {
                     println!(
-                        "[INFO] Connection::receive --> Received : {} bytes from {:?}",
+                        "[SUCCESS] Connection::receive --> Received : {} bytes from {:?}",
                         n,
                         stream.peer_addr().unwrap()
                     );

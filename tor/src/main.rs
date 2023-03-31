@@ -1,5 +1,5 @@
 use network::*;
-use tor::{Keys, PendingResponse};
+use tor::{circuit, Circuit, CircuitNode, Keys, PendingResponse};
 
 use core::time;
 use std::{
@@ -67,6 +67,8 @@ fn process_connection_event(
     connection_events_sender: Sender<ConnectionEvent>,
     keys: Arc<RwLock<Keys>>,
     pending: Arc<RwLock<HashMap<Node, PendingResponse>>>,
+    circuits: Arc<RwLock<HashMap<u16, Circuit>>>,
+    constructed_circuit: Arc<RwLock<Vec<CircuitNode>>>,
 ) {
     std::thread::spawn(move || match connection_event {
         ConnectionEvent::NewConnection(node, stream) => {
@@ -83,16 +85,24 @@ fn process_connection_event(
             println!("[INFO] tor::process_connection_event --> Connect event");
             connect_to_peer(node, connection_events_sender.clone());
         }
-        ConnectionEvent::SendCell(node, cell) => {}
+        ConnectionEvent::SendCell(node, mut cell) => {
+            let peers_lock = peers.read().unwrap();
+            let connection = peers_lock.get(&node).unwrap();
+
+            let constructed_circuit_lock = constructed_circuit.read().unwrap();
+            for circuit_node in constructed_circuit_lock.iter().rev() {
+                cell.payload = circuit_node.encrypt_payload(cell.payload);
+            }
+
+            connection.write(cell);
+        }
         ConnectionEvent::SendExtend(node, next_node) => {
             let peers_lock = peers.read().unwrap();
             let connection = peers_lock.get(&node).unwrap();
             let public_key_bytes = keys.read().unwrap().dh.public_key().to_vec();
             let cell = Cell::new_extend_cell(0, ExtendPayload::new(next_node, &public_key_bytes));
             let mut pending_lock = pending.write().unwrap();
-            pending_lock
-                .insert(node, PendingResponse::Extended)
-                .unwrap();
+            pending_lock.insert(node, PendingResponse::Extended);
             connection.write(cell);
         }
         ConnectionEvent::SendCreate(node) => {
@@ -103,8 +113,7 @@ fn process_connection_event(
             pending
                 .write()
                 .unwrap()
-                .insert(node, PendingResponse::Created(None))
-                .unwrap();
+                .insert(node, PendingResponse::Created(None));
             connection.write(cell);
         }
         ConnectionEvent::ReceiveCell(node, cell) => {
@@ -115,11 +124,7 @@ fn process_connection_event(
                         println!("Received Ping!");
                         let peers_lock = peers.read().unwrap();
                         let connection = peers_lock.get(&node).unwrap();
-                        pending
-                            .write()
-                            .unwrap()
-                            .insert(node, PendingResponse::Pong)
-                            .unwrap();
+                        pending.write().unwrap().insert(node, PendingResponse::Pong);
                         connection.write(Cell::new_pong_cell());
                     }
                     CellCommand::Pong => {
@@ -129,8 +134,14 @@ fn process_connection_event(
                         println!("Received Create!");
                         let create_payload: CreatePayload = cell.payload.into();
                         let aes_key = keys.read().unwrap().compute_aes_key(&create_payload.dh_key);
-                        keys.write().unwrap().add_aes_key(node, aes_key);
                         let public_key_bytes = keys.read().unwrap().dh.public_key().to_vec();
+
+                        let mut circuit_lock = circuits.write().unwrap();
+                        let predecessor_circuit_node =
+                            CircuitNode::new(cell.circ_id, Some(aes_key), node);
+                        let circuit = Circuit::new(predecessor_circuit_node, None);
+                        circuit_lock.insert(cell.circ_id, circuit);
+
                         let cell =
                             Cell::new_created_cell(0, CreatedPayload::new(&public_key_bytes));
                         let peers_lock = peers.read().unwrap();
@@ -144,7 +155,6 @@ fn process_connection_event(
                             .read()
                             .unwrap()
                             .compute_aes_key(&created_payload.dh_key);
-                        keys.write().unwrap().add_aes_key(node, aes_key);
                         let mut pending_lock = pending.write().unwrap();
                         if pending_lock.get(&node).is_some() {
                             if let PendingResponse::Created(Some(return_node)) =
@@ -158,12 +168,25 @@ fn process_connection_event(
                                 pending_lock.remove(&node).unwrap();
                             }
                         }
+
+                        let mut constructed_circuit_lock = constructed_circuit.write().unwrap();
+                        constructed_circuit_lock.push(CircuitNode::new(
+                            cell.circ_id,
+                            Some(aes_key),
+                            node,
+                        ));
                     }
                     CellCommand::Extend => {
                         println!("Received Extend Cell!");
                         let extend_payload: ExtendPayload = cell.payload.into();
                         let next_node = extend_payload.get_node();
                         connect_to_peer(next_node, connection_events_sender.clone());
+
+                        let mut circuit_lock = circuits.write().unwrap();
+                        let successor_circuit_node =
+                            CircuitNode::new(cell.circ_id, None, next_node);
+                        let circuit = circuit_lock.get_mut(&cell.circ_id).unwrap();
+                        circuit.set_successor(Some(successor_circuit_node));
 
                         let mut connection;
                         loop {
@@ -195,14 +218,45 @@ fn process_connection_event(
                             .unwrap()
                             .compute_aes_key(&extended_payload.dh_key);
 
-                        keys.write().unwrap().add_aes_key(node, aes_key);
+                        let mut constructed_circuit_lock = constructed_circuit.write().unwrap();
+                        constructed_circuit_lock.push(CircuitNode::new(
+                            cell.circ_id,
+                            Some(aes_key),
+                            node,
+                        ));
+                    }
+                    CellCommand::Data => {
+                        println!("Received Data Cell!");
+
+                        let circuits_lock = circuits.read().unwrap();
+                        let circuit = circuits_lock.get(&cell.circ_id).unwrap();
+
+                        let decrypted_cell = Cell::new(
+                            cell.circ_id,
+                            cell.command,
+                            circuit.predecessor.decrypt_payload(cell.payload),
+                        );
+
+                        if let Ok(message) =
+                            String::from_utf8(decrypted_cell.payload.get_buffer().to_vec())
+                        {
+                            println!(
+                                "[INFO] tor::process_connection_event --> Received Message : {message}",
+                            );
+                        }
+
+                        // TODO CHECK IF IT"S FULLY DECRYPTED OTHERWISE PASS TO NEXT NODE
+                        if let Some(successor) = circuit.successor {
+                            let peers_lock = peers.read().unwrap();
+                            let connection = peers_lock.get(&successor.node).unwrap();
+                            connection.write(decrypted_cell);
+                        }
                     }
                     _ => println!("Other"),
                 },
-                Err(e) => println!(
-                    "[FAILED] Connection::handle_cell --> Error getting cell command: {}",
-                    e
-                ),
+                Err(e) => {
+                    println!("[FAILED] Connection::handle_cell --> Error getting cell command: {e}",)
+                }
             }
         }
         _ => {}
@@ -210,6 +264,8 @@ fn process_connection_event(
 }
 
 fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
+    let constructed_circuit: Arc<RwLock<Vec<CircuitNode>>> = Arc::new(RwLock::new(vec![]));
+    let circuits: Arc<RwLock<HashMap<u16, Circuit>>> = Arc::new(RwLock::new(HashMap::new()));
     let peers: Arc<RwLock<HashMap<Node, Connection>>> = Arc::new(RwLock::new(HashMap::new()));
     let keys = Arc::new(RwLock::new(Keys::new()));
     let (connection_events_sender, connection_events_receiver) = channel();
@@ -228,6 +284,8 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
                 connection_events_sender.clone(),
                 Arc::clone(&keys),
                 Arc::clone(&pending),
+                Arc::clone(&circuits),
+                Arc::clone(&constructed_circuit),
             );
         }
     });
@@ -263,7 +321,14 @@ mod tests {
         t1.send(ConnectionEvent::Connect(node2)).unwrap();
         thread::sleep(time::Duration::from_millis(1000));
 
+        t1.send(ConnectionEvent::SendCreate(node2)).unwrap();
+        thread::sleep(time::Duration::from_millis(1000));
+
         t1.send(ConnectionEvent::SendExtend(node2, node3)).unwrap();
+        thread::sleep(time::Duration::from_millis(5000));
+
+        let cell = Cell::new_data_cell(0, Payload::new(&"Hello!".as_bytes()));
+        t1.send(ConnectionEvent::SendCell(node2, cell)).unwrap();
         thread::sleep(time::Duration::from_millis(1000));
 
         loop {}

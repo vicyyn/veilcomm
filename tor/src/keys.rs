@@ -29,7 +29,6 @@ pub struct Keys {
     pub relay_sign_ed: PKey<Private>,
     pub link_ed: PKey<Private>,
     pub dh: Dh<Private>,
-    pub aes_keys: HashMap<Node, AESKey>,
 }
 
 impl Keys {
@@ -53,7 +52,6 @@ impl Keys {
             relay_sign_ed,
             link_ed,
             dh: Dh::get_2048_256().unwrap().generate_key().unwrap(),
-            aes_keys: HashMap::new(),
         }
     }
 
@@ -66,10 +64,6 @@ impl Keys {
     pub fn compute_aes_key(&self, half_dh: &[u8]) -> AESKey {
         let dh = self.compute_dh(half_dh);
         dh[0..16].try_into().unwrap()
-    }
-
-    pub fn add_aes_key(&mut self, node: Node, aes_key: AESKey) {
-        self.aes_keys.insert(node, aes_key);
     }
 }
 
