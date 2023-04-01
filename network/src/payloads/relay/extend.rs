@@ -7,15 +7,9 @@ use serde_big_array::BigArray;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ExtendPayload {
     pub address: [u8; 4],
-    pub port: [u8; 2],
+    pub port: u16,
     #[serde(with = "BigArray")]
     pub dh_key: [u8; 256],
-}
-
-impl From<Payload> for ExtendPayload {
-    fn from(value: Payload) -> Self {
-        Self::deserialize(value.get_buffer())
-    }
 }
 
 impl ExtendPayload {
@@ -25,16 +19,13 @@ impl ExtendPayload {
 
         Self {
             address: node.ip.octets(),
-            port: node.port.to_be_bytes(),
+            port: u16::from_be_bytes(node.port.to_be_bytes()),
             dh_key: buffer,
         }
     }
 
     pub fn get_node(&self) -> Node {
-        Node::new(
-            self.address.into(),
-            ((self.port[0] as u16) << 8) + (self.port[1] as u16),
-        )
+        Node::new(self.address.into(), self.port)
     }
 
     pub fn serialize(&self) -> Vec<u8> {
@@ -53,7 +44,7 @@ impl Default for ExtendPayload {
         let node = Node::default();
         Self {
             address: node.ip.octets(),
-            port: node.port.to_be_bytes(),
+            port: node.port,
             dh_key: [0; 256],
         }
     }

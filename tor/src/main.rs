@@ -1,5 +1,5 @@
 use network::*;
-use tor::{circuit, Circuit, CircuitNode, Keys, PendingResponse};
+use tor::{Circuit, CircuitNode, Keys, PendingResponse};
 
 use core::time;
 use std::{
@@ -85,22 +85,27 @@ fn process_connection_event(
             println!("[INFO] tor::process_connection_event --> Connect event");
             connect_to_peer(node, connection_events_sender.clone());
         }
-        ConnectionEvent::SendCell(node, mut cell) => {
+        ConnectionEvent::SendCell(node, cell) => {
             let peers_lock = peers.read().unwrap();
             let connection = peers_lock.get(&node).unwrap();
 
             let constructed_circuit_lock = constructed_circuit.read().unwrap();
+            let mut encrypted_cell = cell.clone();
             for circuit_node in constructed_circuit_lock.iter().rev() {
-                cell.payload = circuit_node.encrypt_payload(cell.payload);
+                encrypted_cell.payload = circuit_node.encrypt_payload(cell.payload.clone());
             }
 
-            connection.write(cell);
+            connection.write(encrypted_cell);
         }
         ConnectionEvent::SendExtend(node, next_node) => {
             let peers_lock = peers.read().unwrap();
             let connection = peers_lock.get(&node).unwrap();
             let public_key_bytes = keys.read().unwrap().dh.public_key().to_vec();
-            let cell = Cell::new_extend_cell(0, ExtendPayload::new(next_node, &public_key_bytes));
+
+            let extend_payload = ExtendPayload::new(next_node, &public_key_bytes);
+            let relay_payload = RelayPayload::new_extend_payload(extend_payload);
+            let cell = Cell::new_extend_cell(0, relay_payload);
+
             let mut pending_lock = pending.write().unwrap();
             pending_lock.insert(node, PendingResponse::Extended);
             connection.write(cell);
@@ -109,7 +114,11 @@ fn process_connection_event(
             let peers_lock = peers.read().unwrap();
             let connection = peers_lock.get(&node).unwrap();
             let public_key_bytes = keys.read().unwrap().dh.public_key().to_vec();
-            let cell = Cell::new_create_cell(0, CreatePayload::new(&public_key_bytes));
+
+            let create_payload = CreatePayload::new(&public_key_bytes);
+            let control_payload = ControlPayload::new_create_payload(create_payload);
+            let cell = Cell::new_create_cell(0, control_payload);
+
             pending
                 .write()
                 .unwrap()
@@ -120,19 +129,19 @@ fn process_connection_event(
             print!("[INFO] tor::process_connection_event --> New receive cell event - ");
             match CellCommand::try_from(cell.command) {
                 Ok(command) => match command {
-                    CellCommand::Ping => {
-                        println!("Received Ping!");
-                        let peers_lock = peers.read().unwrap();
-                        let connection = peers_lock.get(&node).unwrap();
-                        pending.write().unwrap().insert(node, PendingResponse::Pong);
-                        connection.write(Cell::new_pong_cell());
-                    }
-                    CellCommand::Pong => {
-                        println!("Received Pong!");
-                    }
+                    // CellCommand::Ping => {
+                    //     println!("Received Ping!");
+                    //     let peers_lock = peers.read().unwrap();
+                    //     let connection = peers_lock.get(&node).unwrap();
+                    //     pending.write().unwrap().insert(node, PendingResponse::Pong);
+                    //     connection.write(Cell::new_pong_cell());
+                    // }
+                    // CellCommand::Pong => {
+                    //     println!("Received Pong!");
+                    // }
                     CellCommand::Create => {
-                        println!("Received Create!");
-                        let create_payload: CreatePayload = cell.payload.into();
+                        println!("Received Create");
+                        let create_payload: CreatePayload = cell.payload.into_create().unwrap();
                         let aes_key = keys.read().unwrap().compute_aes_key(&create_payload.dh_key);
                         let public_key_bytes = keys.read().unwrap().dh.public_key().to_vec();
 
@@ -142,15 +151,17 @@ fn process_connection_event(
                         let circuit = Circuit::new(predecessor_circuit_node, None);
                         circuit_lock.insert(cell.circ_id, circuit);
 
-                        let cell =
-                            Cell::new_created_cell(0, CreatedPayload::new(&public_key_bytes));
+                        let created_payload = CreatedPayload::new(&public_key_bytes);
+                        let control_payload = ControlPayload::new_created_payload(created_payload);
+                        let cell = Cell::new_created_cell(0, control_payload);
+
                         let peers_lock = peers.read().unwrap();
                         let connection = peers_lock.get(&node).unwrap();
                         connection.write(cell);
                     }
                     CellCommand::Created => {
-                        println!("Received Created!");
-                        let created_payload: CreatedPayload = cell.payload.into();
+                        println!("Received Created");
+                        let created_payload: CreatedPayload = cell.payload.into_created().unwrap();
                         let aes_key = keys
                             .read()
                             .unwrap()
@@ -161,7 +172,10 @@ fn process_connection_event(
                                 pending_lock.get(&node).unwrap()
                             {
                                 let extended_payload: ExtendedPayload = created_payload.into();
-                                let extended_cell = Cell::new_extended_cell(0, extended_payload);
+                                let relay_payload: RelayPayload =
+                                    RelayPayload::new_extended_payload(extended_payload);
+                                let extended_cell = Cell::new_extended_cell(0, relay_payload);
+
                                 let peers_lock = peers.read().unwrap();
                                 let connection = peers_lock.get(&return_node).unwrap();
                                 connection.write(extended_cell);
@@ -176,80 +190,93 @@ fn process_connection_event(
                             node,
                         ));
                     }
-                    CellCommand::Extend => {
-                        println!("Received Extend Cell!");
-                        let extend_payload: ExtendPayload = cell.payload.into();
-                        let next_node = extend_payload.get_node();
-                        connect_to_peer(next_node, connection_events_sender.clone());
-
-                        let mut circuit_lock = circuits.write().unwrap();
-                        let successor_circuit_node =
-                            CircuitNode::new(cell.circ_id, None, next_node);
-                        let circuit = circuit_lock.get_mut(&cell.circ_id).unwrap();
-                        circuit.set_successor(Some(successor_circuit_node));
-
-                        let mut connection;
-                        loop {
-                            let peers_lock = peers.read().unwrap();
-                            connection = peers_lock.get(&next_node);
-                            if connection.is_some() {
-                                let create_payload: CreatePayload = extend_payload.into();
-                                let cell = Cell::new_create_cell(
-                                    0,
-                                    CreatePayload::new(&create_payload.serialize()),
-                                );
-                                connection.unwrap().write(cell);
-                                pending
-                                    .write()
-                                    .unwrap()
-                                    .insert(next_node, PendingResponse::Created(Some(node)));
-                                break;
-                            }
-                            println!("[WARNING] tor::process_connection_event --> (Extend) Error getting connection (retrying in 1000ms...)");
-                            thread::sleep(time::Duration::from_millis(1000));
-                        }
-                    }
-                    CellCommand::Extended => {
-                        println!("Received Extended Cell!");
-                        let extended_payload: ExtendedPayload = cell.payload.into();
-
-                        let aes_key = keys
-                            .read()
-                            .unwrap()
-                            .compute_aes_key(&extended_payload.dh_key);
-
-                        let mut constructed_circuit_lock = constructed_circuit.write().unwrap();
-                        constructed_circuit_lock.push(CircuitNode::new(
-                            cell.circ_id,
-                            Some(aes_key),
-                            node,
-                        ));
-                    }
-                    CellCommand::Data => {
-                        println!("Received Data Cell!");
+                    CellCommand::Relay => {
+                        print!("Received Relay Cell -- ");
 
                         let circuits_lock = circuits.read().unwrap();
                         let circuit = circuits_lock.get(&cell.circ_id).unwrap();
 
-                        let decrypted_cell = Cell::new(
-                            cell.circ_id,
-                            cell.command,
-                            circuit.predecessor.decrypt_payload(cell.payload),
-                        );
+                        let decrypted_payload =
+                            circuit.predecessor.decrypt_payload(cell.payload.clone());
+                        let relay_payload: RelayPayload = decrypted_payload.into();
 
-                        if let Ok(message) =
-                            String::from_utf8(decrypted_cell.payload.get_buffer().to_vec())
-                        {
-                            println!(
-                                "[INFO] tor::process_connection_event --> Received Message : {message}",
-                            );
+                        if !relay_payload.recognized.eq(&0) {
+                            println!("Forwarding Relay Cell");
+                            if let Some(successor) = circuit.successor.clone() {
+                                let peers_lock = peers.read().unwrap();
+                                let connection = peers_lock.get(&successor.node).unwrap();
+                                connection.write(cell);
+                            }
+                            return;
                         }
 
-                        // TODO CHECK IF IT"S FULLY DECRYPTED OTHERWISE PASS TO NEXT NODE
-                        if let Some(successor) = circuit.successor {
-                            let peers_lock = peers.read().unwrap();
-                            let connection = peers_lock.get(&successor.node).unwrap();
-                            connection.write(decrypted_cell);
+                        match RelayCommand::try_from(relay_payload.command) {
+                            Ok(command) => match command {
+                                RelayCommand::Extend => {
+                                    println!("Received Extend Cell");
+                                    let extend_payload: ExtendPayload =
+                                        cell.payload.into_extend().unwrap();
+                                    let next_node = extend_payload.get_node();
+                                    connect_to_peer(next_node, connection_events_sender.clone());
+
+                                    let mut circuit_lock = circuits.write().unwrap();
+                                    let successor_circuit_node =
+                                        CircuitNode::new(cell.circ_id, None, next_node);
+                                    let circuit = circuit_lock.get_mut(&cell.circ_id).unwrap();
+                                    circuit.set_successor(Some(successor_circuit_node));
+
+                                    let mut connection;
+                                    loop {
+                                        let peers_lock = peers.read().unwrap();
+                                        connection = peers_lock.get(&next_node);
+                                        if connection.is_some() {
+                                            let create_payload: CreatePayload =
+                                                extend_payload.into();
+                                            let control_payload: ControlPayload =
+                                                ControlPayload::new_create_payload(create_payload);
+                                            let cell = Cell::new_create_cell(0, control_payload);
+                                            connection.unwrap().write(cell);
+                                            pending.write().unwrap().insert(
+                                                next_node,
+                                                PendingResponse::Created(Some(node)),
+                                            );
+                                            break;
+                                        }
+                                        println!("[WARNING] tor::process_connection_event --> (Extend) Error getting connection (retrying in 1000ms...)");
+                                        thread::sleep(time::Duration::from_millis(1000));
+                                    }
+                                }
+                                RelayCommand::Extended => {
+                                    println!("Received Extended Cell");
+                                    let extended_payload: ExtendedPayload =
+                                        cell.payload.into_extended().unwrap();
+
+                                    let aes_key = keys
+                                        .read()
+                                        .unwrap()
+                                        .compute_aes_key(&extended_payload.dh_key);
+
+                                    let mut constructed_circuit_lock =
+                                        constructed_circuit.write().unwrap();
+                                    constructed_circuit_lock.push(CircuitNode::new(
+                                        cell.circ_id,
+                                        Some(aes_key),
+                                        node,
+                                    ));
+                                }
+                                RelayCommand::Data => {
+                                    println!("Received Data Cell");
+                                    if let Ok(message) =
+                                        String::from_utf8(relay_payload.data.to_vec())
+                                    {
+                                        println!(
+                                "[INFO] tor::process_connection_event --> Received Message : {message}",
+                            );
+                                    }
+                                }
+                                _ => {}
+                            },
+                            Err(e) => {}
                         }
                     }
                     _ => println!("Other"),
@@ -327,7 +354,8 @@ mod tests {
         t1.send(ConnectionEvent::SendExtend(node2, node3)).unwrap();
         thread::sleep(time::Duration::from_millis(5000));
 
-        let cell = Cell::new_data_cell(0, Payload::new(&"Hello!".as_bytes()));
+        let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes());
+        let cell = Cell::new_extend_cell(0, relay_payload);
         t1.send(ConnectionEvent::SendCell(node2, cell)).unwrap();
         thread::sleep(time::Duration::from_millis(1000));
 

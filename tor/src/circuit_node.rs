@@ -1,8 +1,8 @@
 use crate::*;
-use network::{Node, Payload};
+use network::{ControlPayload, Node, Payload, RelayPayload};
 use openssl::symm::{decrypt, encrypt, Cipher};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct CircuitNode {
     pub circ_id: u16,
     pub aes_key: Option<AESKey>,
@@ -19,24 +19,58 @@ impl CircuitNode {
     }
 
     pub fn encrypt_payload(&self, payload: Payload) -> Payload {
-        let encrypted_payload = encrypt(
-            Cipher::aes_128_ctr(),
-            &self.aes_key.unwrap().get_key(),
-            None,
-            &payload.get_buffer()[..],
-        )
-        .unwrap();
-        Payload::new(&encrypted_payload)
+        match payload {
+            Payload::RelayPayload(relay_payload) => {
+                return Payload::new_relay_payload(RelayPayload::new(
+                    self.encrypt_data(relay_payload.serialize())
+                        .try_into()
+                        .unwrap(),
+                ));
+            }
+            Payload::ControlPayload(control_payload) => {
+                Payload::new_control_payload(ControlPayload::new(
+                    self.encrypt_data(control_payload.serialize())
+                        .try_into()
+                        .unwrap(),
+                ))
+            }
+        }
     }
 
-    pub fn decrypt_payload(&self, encrypted_payload: Payload) -> Payload {
-        let payload = decrypt(
+    pub fn decrypt_payload(&self, payload: Payload) -> Payload {
+        match payload {
+            Payload::RelayPayload(relay_payload) => Payload::new_relay_payload(RelayPayload::new(
+                self.decrypt_data(relay_payload.serialize())
+                    .try_into()
+                    .unwrap(),
+            )),
+            Payload::ControlPayload(control_payload) => {
+                Payload::new_control_payload(ControlPayload::new(
+                    self.decrypt_data(control_payload.serialize())
+                        .try_into()
+                        .unwrap(),
+                ))
+            }
+        }
+    }
+
+    pub fn encrypt_data(&self, data: Vec<u8>) -> Vec<u8> {
+        encrypt(
             Cipher::aes_128_ctr(),
             &self.aes_key.unwrap().get_key(),
             None,
-            &encrypted_payload.get_buffer()[..],
+            &data[..],
         )
-        .unwrap();
-        Payload::new(&payload)
+        .unwrap()
+    }
+
+    pub fn decrypt_data(&self, data: Vec<u8>) -> Vec<u8> {
+        decrypt(
+            Cipher::aes_128_ctr(),
+            &self.aes_key.unwrap().get_key(),
+            None,
+            &data[..],
+        )
+        .unwrap()
     }
 }

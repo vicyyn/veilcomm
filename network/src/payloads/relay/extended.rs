@@ -10,12 +10,6 @@ pub struct ExtendedPayload {
     pub dh_key: [u8; 256],
 }
 
-impl From<Payload> for ExtendedPayload {
-    fn from(value: Payload) -> Self {
-        Self::deserialize(value.get_buffer())
-    }
-}
-
 impl From<CreatedPayload> for ExtendedPayload {
     fn from(value: CreatedPayload) -> Self {
         Self {

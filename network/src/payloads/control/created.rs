@@ -10,9 +10,11 @@ pub struct CreatedPayload {
     pub dh_key: [u8; 256],
 }
 
-impl From<Payload> for CreatedPayload {
-    fn from(value: Payload) -> Self {
-        Self::deserialize(value.get_buffer())
+impl From<ControlPayload> for CreatedPayload {
+    fn from(value: ControlPayload) -> Self {
+        let mut buffer = [0; 256];
+        buffer[..value.data.len()].copy_from_slice(&value.data);
+        Self { dh_key: buffer }
     }
 }
 

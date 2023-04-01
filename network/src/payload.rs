@@ -1,82 +1,95 @@
 use crate::*;
-// use openssl::symm::{decrypt, encrypt, Cipher};
-use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
+use serde::Serialize;
 
-pub const PAYLOAD_SIZE: usize = 509;
+pub const PAYLOAD_LEN: usize = 509;
 
-#[derive(Copy, Clone, Serialize, Deserialize, Debug)]
-pub struct Payload(#[serde(with = "BigArray")] [u8; PAYLOAD_SIZE]);
+#[derive(Clone, Serialize, Debug)]
+pub enum Payload {
+    ControlPayload(ControlPayload),
+    RelayPayload(RelayPayload),
+}
 
-impl From<ExtendedPayload> for Payload {
-    fn from(value: ExtendedPayload) -> Self {
-        Payload::new(&value.serialize())
+impl From<RelayPayload> for Payload {
+    fn from(value: RelayPayload) -> Self {
+        Self::new_relay_payload(value)
     }
 }
 
-impl From<ExtendPayload> for Payload {
-    fn from(value: ExtendPayload) -> Self {
-        Payload::new(&value.serialize())
-    }
-}
-
-impl From<CreatePayload> for Payload {
-    fn from(value: CreatePayload) -> Self {
-        Payload::new(&value.serialize())
-    }
-}
-
-impl From<CreatedPayload> for Payload {
-    fn from(value: CreatedPayload) -> Self {
-        Payload::new(&value.serialize())
+impl From<ControlPayload> for Payload {
+    fn from(value: ControlPayload) -> Self {
+        Self::new_control_payload(value)
     }
 }
 
 impl Payload {
-    pub fn new(data: &[u8]) -> Self {
-        let mut buffer = [0; PAYLOAD_SIZE];
-        buffer[..data.len()].copy_from_slice(data);
-        Self(buffer)
+    pub fn new_relay_payload(relay_payload: RelayPayload) -> Self {
+        Self::RelayPayload(relay_payload)
+    }
+
+    pub fn new_control_payload(control_payload: ControlPayload) -> Self {
+        Self::ControlPayload(control_payload)
+    }
+
+    pub fn is_relay_payload(&self) -> bool {
+        if let Self::RelayPayload(_) = self {
+            return true;
+        }
+        return false;
+    }
+
+    pub fn is_control_payload(&self) -> bool {
+        if let Self::ControlPayload(_) = self {
+            return true;
+        }
+        return false;
     }
 
     pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self).expect("[FAILED] Rpc::send_msg --> Unable to serialize message")
+        match self {
+            Self::ControlPayload(control_payload) => bincode::serialize(control_payload)
+                .expect("[FAILED] Rpc::send_msg --> Unable to serialize message"),
+            Self::RelayPayload(relay_payload) => bincode::serialize(relay_payload)
+                .expect("[FAILED] Rpc::send_msg --> Unable to serialize message"),
+        }
     }
 
-    pub fn deserialize(buffer: &[u8]) -> Payload {
-        bincode::deserialize(&buffer.to_vec())
-            .expect("[FAILED] Rpc::open, serde_json --> Unable to decode string payload")
+    pub fn into_create(&self) -> Option<CreatePayload> {
+        if let Self::ControlPayload(control_payload) = self {
+            Some(control_payload.into_create())
+        } else {
+            None
+        }
     }
 
-    // pub fn encrypt(&self, aes_key: AESKey) -> Payload {
-    //     let encrypted_payload = encrypt(
-    //         Cipher::aes_128_ctr(),
-    //         &aes_key.get_key(),
-    //         None,
-    //         &self.get_buffer()[..],
-    //     )
-    //     .unwrap();
-    //     Payload::new(&encrypted_payload)
+    pub fn into_created(&self) -> Option<CreatedPayload> {
+        if let Self::ControlPayload(control_payload) = self {
+            Some(control_payload.into_created())
+        } else {
+            None
+        }
+    }
+
+    pub fn into_extend(&self) -> Option<ExtendPayload> {
+        if let Self::RelayPayload(relay_payload) = self {
+            Some(relay_payload.into_extend())
+        } else {
+            None
+        }
+    }
+
+    pub fn into_extended(&self) -> Option<ExtendedPayload> {
+        if let Self::RelayPayload(relay_payload) = self {
+            Some(relay_payload.into_extended())
+        } else {
+            None
+        }
+    }
+
+    // pub fn deserialize_relay_payload(buffer: &[u8]) -> RelayPayload {
+    //     bincode::deserialize(&buffer.to_vec()).unwrap()
     // }
 
-    // pub fn decrypt(&self, aes_key: AESKey) -> Payload {
-    //     let payload = decrypt(
-    //         Cipher::aes_128_ctr(),
-    //         &aes_key.get_key(),
-    //         None,
-    //         &self.get_buffer()[..],
-    //     )
-    //     .unwrap();
-    //     Payload::new(&payload)
+    // pub fn deserialize_control_payload(buffer: &[u8]) -> ControlPayload {
+    //     bincode::deserialize(&buffer.to_vec()).unwrap()
     // }
-
-    pub fn get_buffer(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl Default for Payload {
-    fn default() -> Self {
-        Self([0; PAYLOAD_SIZE])
-    }
 }

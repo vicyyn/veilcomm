@@ -1,6 +1,4 @@
-use network::Node;
 use openssl::{bn::BigNum, dh::Dh, pkey::PKey, pkey::Private, rsa::Rsa};
-use std::collections::HashMap;
 use std::convert::From;
 
 pub const KEY_LEN: usize = 32;
