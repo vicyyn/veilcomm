@@ -84,12 +84,4 @@ impl Payload {
             None
         }
     }
-
-    // pub fn deserialize_relay_payload(buffer: &[u8]) -> RelayPayload {
-    //     bincode::deserialize(&buffer.to_vec()).unwrap()
-    // }
-
-    // pub fn deserialize_control_payload(buffer: &[u8]) -> ControlPayload {
-    //     bincode::deserialize(&buffer.to_vec()).unwrap()
-    // }
 }

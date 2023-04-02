@@ -1,4 +1,3 @@
-// Communicate with other peers
 use crate::*;
 use std::io::{Read, Write};
 use std::net::TcpStream;

@@ -43,7 +43,9 @@ version = "0.1.0"
 name = "directory"
 version = "0.1.0"
 dependencies = [
- "openssl",
+ "bincode",
+ "serde",
+ "serde-big-array",
 ]
 
 [[package]]
