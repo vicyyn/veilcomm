@@ -27,8 +27,8 @@ impl Node {
         format!("{}:{}", self.ip, self.port)
     }
 
-    pub fn get_addr(&self) -> String {
-        format!("{}:{}", self.ip, self.port)
+    pub fn get_addr(&self) -> SocketAddr {
+        SocketAddr::new(std::net::IpAddr::V4(self.ip), self.port)
     }
 
     pub fn default() -> Self {

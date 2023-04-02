@@ -1,5 +1,9 @@
 use directory::{new_socket_addr, Relay, Relays};
 use network::*;
+use openssl::{
+    pkey::PKey,
+    rsa::{Padding, Rsa},
+};
 use tor::{Circuit, CircuitNode, Keys, PendingResponse};
 
 use core::time;
@@ -71,6 +75,7 @@ fn process_connection_event(
     pending: Arc<RwLock<HashMap<Node, PendingResponse>>>,
     circuits: Arc<RwLock<HashMap<u16, Circuit>>>,
     constructed_circuit: Arc<RwLock<Vec<CircuitNode>>>,
+    relays: Arc<Relays>,
 ) {
     std::thread::spawn(move || match connection_event {
         ConnectionEvent::NewConnection(node, stream) => {
@@ -107,6 +112,16 @@ fn process_connection_event(
             let extend_payload = ExtendPayload::new(next_node, &public_key_bytes);
             let relay_payload = RelayPayload::new_extend_payload(extend_payload);
             let mut cell = Cell::new_extend_cell(0, relay_payload);
+
+            let destination_relay = relays.get_relay(next_node.get_addr()).unwrap();
+            let public_key = Rsa::public_key_from_der(&destination_relay.identity_key).unwrap();
+            let mut buf: Vec<u8> = vec![0; public_key.size() as usize];
+
+            public_key
+                .public_encrypt(&public_key_bytes, &mut buf, Padding::NONE)
+                .unwrap();
+
+            println!("{:?} , {}", buf, buf.len());
 
             let constructed_circuit_lock = constructed_circuit.read().unwrap();
             for circuit_node in constructed_circuit_lock.iter().rev() {
@@ -288,14 +303,13 @@ fn process_connection_event(
     });
 }
 
-pub fn connect_to_directory(address: SocketAddr) {
+pub fn connect_to_directory(relay: Relay, address: SocketAddr) -> Result<Relays, ()> {
     match TcpStream::connect(address) {
         Ok(mut stream) => {
             println!(
                 "[SUCCESS] tor::connect_to_directory --> Connected to Directory: {:?}",
                 address
             );
-            let relay = Relay::default();
             stream.write(&relay.serialize()).unwrap();
             println!("[SUCCESS] tor::connect_to_directory --> Sent server descriptor to directory");
 
@@ -320,6 +334,7 @@ pub fn connect_to_directory(address: SocketAddr) {
                         "[SUCCESS] tor::connect_to_directory --> Received {} Relay",
                         relays.len()
                     );
+                    return Ok(relays);
                 }
                 Err(e) => {
                     println!(
@@ -336,6 +351,7 @@ pub fn connect_to_directory(address: SocketAddr) {
             );
         }
     }
+    Err(())
 }
 
 fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
@@ -347,7 +363,18 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
     let pending: Arc<RwLock<HashMap<Node, PendingResponse>>> =
         Arc::new(RwLock::new(HashMap::new()));
 
-    connect_to_directory(new_socket_addr(8090));
+    let relay = Relay::new(
+        "Joe".to_string(),
+        keys.read()
+            .unwrap()
+            .relay_id_rsa
+            .public_key_to_der()
+            .unwrap(),
+        main_node.get_addr(),
+        "joe@gmail.com".to_string(),
+    );
+
+    let relays = Arc::new(connect_to_directory(relay, new_socket_addr(8090)).unwrap());
 
     listen_for_connections(main_node, connection_events_sender.clone());
     std::thread::spawn({
@@ -362,6 +389,7 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
                 Arc::clone(&pending),
                 Arc::clone(&circuits),
                 Arc::clone(&constructed_circuit),
+                Arc::clone(&relays),
             );
         }
     });
@@ -392,10 +420,10 @@ mod tests {
 
         start_directory(new_socket_addr(8090));
 
-        let t1 = start_peer(node1);
-        let t2 = start_peer(node2);
-        let t3 = start_peer(node3);
         let t4 = start_peer(node4);
+        let t3 = start_peer(node3);
+        let t2 = start_peer(node2);
+        let t1 = start_peer(node1);
 
         t1.send(ConnectionEvent::Connect(node2)).unwrap();
         thread::sleep(time::Duration::from_millis(1000));

@@ -1,7 +1,7 @@
 use crate::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Relays(Vec<Relay>);
 
 impl Relays {
@@ -11,6 +11,10 @@ impl Relays {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn get_relay(&self, address: SocketAddr) -> Option<Relay> {
+        self.0.clone().into_iter().find(|x| x.address.eq(&address))
     }
 
     pub fn add_relay(&mut self, relay: Relay) {
