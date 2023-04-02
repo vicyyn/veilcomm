@@ -1,3 +1,4 @@
+use directory::{new_socket_addr, Relay, Relays};
 use network::*;
 use tor::{Circuit, CircuitNode, Keys, PendingResponse};
 
@@ -5,7 +6,8 @@ use core::time;
 use std::{
     collections::HashMap,
     env,
-    net::{Ipv4Addr, TcpListener, TcpStream},
+    io::{Read, Write},
+    net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     sync::{
         mpsc::{channel, Sender},
         Arc, RwLock,
@@ -286,6 +288,56 @@ fn process_connection_event(
     });
 }
 
+pub fn connect_to_directory(address: SocketAddr) {
+    match TcpStream::connect(address) {
+        Ok(mut stream) => {
+            println!(
+                "[SUCCESS] tor::connect_to_directory --> Connected to Directory: {:?}",
+                address
+            );
+            let relay = Relay::default();
+            stream.write(&relay.serialize()).unwrap();
+            println!("[SUCCESS] tor::connect_to_directory --> Sent server descriptor to directory");
+
+            let mut buffer = [0u8; 1024];
+            let mut stream = stream.try_clone().unwrap();
+            match stream.read(&mut buffer) {
+                Ok(0) => {
+                    println!(
+                        "[WARNING] tor::connect_to_directory --> Connection has disconnected from {}",
+                        stream.peer_addr().unwrap()
+                    );
+                }
+                Ok(n) => {
+                    println!(
+                        "[SUCCESS] tor::connect_to_directory --> Received : {} bytes from {:?}",
+                        n,
+                        stream.peer_addr().unwrap()
+                    );
+
+                    let relays = Relays::deserialize(&buffer);
+                    println!(
+                        "[SUCCESS] tor::connect_to_directory --> Received {} Relay",
+                        relays.len()
+                    );
+                }
+                Err(e) => {
+                    println!(
+                        "[FAILED] tor::connect_to_directory --> Error reading from socket: {}",
+                        e
+                    );
+                }
+            }
+        }
+        Err(e) => {
+            println!(
+                "[FAILED] tor::connect_to_peer --> Error Connecting to Peer: {}",
+                e
+            );
+        }
+    }
+}
+
 fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
     let constructed_circuit: Arc<RwLock<Vec<CircuitNode>>> = Arc::new(RwLock::new(vec![]));
     let circuits: Arc<RwLock<HashMap<u16, Circuit>>> = Arc::new(RwLock::new(HashMap::new()));
@@ -295,8 +347,9 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
     let pending: Arc<RwLock<HashMap<Node, PendingResponse>>> =
         Arc::new(RwLock::new(HashMap::new()));
 
-    listen_for_connections(main_node, connection_events_sender.clone());
+    connect_to_directory(new_socket_addr(8090));
 
+    listen_for_connections(main_node, connection_events_sender.clone());
     std::thread::spawn({
         let connection_events_sender = connection_events_sender.clone();
         move || loop {
@@ -328,6 +381,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use directory::{new_socket_addr, start_directory};
 
     #[test]
     fn test_tor() {
@@ -335,6 +389,8 @@ mod tests {
         let node2 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8002);
         let node3 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8003);
         let node4 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8004);
+
+        start_directory(new_socket_addr(8090));
 
         let t1 = start_peer(node1);
         let t2 = start_peer(node2);

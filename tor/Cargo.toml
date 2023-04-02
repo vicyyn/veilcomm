@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 network = { path = "../network" }
+directory = { path = "../directory" }
 openssl = "0.10.45"
 hex = "0.4.3"
