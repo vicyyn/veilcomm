@@ -39,3 +39,34 @@ impl OnionSkin {
         return dh.try_into().unwrap();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use openssl::{bn::BigNum, dh::Dh};
+
+    use super::*;
+
+    #[test]
+    fn test_onion_skin() {
+        let rsa = Rsa::generate(1024).unwrap();
+        let first_half = Dh::get_2048_256().unwrap().generate_key().unwrap();
+        let second_half = Dh::get_2048_256().unwrap().generate_key().unwrap();
+
+        let dh = Dh::get_2048_256().unwrap().generate_key().unwrap();
+
+        let aes: [u8; 16] = first_half
+            .compute_key(&BigNum::from_slice(&second_half.public_key().to_vec()).unwrap())
+            .unwrap()[0..16]
+            .try_into()
+            .unwrap();
+
+        let mut buf: Vec<u8> = vec![0; rsa.size() as usize];
+        rsa.private_encrypt(&aes, &mut buf, Padding::PKCS1).unwrap();
+
+        let encrypted_dh =
+            encrypt(Cipher::aes_128_ctr(), &aes, None, &dh.public_key().to_vec()).unwrap();
+
+        println!("{:?} , {}", buf, buf.len());
+        println!("{:?} , {}", encrypted_dh, encrypted_dh.len());
+    }
+}
