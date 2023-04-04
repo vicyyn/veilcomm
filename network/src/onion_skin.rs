@@ -60,13 +60,26 @@ mod tests {
             .try_into()
             .unwrap();
 
-        let mut buf: Vec<u8> = vec![0; rsa.size() as usize];
-        rsa.private_encrypt(&aes, &mut buf, Padding::PKCS1).unwrap();
+        let mut rsa_encrypted_aes_key: Vec<u8> = vec![0; rsa.size() as usize];
+        rsa.private_encrypt(&aes, &mut rsa_encrypted_aes_key, Padding::PKCS1)
+            .unwrap();
 
-        let encrypted_dh =
+        let aes_encrypted_dh_key =
             encrypt(Cipher::aes_128_ctr(), &aes, None, &dh.public_key().to_vec()).unwrap();
 
-        println!("{:?} , {}", buf, buf.len());
-        println!("{:?} , {}", encrypted_dh, encrypted_dh.len());
+        let mut aes_decrypted: Vec<u8> = vec![0; rsa.size() as usize];
+        rsa.public_decrypt(&rsa_encrypted_aes_key, &mut aes_decrypted, Padding::PKCS1)
+            .unwrap();
+
+        let dh_key_decrypted = decrypt(
+            Cipher::aes_128_ctr(),
+            &aes_decrypted[0..16],
+            None,
+            &aes_encrypted_dh_key,
+        )
+        .unwrap();
+
+        assert!(aes_decrypted[0..16].eq(&aes.to_vec()));
+        assert!(dh.public_key().to_vec().eq(&dh_key_decrypted));
     }
 }
