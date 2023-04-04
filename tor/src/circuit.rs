@@ -1,5 +1,6 @@
 use crate::*;
 
+#[derive(Debug)]
 pub struct Circuit {
     pub predecessor: CircuitNode,
     pub successor: Option<CircuitNode>,

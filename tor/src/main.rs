@@ -171,7 +171,10 @@ fn process_connection_event(
                                 .onion_skin
                                 .get_dh(keys.read().unwrap().relay_id_rsa.clone()),
                         );
-                        println!("KEY -- {:?}", hex::encode(aes_key.get_key()));
+                        println!(
+                            "[SUCCESS] Handshake Complete --> AES key {:?}",
+                            hex::encode(aes_key.get_key())
+                        );
 
                         let public_key_bytes = keys.read().unwrap().dh.public_key().to_vec();
 
@@ -228,13 +231,16 @@ fn process_connection_event(
                     }
                     CellCommand::Relay => {
                         print!("Received Relay Cell -- ");
-
-                        let circuits_lock = circuits.read().unwrap();
+                        let mut circuits_lock = circuits.write().unwrap();
                         let circuit = circuits_lock.get(&cell.circ_id).unwrap();
+                        let decrypted_payload =
+                            circuit.predecessor.decrypt_payload(cell.payload.clone());
+                        let relay_payload: RelayPayload = decrypted_payload.clone().into();
 
-                        let relay_payload: RelayPayload = cell.payload.clone().into();
                         if !relay_payload.recognized.eq(&0) {
                             println!("Forwarding Relay Cell");
+                            let mut cell = cell.clone();
+                            cell.payload = decrypted_payload;
                             if let Some(successor) = circuit.successor.clone() {
                                 let peers_lock = peers.read().unwrap();
                                 let connection = peers_lock.get(&successor.node).unwrap();
@@ -243,23 +249,17 @@ fn process_connection_event(
                             return;
                         }
 
-                        let decrypted_payload =
-                            circuit.predecessor.decrypt_payload(cell.payload.clone());
-                        let relay_payload: RelayPayload = decrypted_payload.into();
-
                         match RelayCommand::try_from(relay_payload.command) {
                             Ok(command) => match command {
                                 RelayCommand::Extend => {
                                     println!("Received Extend Cell");
-                                    let extend_payload: ExtendPayload =
-                                        cell.payload.into_extend().unwrap();
+                                    let extend_payload: ExtendPayload = relay_payload.into_extend();
                                     let next_node = extend_payload.get_node();
                                     connect_to_peer(next_node, connection_events_sender.clone());
 
-                                    let mut circuit_lock = circuits.write().unwrap();
                                     let successor_circuit_node =
                                         CircuitNode::new(cell.circ_id, None, next_node);
-                                    let circuit = circuit_lock.get_mut(&cell.circ_id).unwrap();
+                                    let circuit = circuits_lock.get_mut(&cell.circ_id).unwrap();
                                     circuit.set_successor(Some(successor_circuit_node));
 
                                     let mut connection;
@@ -463,10 +463,10 @@ mod tests {
         t1.send(ConnectionEvent::SendExtend(node2, node3)).unwrap();
         thread::sleep(time::Duration::from_millis(2000));
 
-        let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes());
-        let cell = Cell::new_extend_cell(0, relay_payload);
-        t1.send(ConnectionEvent::SendCell(node2, cell)).unwrap();
-        thread::sleep(time::Duration::from_millis(1000));
+        // let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes());
+        // let cell = Cell::new_extend_cell(0, relay_payload);
+        // t1.send(ConnectionEvent::SendCell(node2, cell)).unwrap();
+        // thread::sleep(time::Duration::from_millis(1000));
 
         loop {}
     }
