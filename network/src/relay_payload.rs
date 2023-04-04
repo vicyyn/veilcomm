@@ -35,7 +35,7 @@ impl RelayPayload {
         ExtendPayload {
             address: self.data[..4].try_into().unwrap(),
             port: u16::from_le_bytes(self.data[4..6].try_into().unwrap()),
-            dh_key: self.data[6..262].try_into().unwrap(),
+            onion_skin: OnionSkin::deserialize(&self.data[6..(6 + ONION_SKIN_LEN)]),
         }
     }
 

@@ -1,7 +1,7 @@
 use directory::{new_socket_addr, Relay, Relays};
 use network::*;
 use openssl::{
-    pkey::PKey,
+    rand::rand_bytes,
     rsa::{Padding, Rsa},
 };
 use tor::{Circuit, CircuitNode, Keys, PendingResponse};
@@ -18,6 +18,12 @@ use std::{
     },
     thread,
 };
+
+fn generate_random_aes_key() -> [u8; 16] {
+    let mut key = [0u8; 16];
+    rand_bytes(&mut key).unwrap();
+    key
+}
 
 pub fn listen_for_connections(node: Node, sender: Sender<ConnectionEvent>) {
     thread::spawn(move || loop {
@@ -105,23 +111,21 @@ fn process_connection_event(
             connection.write(encrypted_cell);
         }
         ConnectionEvent::SendExtend(node, next_node) => {
+            // get connection
             let peers_lock = peers.read().unwrap();
             let connection = peers_lock.get(&node).unwrap();
-            let public_key_bytes = keys.read().unwrap().dh.public_key().to_vec();
 
-            let extend_payload = ExtendPayload::new(next_node, &public_key_bytes);
+            // get destination rsa publickey
+            let destination_relay = relays.get_relay(next_node.get_addr()).unwrap();
+            let rsa_public = Rsa::public_key_from_der(&destination_relay.identity_key).unwrap();
+
+            // create the cell
+            let half_dh_bytes = keys.read().unwrap().dh.public_key().to_vec();
+            let aes = generate_random_aes_key();
+            let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap());
+            let extend_payload = ExtendPayload::new(next_node, onion_skin);
             let relay_payload = RelayPayload::new_extend_payload(extend_payload);
             let mut cell = Cell::new_extend_cell(0, relay_payload);
-
-            let destination_relay = relays.get_relay(next_node.get_addr()).unwrap();
-            let public_key = Rsa::public_key_from_der(&destination_relay.identity_key).unwrap();
-            let mut buf: Vec<u8> = vec![0; public_key.size() as usize];
-
-            public_key
-                .public_encrypt(&public_key_bytes, &mut buf, Padding::NONE)
-                .unwrap();
-
-            println!("{:?} , {}", buf, buf.len());
 
             let constructed_circuit_lock = constructed_circuit.read().unwrap();
             for circuit_node in constructed_circuit_lock.iter().rev() {
@@ -133,11 +137,19 @@ fn process_connection_event(
             connection.write(cell);
         }
         ConnectionEvent::SendCreate(node) => {
+            // get connection
             let peers_lock = peers.read().unwrap();
             let connection = peers_lock.get(&node).unwrap();
-            let public_key_bytes = keys.read().unwrap().dh.public_key().to_vec();
 
-            let create_payload = CreatePayload::new(&public_key_bytes);
+            // get destination rsa publickey
+            let destination_relay = relays.get_relay(node.get_addr()).unwrap();
+            let rsa_public = Rsa::public_key_from_der(&destination_relay.identity_key).unwrap();
+
+            // create the cell
+            let half_dh_bytes = keys.read().unwrap().dh.public_key().to_vec();
+            let aes = generate_random_aes_key();
+            let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap());
+            let create_payload = CreatePayload::new(onion_skin);
             let control_payload = ControlPayload::new_create_payload(create_payload);
             let cell = Cell::new_create_cell(0, control_payload);
 
@@ -154,7 +166,13 @@ fn process_connection_event(
                     CellCommand::Create => {
                         println!("Received Create");
                         let create_payload: CreatePayload = cell.payload.into_create().unwrap();
-                        let aes_key = keys.read().unwrap().compute_aes_key(&create_payload.dh_key);
+                        let aes_key = keys.read().unwrap().compute_aes_key(
+                            &create_payload
+                                .onion_skin
+                                .get_dh(keys.read().unwrap().relay_id_rsa.clone()),
+                        );
+                        println!("KEY -- {:?}", hex::encode(aes_key.get_key()));
+
                         let public_key_bytes = keys.read().unwrap().dh.public_key().to_vec();
 
                         let mut circuit_lock = circuits.write().unwrap();
@@ -178,6 +196,12 @@ fn process_connection_event(
                             .read()
                             .unwrap()
                             .compute_aes_key(&created_payload.dh_key);
+
+                        println!(
+                            "[SUCCESS] Handshake Complete --> AES key {:?}",
+                            hex::encode(aes_key.get_key())
+                        );
+
                         let mut pending_lock = pending.write().unwrap();
                         if pending_lock.get(&node).is_some() {
                             if let PendingResponse::Created(Some(return_node)) =
@@ -269,6 +293,11 @@ fn process_connection_event(
                                         .unwrap()
                                         .compute_aes_key(&extended_payload.dh_key);
 
+                                    println!(
+                                        "[SUCCESS] Handshake Complete --> AES key {:?}",
+                                        hex::encode(aes_key.get_key())
+                                    );
+
                                     let mut constructed_circuit_lock =
                                         constructed_circuit.write().unwrap();
                                     constructed_circuit_lock.push(CircuitNode::new(
@@ -313,7 +342,7 @@ pub fn connect_to_directory(relay: Relay, address: SocketAddr) -> Result<Relays,
             stream.write(&relay.serialize()).unwrap();
             println!("[SUCCESS] tor::connect_to_directory --> Sent server descriptor to directory");
 
-            let mut buffer = [0u8; 1024];
+            let mut buffer = [0u8; 10240];
             let mut stream = stream.try_clone().unwrap();
             match stream.read(&mut buffer) {
                 Ok(0) => {

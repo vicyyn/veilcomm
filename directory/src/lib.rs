@@ -40,21 +40,26 @@ pub fn receive_relay(stream: TcpStream, relays: Arc<RwLock<Relays>>) {
 }
 
 pub fn send_relays(stream: TcpStream, relays: Arc<RwLock<Relays>>) {
+    let relays = relays.read().unwrap();
+    println!(
+        "[SUCCESS] Directory::send_relays --> sent {} relays",
+        relays.len()
+    );
     let mut stream = stream.try_clone().unwrap();
-    stream.write(&relays.read().unwrap().serialize()).unwrap();
+    stream.write(&relays.serialize()).unwrap();
 }
 
 pub fn start_directory(address: SocketAddr) {
     thread::spawn(move || {
         let relays = Arc::new(RwLock::new(Relays::new()));
         let socket = TcpListener::bind(address)
-            .expect("[FAILED] tor::listen_for_connections --> Error while binding TcpSocket to specified addr");
+            .expect("[FAILED] Directory::start_directory --> Error while binding TcpSocket to specified addr");
 
         loop {
             match socket.accept() {
                 Ok((stream, addr)) => {
                     println!(
-                        "[SUCCESS] tor::listen_for_connections - New client connected: {:?}",
+                        "[SUCCESS] Directory::start_directory - New client connected: {:?}",
                         addr
                     );
 
@@ -68,7 +73,7 @@ pub fn start_directory(address: SocketAddr) {
                 }
                 Err(e) => {
                     println!(
-                    "[FAILED] tor::listen_for_connections - Error accepting client connection: {}",
+                    "[FAILED] Directory::start_directory - Error accepting client connection: {}",
                     e
                 );
                 }

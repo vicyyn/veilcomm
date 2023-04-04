@@ -20,9 +20,9 @@ impl ControlPayload {
     }
 
     pub fn into_create(&self) -> CreatePayload {
-        let mut buffer = [0; 256];
-        buffer.copy_from_slice(&self.data[0..256]);
-        CreatePayload { dh_key: buffer }
+        CreatePayload {
+            onion_skin: OnionSkin::deserialize(&self.data[..ONION_SKIN_LEN]),
+        }
     }
 
     pub fn into_created(&self) -> CreatedPayload {

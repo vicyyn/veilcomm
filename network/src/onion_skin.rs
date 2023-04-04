@@ -1,11 +1,13 @@
 use openssl::{
-    pkey::Private,
+    pkey::{Private, Public},
     rsa::{Padding, Rsa},
 };
 
 use openssl::symm::{decrypt, encrypt, Cipher};
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
+
+pub const ONION_SKIN_LEN: usize = 384;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OnionSkin {
@@ -16,27 +18,43 @@ pub struct OnionSkin {
 }
 
 impl OnionSkin {
-    pub fn new(data: &[u8]) -> Self {
+    pub fn new(rsa: Rsa<Public>, aes: [u8; 16], dh_key: [u8; 256]) -> Self {
+        let mut rsa_encrypted_aes_key: Vec<u8> = vec![0; rsa.size() as usize];
+        rsa.public_encrypt(&aes, &mut rsa_encrypted_aes_key, Padding::PKCS1)
+            .unwrap();
+
+        let aes_encrypted_dh_key = encrypt(Cipher::aes_128_ctr(), &aes, None, &dh_key).unwrap();
+
         Self {
-            rsa_encrypted_aes_key: data[0..128].try_into().unwrap(),
-            aes_encrypted_dh_key: data[128..384].try_into().unwrap(),
+            rsa_encrypted_aes_key: rsa_encrypted_aes_key.try_into().unwrap(),
+            aes_encrypted_dh_key: aes_encrypted_dh_key.try_into().unwrap(),
         }
     }
 
     pub fn get_dh(&self, rsa: Rsa<Private>) -> [u8; 256] {
-        let mut buf: Vec<u8> = vec![0; rsa.size() as usize];
-        rsa.private_decrypt(&self.rsa_encrypted_aes_key, &mut buf, Padding::PKCS1_OAEP)
+        let mut aes: Vec<u8> = vec![0; rsa.size() as usize];
+        rsa.private_decrypt(&self.rsa_encrypted_aes_key, &mut aes, Padding::PKCS1)
             .unwrap();
 
         let dh = decrypt(
             Cipher::aes_128_ctr(),
-            &buf[0..16],
+            &aes[0..16],
             None,
-            &self.aes_encrypted_dh_key[..],
+            &self.aes_encrypted_dh_key,
         )
         .unwrap();
 
         return dh.try_into().unwrap();
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        bincode::serialize(self)
+            .expect("[FAILED] CreatePayload::serialize --> Unable to serialize payload")
+    }
+
+    pub fn deserialize(buffer: &[u8]) -> Self {
+        bincode::deserialize(&buffer.to_vec())
+            .expect("[FAILED] CreatePayload::deserialize --> Unable to deserialize payload")
     }
 }
 
@@ -61,14 +79,14 @@ mod tests {
             .unwrap();
 
         let mut rsa_encrypted_aes_key: Vec<u8> = vec![0; rsa.size() as usize];
-        rsa.private_encrypt(&aes, &mut rsa_encrypted_aes_key, Padding::PKCS1)
+        rsa.public_encrypt(&aes, &mut rsa_encrypted_aes_key, Padding::PKCS1)
             .unwrap();
 
         let aes_encrypted_dh_key =
             encrypt(Cipher::aes_128_ctr(), &aes, None, &dh.public_key().to_vec()).unwrap();
 
         let mut aes_decrypted: Vec<u8> = vec![0; rsa.size() as usize];
-        rsa.public_decrypt(&rsa_encrypted_aes_key, &mut aes_decrypted, Padding::PKCS1)
+        rsa.private_decrypt(&rsa_encrypted_aes_key, &mut aes_decrypted, Padding::PKCS1)
             .unwrap();
 
         let dh_key_decrypted = decrypt(

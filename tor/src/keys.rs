@@ -31,7 +31,7 @@ pub struct Keys {
 
 impl Keys {
     pub fn new() -> Self {
-        let relay_id_rsa = Rsa::generate(2048).unwrap();
+        let relay_id_rsa = Rsa::generate(1024).unwrap();
         let onion_tap = Rsa::generate(2048).unwrap();
         let conn_tls = Rsa::generate(2048).unwrap();
 

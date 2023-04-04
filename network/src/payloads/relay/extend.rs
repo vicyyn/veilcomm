@@ -1,26 +1,18 @@
-// The basic unit of communication for onion routers and onion
-// proxies is a fixed-width "cell". 512 bytes size.
 use crate::*;
-use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct ExtendPayload {
     pub address: [u8; 4],
     pub port: u16,
-    #[serde(with = "BigArray")]
-    pub dh_key: [u8; 256],
+    pub onion_skin: OnionSkin,
 }
 
 impl ExtendPayload {
-    pub fn new(node: Node, dh_key: &[u8]) -> Self {
-        let mut buffer = [0; 256];
-        buffer[..dh_key.len()].copy_from_slice(&dh_key);
-
+    pub fn new(node: Node, onion_skin: OnionSkin) -> Self {
         Self {
             address: node.ip.octets(),
             port: u16::from_be_bytes(node.port.to_be_bytes()),
-            dh_key: buffer,
+            onion_skin,
         }
     }
 
@@ -29,23 +21,18 @@ impl ExtendPayload {
     }
 
     pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self)
-            .expect("[FAILED] CreatePayload::serialize --> Unable to serialize payload")
+        let mut serialized = vec![];
+        serialized.extend(self.address);
+        serialized.extend(self.port.to_le_bytes());
+        serialized.extend(self.onion_skin.serialize());
+        return serialized;
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec())
-            .expect("[FAILED] CreatePayload::deserialize --> Unable to deserialize payload")
-    }
-}
-
-impl Default for ExtendPayload {
-    fn default() -> Self {
-        let node = Node::default();
         Self {
-            address: node.ip.octets(),
-            port: node.port,
-            dh_key: [0; 256],
+            address: buffer[0..4].try_into().unwrap(),
+            port: u16::from_le_bytes(buffer[4..6].try_into().unwrap()),
+            onion_skin: OnionSkin::deserialize(&buffer[6..]),
         }
     }
 }

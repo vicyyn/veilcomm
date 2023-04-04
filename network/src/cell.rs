@@ -1,11 +1,10 @@
 // The basic unit of communication for onion routers and onion
 // proxies is a fixed-width "cell". 512 bytes size.
 use crate::*;
-use serde::Serialize;
 
 pub const CELL_SIZE: usize = 512;
 
-#[derive(Clone, Serialize, Debug)]
+#[derive(Clone, Debug)]
 pub struct Cell {
     pub circ_id: u16,
     pub command: u8,
@@ -23,14 +22,14 @@ impl Cell {
 
     pub fn serialize(&self) -> Vec<u8> {
         let mut serialized = vec![];
-        serialized.extend(self.circ_id.to_be_bytes());
+        serialized.extend(self.circ_id.to_le_bytes());
         serialized.push(self.command);
         serialized.extend(self.payload.serialize());
         return serialized;
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        let circ_id = u16::from_be_bytes(buffer[..2].try_into().unwrap());
+        let circ_id = u16::from_le_bytes(buffer[0..2].try_into().unwrap());
         let command = buffer[2];
         let payload: Payload = if CellCommand::Relay as u8 == command {
             RelayPayload::deserialize(&buffer[3..]).into()
