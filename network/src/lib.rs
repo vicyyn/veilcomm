@@ -9,7 +9,6 @@ pub mod payload;
 pub mod payloads;
 pub mod relay_command;
 pub mod relay_payload;
-pub mod utils;
 
 pub use cell::*;
 pub use cell_command::*;
@@ -22,4 +21,3 @@ pub use payload::*;
 pub use payloads::*;
 pub use relay_command::*;
 pub use relay_payload::*;
-pub use utils::*;

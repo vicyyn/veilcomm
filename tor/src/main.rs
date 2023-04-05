@@ -1,9 +1,6 @@
 use directory::{new_socket_addr, Relay, Relays};
 use network::*;
-use openssl::{
-    rand::rand_bytes,
-    rsa::{Padding, Rsa},
-};
+use openssl::{rand::rand_bytes, rsa::Rsa};
 use tor::{Circuit, CircuitNode, Keys, PendingResponse};
 
 use core::time;
