@@ -107,7 +107,8 @@ fn process_connection_event(
 
             let mut encrypted_cell = cell.clone();
             for circuit_node in encryption_nodes.iter().rev() {
-                encrypted_cell.payload = circuit_node.encrypt_payload(cell.payload.clone());
+                encrypted_cell.payload =
+                    circuit_node.encrypt_payload(encrypted_cell.payload.clone());
             }
 
             connection.write(encrypted_cell);
@@ -158,6 +159,11 @@ fn process_connection_event(
             let control_payload = ControlPayload::new_create_payload(create_payload);
             let cell = Cell::new_create_cell(0, control_payload);
 
+            // create op circuit
+            let mut circuits_lock = circuits.write().unwrap();
+            let op_circuit = Circuit::new_op_circuit();
+            circuits_lock.insert(cell.circ_id, op_circuit);
+
             pending
                 .write()
                 .unwrap()
@@ -183,9 +189,9 @@ fn process_connection_event(
 
                         let public_key_bytes = keys.read().unwrap().dh.public_key().to_vec();
 
+                        // create new or circuit
                         let mut circuit_lock = circuits.write().unwrap();
-                        let predecessor_circuit_node =
-                            CircuitNode::new(cell.circ_id, Some(aes_key), node);
+                        let predecessor_circuit_node = CircuitNode::new(Some(aes_key), node);
                         let circuit = Circuit::new_or_circuit(predecessor_circuit_node, None);
                         circuit_lock.insert(cell.circ_id, circuit);
 
@@ -205,11 +211,6 @@ fn process_connection_event(
                             .unwrap()
                             .compute_aes_key(&created_payload.dh_key);
 
-                        println!(
-                            "[SUCCESS] Handshake Complete --> AES key {:?}",
-                            hex::encode(aes_key.get_key())
-                        );
-
                         let mut pending_lock = pending.write().unwrap();
                         if pending_lock.get(&node).is_some() {
                             if let PendingResponse::Created(Some(return_node)) =
@@ -224,17 +225,25 @@ fn process_connection_event(
                                 let connection = peers_lock.get(&return_node).unwrap();
                                 connection.write(extended_cell);
                                 pending_lock.remove(&node).unwrap();
+                            } else {
+                                println!(
+                                    "[SUCCESS] Handshake Complete --> AES key {:?}",
+                                    hex::encode(aes_key.get_key())
+                                );
+                                let mut circuit_lock = circuits.write().unwrap();
+                                let op_circuit = circuit_lock.get_mut(&cell.circ_id);
+                                if let Some(op_circuit) = op_circuit {
+                                    if op_circuit.is_op_circuit() {
+                                        println!(
+                                            "[SUCCESS] Added To Op Circuit --> Node {:?}",
+                                            node
+                                        );
+                                        op_circuit
+                                            .add_successor(CircuitNode::new(Some(aes_key), node));
+                                    }
+                                }
                             }
                         }
-
-                        let mut circuits_lock = circuits.write().unwrap();
-                        let mut op_circuit = Circuit::new_op_circuit();
-                        op_circuit.add_successor(CircuitNode::new(
-                            cell.circ_id,
-                            Some(aes_key),
-                            node,
-                        ));
-                        circuits_lock.insert(cell.circ_id, op_circuit).unwrap();
                     }
                     CellCommand::Relay => {
                         print!("Received Relay Cell -- ");
@@ -271,8 +280,8 @@ fn process_connection_event(
                                     let next_node = extend_payload.get_node();
                                     connect_to_peer(next_node, connection_events_sender.clone());
 
-                                    let successor_circuit_node =
-                                        CircuitNode::new(cell.circ_id, None, next_node);
+                                    // extend existing or circuit
+                                    let successor_circuit_node = CircuitNode::new(None, next_node);
                                     let circuit = circuits_lock.get_mut(&cell.circ_id).unwrap();
                                     circuit.set_successor(Some(successor_circuit_node));
 
@@ -312,14 +321,9 @@ fn process_connection_event(
                                         hex::encode(aes_key.get_key())
                                     );
 
-                                    let mut circuits_lock = circuits.write().unwrap();
-                                    let mut op_circuit = Circuit::new_op_circuit();
-                                    op_circuit.add_successor(CircuitNode::new(
-                                        cell.circ_id,
-                                        Some(aes_key),
-                                        node,
-                                    ));
-                                    circuits_lock.insert(cell.circ_id, op_circuit).unwrap();
+                                    // add successor from extending to op circuit
+                                    let op_circuit = circuits_lock.get_mut(&cell.circ_id).unwrap();
+                                    op_circuit.add_successor(CircuitNode::new(Some(aes_key), node));
                                 }
                                 RelayCommand::Data => {
                                     println!("Received Data Cell");

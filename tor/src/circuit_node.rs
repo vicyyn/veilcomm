@@ -4,18 +4,13 @@ use openssl::symm::{decrypt, encrypt, Cipher};
 
 #[derive(Debug, Clone)]
 pub struct CircuitNode {
-    pub circ_id: u16,
     pub aes_key: Option<AESKey>,
     pub node: Node,
 }
 
 impl CircuitNode {
-    pub fn new(circ_id: u16, aes_key: Option<AESKey>, node: Node) -> Self {
-        Self {
-            circ_id,
-            aes_key,
-            node,
-        }
+    pub fn new(aes_key: Option<AESKey>, node: Node) -> Self {
+        Self { aes_key, node }
     }
 
     pub fn encrypt_payload(&self, payload: Payload) -> Payload {
