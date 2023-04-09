@@ -1,7 +1,7 @@
-use directory::{new_socket_addr, Relay, Relays};
+use directory::{new_socket_addr, user_descriptor, Relay, Relays, UserDescriptor, UserDescriptors};
 use network::*;
-use openssl::{rand::rand_bytes, rsa::Rsa};
-use tor::{Circuit, CircuitNode, Keys, PendingResponse};
+use openssl::rsa::Rsa;
+use tor::*;
 
 use core::time;
 use std::{
@@ -15,12 +15,6 @@ use std::{
     },
     thread,
 };
-
-fn generate_random_aes_key() -> [u8; 16] {
-    let mut key = [0u8; 16];
-    rand_bytes(&mut key).unwrap();
-    key
-}
 
 pub fn listen_for_connections(node: Node, sender: Sender<ConnectionEvent>) {
     thread::spawn(move || loop {
@@ -348,7 +342,11 @@ fn process_connection_event(
     });
 }
 
-pub fn connect_to_directory(relay: Relay, address: SocketAddr) -> Result<Relays, ()> {
+pub fn connect_to_directory(
+    relay: Relay,
+    address: SocketAddr,
+    user_descriptor: Option<UserDescriptor>,
+) -> Result<Arc<Relays>, ()> {
     match TcpStream::connect(address) {
         Ok(mut stream) => {
             println!(
@@ -379,7 +377,12 @@ pub fn connect_to_directory(relay: Relay, address: SocketAddr) -> Result<Relays,
                         "[SUCCESS] tor::connect_to_directory --> Received {} Relay",
                         relays.len()
                     );
-                    return Ok(relays);
+
+                    if user_descriptor.is_some() {
+                        stream.write(&user_descriptor.unwrap().serialize()).unwrap();
+                    }
+
+                    return Ok(Arc::new(relays));
                 }
                 Err(e) => {
                     println!(
@@ -418,7 +421,7 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
         "joe@gmail.com".to_string(),
     );
 
-    let relays = Arc::new(connect_to_directory(relay, new_socket_addr(8090)).unwrap());
+    let relays = connect_to_directory(relay, new_socket_addr(8090), None).unwrap();
 
     listen_for_connections(main_node, connection_events_sender.clone());
     std::thread::spawn({

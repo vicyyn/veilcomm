@@ -1,7 +1,11 @@
-use openssl::{bn::BigNum, dh::Dh, pkey::PKey, pkey::Private, rsa::Rsa};
+use openssl::{bn::BigNum, dh::Dh, pkey::PKey, pkey::Private, rand::rand_bytes, rsa::Rsa};
 use std::convert::From;
 
-pub const KEY_LEN: usize = 32;
+pub fn generate_random_aes_key() -> [u8; 16] {
+    let mut key = [0u8; 16];
+    rand_bytes(&mut key).unwrap();
+    key
+}
 
 #[derive(Debug, Copy, Clone)]
 pub struct AESKey([u8; 16]);
