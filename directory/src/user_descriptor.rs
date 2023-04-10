@@ -1,17 +1,15 @@
 use network::Node;
 use serde::{Deserialize, Serialize};
-use serde_big_array::BigArray;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserDescriptor {
     pub address: [u8; 32],
-    #[serde(with = "BigArray")]
-    pub publickey: [u8; 128],
+    pub publickey: Vec<u8>,
     pub introduction_points: Vec<Node>,
 }
 
 impl UserDescriptor {
-    pub fn new(address: [u8; 32], publickey: [u8; 128], introduction_points: Vec<Node>) -> Self {
+    pub fn new(address: [u8; 32], publickey: Vec<u8>, introduction_points: Vec<Node>) -> Self {
         Self {
             address,
             publickey,

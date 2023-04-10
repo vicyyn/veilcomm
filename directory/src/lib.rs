@@ -88,7 +88,7 @@ pub fn send_relays(stream: TcpStream, relays: Arc<RwLock<Relays>>) {
 pub fn send_user_descriptors(stream: TcpStream, user_descriptors: Arc<RwLock<UserDescriptors>>) {
     let user_descriptors = user_descriptors.read().unwrap();
     println!(
-        "[SUCCESS] Directory::send_relays --> sent {} relays",
+        "[SUCCESS] Directory::send_user_descriptors --> sent {} user_descriptors",
         user_descriptors.len()
     );
     let mut stream = stream.try_clone().unwrap();
@@ -115,13 +115,16 @@ pub fn start_directory(address: SocketAddr) {
                         let cloned_user_descriptors = Arc::clone(&user_descriptors);
 
                         move || {
+                            send_relays(stream.try_clone().unwrap(), cloned_relays.clone());
                             receive_relay(stream.try_clone().unwrap(), cloned_relays.clone());
-                            send_relays(stream.try_clone().unwrap(), cloned_relays);
-                            // send_user_descriptors(
-                            //     stream.try_clone().unwrap(),
-                            //     cloned_user_descriptors.clone(),
-                            // );
-                            receive_user_descriptor(stream, cloned_user_descriptors);
+                            send_user_descriptors(
+                                stream.try_clone().unwrap(),
+                                cloned_user_descriptors.clone(),
+                            );
+                            receive_user_descriptor(
+                                stream.try_clone().unwrap(),
+                                cloned_user_descriptors.clone(),
+                            );
                         }
                     });
                 }

@@ -1,5 +1,8 @@
-use openssl::{bn::BigNum, dh::Dh, pkey::PKey, pkey::Private, rand::rand_bytes, rsa::Rsa};
-use std::convert::From;
+use directory::UserDescriptor;
+use network::Node;
+use openssl::{bn::BigNum, dh::Dh, pkey::Private, rand::rand_bytes, rsa::Rsa};
+
+use crate::AESKey;
 
 pub fn generate_random_aes_key() -> [u8; 16] {
     let mut key = [0u8; 16];
@@ -7,52 +10,29 @@ pub fn generate_random_aes_key() -> [u8; 16] {
     key
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct AESKey([u8; 16]);
-
-impl From<&[u8]> for AESKey {
-    fn from(value: &[u8]) -> Self {
-        Self(value.try_into().unwrap())
-    }
-}
-
-impl AESKey {
-    pub fn get_key(&self) -> [u8; 16] {
-        self.0
-    }
+pub fn generate_random_address() -> [u8; 32] {
+    let mut address = [0u8; 32];
+    rand_bytes(&mut address).unwrap();
+    address
 }
 
 pub struct Keys {
     pub relay_id_rsa: Rsa<Private>,
-    pub onion_tap: Rsa<Private>,
-    pub conn_tls: Rsa<Private>,
-    pub ntor: PKey<Private>,
-    pub relay_id_ed: PKey<Private>,
-    pub relay_sign_ed: PKey<Private>,
-    pub link_ed: PKey<Private>,
+    pub address: [u8; 32],
+    pub user_private: Rsa<Private>,
     pub dh: Dh<Private>,
 }
 
 impl Keys {
     pub fn new() -> Self {
         let relay_id_rsa = Rsa::generate(1024).unwrap();
-        let onion_tap = Rsa::generate(2048).unwrap();
-        let conn_tls = Rsa::generate(2048).unwrap();
-
-        let ntor = PKey::generate_x25519().unwrap();
-
-        let relay_id_ed = PKey::generate_ed25519().unwrap();
-        let relay_sign_ed = PKey::generate_ed25519().unwrap();
-        let link_ed = PKey::generate_ed25519().unwrap();
+        let address = generate_random_address();
+        let user_private = Rsa::generate(1024).unwrap();
 
         Self {
             relay_id_rsa,
-            onion_tap,
-            conn_tls,
-            ntor,
-            relay_id_ed,
-            relay_sign_ed,
-            link_ed,
+            address,
+            user_private,
             dh: Dh::get_2048_256().unwrap().generate_key().unwrap(),
         }
     }
@@ -66,5 +46,13 @@ impl Keys {
     pub fn compute_aes_key(&self, half_dh: &[u8]) -> AESKey {
         let dh = self.compute_dh(half_dh);
         dh[0..16].try_into().unwrap()
+    }
+
+    pub fn get_user_descriptor(&self, introduction_points: Vec<Node>) -> UserDescriptor {
+        UserDescriptor::new(
+            self.address,
+            self.user_private.public_key_to_der().unwrap(),
+            introduction_points,
+        )
     }
 }

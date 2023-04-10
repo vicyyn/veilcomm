@@ -346,63 +346,45 @@ pub fn connect_to_directory(
     relay: Relay,
     address: SocketAddr,
     user_descriptor: Option<UserDescriptor>,
-) -> Result<Arc<Relays>, ()> {
+) -> Result<(Arc<Relays>, Arc<UserDescriptors>), ()> {
     match TcpStream::connect(address) {
         Ok(mut stream) => {
             println!(
                 "[SUCCESS] tor::connect_to_directory --> Connected to Directory: {:?}",
                 address
             );
-            stream.write(&relay.serialize()).unwrap();
-            println!("[SUCCESS] tor::connect_to_directory --> Sent server descriptor to directory");
-
             let mut buffer = [0u8; 10240];
             let mut stream = stream.try_clone().unwrap();
-            match stream.read(&mut buffer) {
-                Ok(0) => {
-                    println!(
-                        "[WARNING] tor::connect_to_directory --> Connection has disconnected from {}",
-                        stream.peer_addr().unwrap()
-                    );
-                }
-                Ok(n) => {
-                    println!(
-                        "[SUCCESS] tor::connect_to_directory --> Received : {} bytes from {:?}",
-                        n,
-                        stream.peer_addr().unwrap()
-                    );
 
-                    let relays = Relays::deserialize(&buffer);
-                    println!(
-                        "[SUCCESS] tor::connect_to_directory --> Received {} Relay",
-                        relays.len()
-                    );
+            // read relays
+            stream.read(&mut buffer).unwrap();
+            let relays = Relays::deserialize(&buffer);
 
-                    if user_descriptor.is_some() {
-                        stream.write(&user_descriptor.unwrap().serialize()).unwrap();
-                    }
+            // send relay
+            stream.write(&relay.serialize()).unwrap();
+            println!("[SUCCESS] tor::connect_to_directory --> Sent relay to directory");
 
-                    return Ok(Arc::new(relays));
-                }
-                Err(e) => {
-                    println!(
-                        "[FAILED] tor::connect_to_directory --> Error reading from socket: {}",
-                        e
-                    );
-                }
+            // read user descriptors
+            stream.read(&mut buffer).unwrap();
+            let user_descriptors = UserDescriptors::deserialize(&buffer);
+
+            // send descriptor if is a client
+            if user_descriptor.is_some() {
+                stream.write(&user_descriptor.unwrap().serialize()).unwrap();
             }
+            Ok((Arc::new(relays), Arc::new(user_descriptors)))
         }
         Err(e) => {
             println!(
                 "[FAILED] tor::connect_to_peer --> Error Connecting to Peer: {}",
                 e
             );
+            Err(())
         }
     }
-    Err(())
 }
 
-fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
+fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
     let circuits: Arc<RwLock<HashMap<u16, Circuit>>> = Arc::new(RwLock::new(HashMap::new()));
     let peers: Arc<RwLock<HashMap<Node, Connection>>> = Arc::new(RwLock::new(HashMap::new()));
     let keys = Arc::new(RwLock::new(Keys::new()));
@@ -421,7 +403,14 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
         "joe@gmail.com".to_string(),
     );
 
-    let relays = connect_to_directory(relay, new_socket_addr(8090), None).unwrap();
+    let user_descriptor;
+    if is_user == true {
+        user_descriptor = Some(keys.read().unwrap().get_user_descriptor(vec![]));
+    } else {
+        user_descriptor = None;
+    }
+    let (relays, user_descriptors) =
+        connect_to_directory(relay, new_socket_addr(8090), user_descriptor).unwrap();
 
     listen_for_connections(main_node, connection_events_sender.clone());
     std::thread::spawn({
@@ -445,10 +434,10 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let _ = start_peer(Node::new(
-        Ipv4Addr::new(127, 0, 0, 1),
-        args[1].parse().unwrap(),
-    ));
+    let _ = start_peer(
+        Node::new(Ipv4Addr::new(127, 0, 0, 1), args[1].parse().unwrap()),
+        false,
+    );
     loop {}
 }
 
@@ -466,10 +455,10 @@ mod tests {
 
         start_directory(new_socket_addr(8090));
 
-        let t4 = start_peer(node4);
-        let t3 = start_peer(node3);
-        let t2 = start_peer(node2);
-        let t1 = start_peer(node1);
+        let t4 = start_peer(node4, true);
+        let t3 = start_peer(node3, true);
+        let t2 = start_peer(node2, false);
+        let t1 = start_peer(node1, false);
 
         t1.send(ConnectionEvent::Connect(node2)).unwrap();
         thread::sleep(time::Duration::from_millis(1000));
