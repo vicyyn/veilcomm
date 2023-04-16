@@ -4,6 +4,7 @@ use std::net::TcpStream;
 use std::sync::mpsc::{self, Receiver, Sender, SyncSender};
 use std::thread;
 
+#[derive(Clone)]
 pub struct Connection {
     pub writer: SyncSender<Cell>,
 }

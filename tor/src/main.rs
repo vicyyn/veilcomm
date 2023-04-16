@@ -1,4 +1,4 @@
-use directory::{new_socket_addr, user_descriptor, Relay, Relays, UserDescriptor, UserDescriptors};
+use directory::{new_socket_addr, Relay, Relays, UserDescriptor, UserDescriptors};
 use network::*;
 use openssl::rsa::Rsa;
 use tor::*;
@@ -66,7 +66,7 @@ pub fn connect_to_peer(node: Node, sender: Sender<ConnectionEvent>) {
 
 fn process_connection_event(
     connection_event: ConnectionEvent,
-    peers: Arc<RwLock<HashMap<Node, Connection>>>,
+    connections: Connections,
     connection_events_sender: Sender<ConnectionEvent>,
     keys: Arc<RwLock<Keys>>,
     pending: Arc<RwLock<HashMap<Node, PendingResponse>>>,
@@ -81,22 +81,22 @@ fn process_connection_event(
                 connection_events_sender.clone(),
             );
 
-            let mut peers_lock = peers.write().unwrap();
-            peers_lock.insert(node, connection);
+            connections.insert(node, connection);
         }
         ConnectionEvent::Connect(node) => {
             println!("[INFO] tor::process_connection_event --> Connect event");
             connect_to_peer(node, connection_events_sender.clone());
         }
         ConnectionEvent::SendCell(node, cell) => {
-            let peers_lock = peers.read().unwrap();
-            let connection = peers_lock.get(&node).unwrap();
-
-            let circuit = circuits.get(cell.circ_id);
-            let encryption_nodes = circuit.get_encryption_nodes().unwrap();
+            let connection = connections.get(node).unwrap();
 
             let mut encrypted_cell = cell.clone();
-            for circuit_node in encryption_nodes.iter().rev() {
+            for circuit_node in circuits
+                .get_encryption_nodes(cell.circ_id)
+                .unwrap()
+                .iter()
+                .rev()
+            {
                 encrypted_cell.payload =
                     circuit_node.encrypt_payload(encrypted_cell.payload.clone());
             }
@@ -104,9 +104,7 @@ fn process_connection_event(
             connection.write(encrypted_cell);
         }
         ConnectionEvent::SendExtend(node, next_node) => {
-            // get connection
-            let peers_lock = peers.read().unwrap();
-            let connection = peers_lock.get(&node).unwrap();
+            let connection = connections.get(node).unwrap();
 
             // get destination rsa publickey
             let destination_relay = relays.get_relay(next_node.get_addr()).unwrap();
@@ -120,10 +118,12 @@ fn process_connection_event(
             let relay_payload = RelayPayload::new_extend_payload(extend_payload);
             let mut cell = Cell::new_extend_cell(0, relay_payload);
 
-            let circuit = circuits.get(cell.circ_id);
-            let encryption_nodes = circuit.get_encryption_nodes().unwrap();
-
-            for circuit_node in encryption_nodes.iter().rev() {
+            for circuit_node in circuits
+                .get_encryption_nodes(cell.circ_id)
+                .unwrap()
+                .iter()
+                .rev()
+            {
                 cell.payload = circuit_node.encrypt_payload(cell.payload.clone());
             }
 
@@ -132,9 +132,7 @@ fn process_connection_event(
             connection.write(cell);
         }
         ConnectionEvent::SendCreate(node) => {
-            // get connection
-            let peers_lock = peers.read().unwrap();
-            let connection = peers_lock.get(&node).unwrap();
+            let connection = connections.get(node).unwrap();
 
             // get destination rsa publickey
             let destination_relay = relays.get_relay(node.get_addr()).unwrap();
@@ -175,14 +173,13 @@ fn process_connection_event(
 
                         let predecessor_circuit_node = CircuitNode::new(Some(aes_key), node);
                         let circuit = Circuit::new_or_circuit(predecessor_circuit_node, None);
-                        circuits.add_circuit(cell.circ_id, circuit);
+                        circuits.insert(cell.circ_id, circuit);
 
                         let created_payload = CreatedPayload::new(&public_key_bytes);
                         let control_payload = ControlPayload::new_created_payload(created_payload);
                         let cell = Cell::new_created_cell(0, control_payload);
 
-                        let peers_lock = peers.read().unwrap();
-                        let connection = peers_lock.get(&node).unwrap();
+                        let connection = connections.get(node).unwrap();
                         connection.write(cell);
                     }
                     CellCommand::Created => {
@@ -198,10 +195,16 @@ fn process_connection_event(
                                 let extended_payload: ExtendedPayload = created_payload.into();
                                 let relay_payload: RelayPayload =
                                     RelayPayload::new_extended_payload(extended_payload);
-                                let extended_cell = Cell::new_extended_cell(0, relay_payload);
+                                let extended_cell = Cell::new_extended_cell(
+                                    0,
+                                    circuits
+                                        .get_predecessor(cell.circ_id)
+                                        .unwrap()
+                                        .encrypt_payload(relay_payload.into())
+                                        .into(),
+                                );
 
-                                let peers_lock = peers.read().unwrap();
-                                let connection = peers_lock.get(&return_node).unwrap();
+                                let connection = connections.get(*return_node).unwrap();
                                 connection.write(extended_cell);
                                 pending_lock.remove(&node).unwrap();
                             } else {
@@ -218,33 +221,40 @@ fn process_connection_event(
                                 // create op circuit
                                 let mut op_circuit = Circuit::new_op_circuit();
                                 op_circuit.add_successor(CircuitNode::new(Some(aes_key), node));
-                                circuits.add_circuit(cell.circ_id, op_circuit);
+                                circuits.insert(cell.circ_id, op_circuit);
                                 println!("[SUCCESS] Added To Op Circuit --> Node {:?}", node);
                             }
                         }
                     }
                     CellCommand::Relay => {
                         print!("Received Relay Cell -- ");
-                        let circuit = circuits.get(cell.circ_id);
+                        let circuit = circuits.get(cell.circ_id).unwrap();
                         let mut relay_payload: RelayPayload = cell.payload.clone().into();
 
-                        if circuit.is_or_circuit() {
-                            let decrypted_payload = circuit
-                                .get_decryption_node()
-                                .unwrap()
-                                .decrypt_payload(cell.payload.clone());
-                            relay_payload = decrypted_payload.clone().into();
+                        if !relay_payload.recognized.eq(&0) {
+                            if circuit.is_or_circuit() {
+                                let decrypted_payload = circuit
+                                    .get_predecessor()
+                                    .unwrap()
+                                    .decrypt_payload(cell.payload.clone());
+                                relay_payload = decrypted_payload.clone().into();
 
-                            if !relay_payload.recognized.eq(&0) {
-                                println!("Forwarding Relay Cell");
-                                let mut cell = cell.clone();
-                                cell.payload = decrypted_payload;
-                                if let Some(successor) = circuit.get_successor() {
-                                    let peers_lock = peers.read().unwrap();
-                                    let connection = peers_lock.get(&successor.node).unwrap();
-                                    connection.write(cell);
+                                if !relay_payload.recognized.eq(&0) {
+                                    println!("Forwarding Relay Cell");
+                                    let mut cell = cell.clone();
+                                    cell.payload = decrypted_payload;
+                                    if let Some(successor) = circuit.get_successor() {
+                                        let connection = connections.get(successor.node).unwrap();
+                                        connection.write(cell);
+                                    }
+                                    return;
                                 }
-                                return;
+                            } else {
+                                for circuit_node in circuit.get_successors().unwrap().iter() {
+                                    relay_payload = circuit_node
+                                        .decrypt_payload(relay_payload.clone().into())
+                                        .into();
+                                }
                             }
                         }
 
@@ -264,8 +274,7 @@ fn process_connection_event(
 
                                     let mut connection;
                                     loop {
-                                        let peers_lock = peers.read().unwrap();
-                                        connection = peers_lock.get(&next_node);
+                                        connection = connections.get(next_node);
                                         if connection.is_some() {
                                             let create_payload: CreatePayload =
                                                 extend_payload.into();
@@ -286,7 +295,7 @@ fn process_connection_event(
                                 RelayCommand::Extended => {
                                     println!("Received Extended Cell");
                                     let extended_payload: ExtendedPayload =
-                                        cell.payload.into_extended().unwrap();
+                                        relay_payload.into_extended();
 
                                     let aes_key = keys
                                         .read()
@@ -374,7 +383,7 @@ pub fn connect_to_directory(
 
 fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
     let circuits = Circuits::new();
-    let peers: Arc<RwLock<HashMap<Node, Connection>>> = Arc::new(RwLock::new(HashMap::new()));
+    let connections = Connections::new();
     let keys = Arc::new(RwLock::new(Keys::new()));
     let (connection_events_sender, connection_events_receiver) = channel();
     let pending: Arc<RwLock<HashMap<Node, PendingResponse>>> =
@@ -407,7 +416,7 @@ fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
             let connection_event = connection_events_receiver.recv().unwrap();
             process_connection_event(
                 connection_event,
-                Arc::clone(&peers),
+                connections.clone(),
                 connection_events_sender.clone(),
                 Arc::clone(&keys),
                 Arc::clone(&pending),
@@ -455,9 +464,6 @@ mod tests {
         thread::sleep(time::Duration::from_millis(1000));
 
         t1.send(ConnectionEvent::SendExtend(node2, node3)).unwrap();
-        thread::sleep(time::Duration::from_millis(2000));
-
-        t1.send(ConnectionEvent::SendExtend(node2, node4)).unwrap();
         thread::sleep(time::Duration::from_millis(2000));
 
         let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes());

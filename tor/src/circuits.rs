@@ -16,8 +16,29 @@ impl Circuits {
         Self(Arc::clone(&self.0))
     }
 
-    pub fn get(&self, circ_id: u16) -> Circuit {
-        self.0.read().unwrap().get(&circ_id).unwrap().clone()
+    pub fn get(&self, circ_id: u16) -> Option<Circuit> {
+        match self.0.read().unwrap().get(&circ_id) {
+            Some(v) => Some(v.clone()),
+            None => None,
+        }
+    }
+
+    pub fn get_encryption_nodes(&self, circ_id: u16) -> Option<Vec<CircuitNode>> {
+        self.0
+            .read()
+            .unwrap()
+            .get(&circ_id)
+            .unwrap()
+            .get_successors()
+    }
+
+    pub fn get_predecessor(&self, circ_id: u16) -> Option<CircuitNode> {
+        self.0
+            .read()
+            .unwrap()
+            .get(&circ_id)
+            .unwrap()
+            .get_predecessor()
     }
 
     pub fn add_successor(&self, circ_id: u16, circuit_node: CircuitNode) {
@@ -38,7 +59,7 @@ impl Circuits {
             .set_successor(circuit_node);
     }
 
-    pub fn add_circuit(&self, circ_id: u16, circuit: Circuit) {
+    pub fn insert(&self, circ_id: u16, circuit: Circuit) {
         self.0.write().unwrap().insert(circ_id, circuit);
     }
 }

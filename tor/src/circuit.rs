@@ -39,6 +39,10 @@ impl OrCircuit {
         return self.successor.clone();
     }
 
+    pub fn get_predecessor(&self) -> CircuitNode {
+        return self.predecessor.clone();
+    }
+
     pub fn set_successor(&mut self, successor: Option<CircuitNode>) {
         self.successor = successor;
     }
@@ -79,16 +83,9 @@ impl Circuit {
         }
     }
 
-    pub fn get_encryption_nodes(&self) -> Option<Vec<CircuitNode>> {
+    pub fn get_successors(&self) -> Option<Vec<CircuitNode>> {
         if let Self::OpCircuit(op_circuit) = self {
             return Some(op_circuit.successors.clone());
-        }
-        return None;
-    }
-
-    pub fn get_decryption_node(&self) -> Option<CircuitNode> {
-        if let Self::OrCircuit(or_circuit) = self {
-            return Some(or_circuit.predecessor.clone());
         }
         return None;
     }
@@ -96,6 +93,13 @@ impl Circuit {
     pub fn get_successor(&self) -> Option<CircuitNode> {
         if let Self::OrCircuit(or_circuit) = self {
             return or_circuit.get_successor();
+        }
+        return None;
+    }
+
+    pub fn get_predecessor(&self) -> Option<CircuitNode> {
+        if let Self::OrCircuit(or_circuit) = self {
+            return Some(or_circuit.get_predecessor());
         }
         return None;
     }
