@@ -1,16 +1,17 @@
 use crate::*;
 
+#[derive(Clone)]
 pub enum Circuit {
     OpCircuit(OpCircuit),
     OrCircuit(OrCircuit),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OpCircuit {
     pub successors: Vec<CircuitNode>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OrCircuit {
     pub predecessor: CircuitNode,
     pub successor: Option<CircuitNode>,

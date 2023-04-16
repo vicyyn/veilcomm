@@ -2,6 +2,7 @@
 // generate publickey
 // choose introduction points -> advertise on lookup service
 // build circuit for each introduction point
+// ESTABLISH_INTRO =>
 //
 // 2.
 // connect to lookup service
