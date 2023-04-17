@@ -6,6 +6,7 @@ pub mod connections;
 pub mod constants;
 pub mod keys;
 pub mod pending_response;
+pub mod pending_responses;
 
 pub use aes_key::*;
 pub use circuit::*;
@@ -15,3 +16,4 @@ pub use connections::*;
 pub use constants::*;
 pub use keys::*;
 pub use pending_response::*;
+pub use pending_responses::*;

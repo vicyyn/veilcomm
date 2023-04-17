@@ -67,9 +67,9 @@ pub fn connect_to_peer(node: Node, sender: Sender<ConnectionEvent>) {
 fn process_connection_event(
     connection_event: ConnectionEvent,
     connections: Connections,
+    pending_responses: PendingResponses,
     connection_events_sender: Sender<ConnectionEvent>,
     keys: Arc<RwLock<Keys>>,
-    pending: Arc<RwLock<HashMap<Node, PendingResponse>>>,
     circuits: Circuits,
     relays: Arc<Relays>,
 ) {
@@ -127,8 +127,7 @@ fn process_connection_event(
                 cell.payload = circuit_node.encrypt_payload(cell.payload.clone());
             }
 
-            let mut pending_lock = pending.write().unwrap();
-            pending_lock.insert(node, PendingResponse::Extended);
+            pending_responses.insert(node, PendingResponse::Extended);
             connection.write(cell);
         }
         ConnectionEvent::SendCreate(node) => {
@@ -146,10 +145,7 @@ fn process_connection_event(
             let control_payload = ControlPayload::new_create_payload(create_payload);
             let cell = Cell::new_create_cell(0, control_payload);
 
-            pending
-                .write()
-                .unwrap()
-                .insert(node, PendingResponse::Created(None));
+            pending_responses.insert(node, PendingResponse::Created(None));
             connection.write(cell);
         }
         ConnectionEvent::ReceiveCell(node, cell) => {
@@ -187,10 +183,10 @@ fn process_connection_event(
 
                         let created_payload: CreatedPayload = cell.payload.into_created().unwrap();
 
-                        let mut pending_lock = pending.write().unwrap();
-                        if pending_lock.get(&node).is_some() {
+                        let pending_response = pending_responses.get(node);
+                        if pending_response.is_some() {
                             if let PendingResponse::Created(Some(return_node)) =
-                                pending_lock.get(&node).unwrap()
+                                pending_response.unwrap()
                             {
                                 let extended_payload: ExtendedPayload = created_payload.into();
                                 let relay_payload: RelayPayload =
@@ -204,9 +200,9 @@ fn process_connection_event(
                                         .into(),
                                 );
 
-                                let connection = connections.get(*return_node).unwrap();
+                                let connection = connections.get(return_node).unwrap();
                                 connection.write(extended_cell);
-                                pending_lock.remove(&node).unwrap();
+                                pending_responses.remove(node);
                             } else {
                                 let aes_key = keys
                                     .read()
@@ -282,7 +278,7 @@ fn process_connection_event(
                                                 ControlPayload::new_create_payload(create_payload);
                                             let cell = Cell::new_create_cell(0, control_payload);
                                             connection.unwrap().write(cell);
-                                            pending.write().unwrap().insert(
+                                            pending_responses.insert(
                                                 next_node,
                                                 PendingResponse::Created(Some(node)),
                                             );
@@ -384,10 +380,9 @@ pub fn connect_to_directory(
 fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
     let circuits = Circuits::new();
     let connections = Connections::new();
+    let pending_responses = PendingResponses::new();
     let keys = Arc::new(RwLock::new(Keys::new()));
     let (connection_events_sender, connection_events_receiver) = channel();
-    let pending: Arc<RwLock<HashMap<Node, PendingResponse>>> =
-        Arc::new(RwLock::new(HashMap::new()));
 
     let relay = Relay::new(
         "Joe".to_string(),
@@ -417,9 +412,9 @@ fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
             process_connection_event(
                 connection_event,
                 connections.clone(),
+                pending_responses.clone(),
                 connection_events_sender.clone(),
                 Arc::clone(&keys),
-                Arc::clone(&pending),
                 circuits.clone(),
                 Arc::clone(&relays),
             );

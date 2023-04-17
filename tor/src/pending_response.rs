@@ -1,6 +1,6 @@
 use network::Node;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PendingResponse {
     Pong,
     Extended,
