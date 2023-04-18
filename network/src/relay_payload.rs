@@ -92,11 +92,40 @@ impl RelayPayload {
         }
     }
 
-    pub fn new_establish_intro_payload(data: &[u8]) -> Self {
+    pub fn new_establish_intro_payload(establish_intro_payload: EstablishIntroPayload) -> Self {
+        let data = establish_intro_payload.serialize();
         let mut buffer = [0; PAYLOAD_LEN - 11];
         buffer[..data.len()].copy_from_slice(&data);
         Self {
             command: 32,
+            recognized: 0,
+            stream_id: 0,
+            digest: 0,
+            length: 0,
+            data: buffer,
+        }
+    }
+
+    pub fn new_begin_payload(begin_payload: BeginPayload) -> Self {
+        let data = begin_payload.serialize();
+        let mut buffer = [0; PAYLOAD_LEN - 11];
+        buffer[..data.len()].copy_from_slice(&data);
+        Self {
+            command: 1,
+            recognized: 0,
+            stream_id: 0,
+            digest: 0,
+            length: 0,
+            data: buffer,
+        }
+    }
+
+    pub fn new_connected_payload(connected_payload: ConnectedPayload) -> Self {
+        let data = connected_payload.serialize();
+        let mut buffer = [0; PAYLOAD_LEN - 11];
+        buffer[..data.len()].copy_from_slice(&data);
+        Self {
+            command: 4,
             recognized: 0,
             stream_id: 0,
             digest: 0,
