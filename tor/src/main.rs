@@ -71,6 +71,7 @@ fn process_connection_event(
     keys: Arc<RwLock<Keys>>,
     circuits: Circuits,
     relays: Arc<Relays>,
+    streams: Streams,
 ) {
     std::thread::spawn(move || match connection_event {
         ConnectionEvent::NewConnection(node, stream) => {
@@ -357,6 +358,7 @@ pub fn connect_to_directory(
 
 fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
     let circuits = Circuits::new();
+    let streams = Streams::new();
     let connections = Connections::new();
     let pending_responses = PendingResponses::new();
     let keys = Arc::new(RwLock::new(Keys::new()));
@@ -395,6 +397,7 @@ fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
                 Arc::clone(&keys),
                 circuits.clone(),
                 Arc::clone(&relays),
+                streams.clone(),
             );
         }
     });
