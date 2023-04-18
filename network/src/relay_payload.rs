@@ -45,6 +45,12 @@ impl RelayPayload {
         ExtendedPayload { dh_key }
     }
 
+    pub fn into_establish_intro(&self) -> EstablishIntroPayload {
+        let mut address = [0; 32];
+        address.copy_from_slice(&self.data[0..32]);
+        EstablishIntroPayload { address }
+    }
+
     pub fn new_extend_payload(extend_payload: ExtendPayload) -> Self {
         let data = extend_payload.serialize();
         let mut buffer = [0; PAYLOAD_LEN - 11];

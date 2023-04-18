@@ -282,6 +282,11 @@ fn process_connection_event(
                                         CircuitNode::new(Some(aes_key), node),
                                     );
                                 }
+                                RelayCommand::EstablishIntro => {
+                                    println!("Received Establish Intro Cell");
+                                    let establish_intro_payload: EstablishIntroPayload =
+                                        relay_payload.into_establish_intro();
+                                }
                                 RelayCommand::Data => {
                                     println!("Received Data Cell");
                                     if let Ok(message) =
