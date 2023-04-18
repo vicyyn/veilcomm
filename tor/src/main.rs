@@ -5,6 +5,7 @@ use tor::*;
 
 use core::time;
 use std::{
+    collections::HashMap,
     env,
     io::{Read, Write},
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
@@ -220,10 +221,9 @@ fn process_connection_event(
                                 println!("Forwarding Relay Cell");
                                 let mut new_cell = cell.clone();
                                 new_cell.payload = relay_payload.into();
-                                if let Some(successor) = circuit.get_successor() {
-                                    let connection = connections.get(successor.node).unwrap();
-                                    connection.write(new_cell);
-                                }
+                                let destination = circuit.get_cell_destination(node).unwrap();
+                                let connection = connections.get(destination.node).unwrap();
+                                connection.write(new_cell);
                                 return;
                             }
                         }
@@ -237,10 +237,10 @@ fn process_connection_event(
                                     connect_to_peer(next_node, connection_events_sender.clone());
 
                                     // extend existing or circuit
-                                    circuits
-                                        .get(cell.circ_id)
-                                        .unwrap()
-                                        .set_successor(Some(CircuitNode::new(None, next_node)));
+                                    circuits.set_successor(
+                                        cell.circ_id,
+                                        Some(CircuitNode::new(None, next_node)),
+                                    );
 
                                     let mut connection;
                                     loop {
@@ -277,12 +277,11 @@ fn process_connection_event(
                                         hex::encode(aes_key.get_key())
                                     );
 
-                                    println!("{:?}", circuits.get(cell.circ_id).unwrap());
                                     // add successor to op circuit
-                                    circuits
-                                        .get(cell.circ_id)
-                                        .unwrap()
-                                        .add_successor(CircuitNode::new(Some(aes_key), node));
+                                    circuits.add_successor(
+                                        cell.circ_id,
+                                        CircuitNode::new(Some(aes_key), node),
+                                    );
                                 }
                                 RelayCommand::Data => {
                                     println!("Received Data Cell");
@@ -419,27 +418,37 @@ mod tests {
         let node2 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8002);
         let node3 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8003);
         let node4 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8004);
+        let node5 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8005);
 
         start_directory(new_socket_addr(8090));
 
+        let t5 = start_peer(node5, true);
+        let t4 = start_peer(node4, false);
+        let t3 = start_peer(node3, false);
         let t2 = start_peer(node2, false);
-        let t4 = start_peer(node4, true);
-        let t3 = start_peer(node3, true);
-        let t1 = start_peer(node1, false);
+        let t1 = start_peer(node1, true);
 
+        println!(" - -- - - - -");
         t1.send(ConnectionEvent::Connect(node2)).unwrap();
         thread::sleep(time::Duration::from_millis(1000));
 
+        println!(" - -- - - - -");
         t1.send(ConnectionEvent::SendCreate(node2)).unwrap();
         thread::sleep(time::Duration::from_millis(1000));
 
+        println!(" - -- - - - -");
         t1.send(ConnectionEvent::SendExtend(node2, node3)).unwrap();
-        thread::sleep(time::Duration::from_millis(2000));
+        thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - -- - - - -");
         t1.send(ConnectionEvent::SendExtend(node2, node4)).unwrap();
-        thread::sleep(time::Duration::from_millis(5000));
+        thread::sleep(time::Duration::from_millis(4000));
 
+        println!(" - -- - - - -");
+        t1.send(ConnectionEvent::SendExtend(node2, node5)).unwrap();
+        thread::sleep(time::Duration::from_millis(4000));
+
+        println!(" - -- - - - -");
         let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes());
         let cell = Cell::new_extend_cell(0, relay_payload);
         t1.send(ConnectionEvent::SendCell(node2, cell)).unwrap();

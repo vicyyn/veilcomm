@@ -35,7 +35,7 @@ impl OpCircuit {
     pub fn encrypt_cell(&self, cell: Cell) -> Cell {
         let mut new_cell = cell.clone();
         for circuit_node in self.get_successors().iter().rev() {
-            new_cell.payload = circuit_node.encrypt_payload(cell.payload.clone());
+            new_cell.payload = circuit_node.encrypt_payload(new_cell.payload.clone());
         }
         return new_cell;
     }
@@ -78,9 +78,8 @@ impl OrCircuit {
     pub fn encrypt_cell(&self, cell: Cell) -> Cell {
         let mut new_cell = cell.clone();
         new_cell.payload = self
-            .successor
+            .predecessor
             .clone()
-            .unwrap()
             .encrypt_payload(cell.payload.clone());
         return new_cell;
     }
@@ -166,5 +165,16 @@ impl Circuit {
             Self::OrCircuit(or_circuit) => or_circuit.handle_cell(source, cell),
             Self::OpCircuit(op_circuit) => op_circuit.decrypt_cell(cell),
         }
+    }
+
+    pub fn get_cell_destination(&self, source: Node) -> Option<CircuitNode> {
+        if let Self::OrCircuit(or_circuit) = self {
+            if or_circuit.is_forward(source) {
+                return or_circuit.successor.clone();
+            } else {
+                return Some(or_circuit.predecessor.clone());
+            }
+        }
+        None
     }
 }
