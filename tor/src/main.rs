@@ -5,7 +5,6 @@ use tor::*;
 
 use core::time;
 use std::{
-    collections::HashMap,
     env,
     io::{Read, Write},
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
@@ -418,11 +417,9 @@ mod tests {
         let node2 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8002);
         let node3 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8003);
         let node4 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8004);
-        let node5 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8005);
 
         start_directory(new_socket_addr(8090));
 
-        let t5 = start_peer(node5, true);
         let t4 = start_peer(node4, false);
         let t3 = start_peer(node3, false);
         let t2 = start_peer(node2, false);
@@ -445,8 +442,10 @@ mod tests {
         thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - -- - - - -");
-        t1.send(ConnectionEvent::SendExtend(node2, node5)).unwrap();
-        thread::sleep(time::Duration::from_millis(4000));
+        let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes());
+        let cell = Cell::new_extend_cell(0, relay_payload);
+        t1.send(ConnectionEvent::SendCell(node2, cell)).unwrap();
+        thread::sleep(time::Duration::from_millis(1000));
 
         println!(" - -- - - - -");
         let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes());

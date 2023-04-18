@@ -23,12 +23,12 @@ impl ExtendedPayload {
 
     pub fn serialize(&self) -> Vec<u8> {
         bincode::serialize(self)
-            .expect("[FAILED] CreatePayload::serialize --> Unable to serialize payload")
+            .expect("[FAILED] ExtendedPayload::serialize --> Unable to serialize payload")
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
         bincode::deserialize(&buffer.to_vec())
-            .expect("[FAILED] CreatePayload::deserialize --> Unable to deserialize payload")
+            .expect("[FAILED] ExtendedPayload::deserialize --> Unable to deserialize payload")
     }
 }
 

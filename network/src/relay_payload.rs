@@ -86,6 +86,19 @@ impl RelayPayload {
         }
     }
 
+    pub fn new_establish_intro_payload(data: &[u8]) -> Self {
+        let mut buffer = [0; PAYLOAD_LEN - 11];
+        buffer[..data.len()].copy_from_slice(&data);
+        Self {
+            command: 32,
+            recognized: 0,
+            stream_id: 0,
+            digest: 0,
+            length: 0,
+            data: buffer,
+        }
+    }
+
     pub fn serialize(&self) -> Vec<u8> {
         bincode::serialize(self).expect("[FAILED] Rpc::send_msg --> Unable to serialize message")
     }
