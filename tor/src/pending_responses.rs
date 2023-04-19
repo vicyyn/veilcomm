@@ -28,17 +28,7 @@ impl PendingResponses {
         self.0.write().unwrap().insert(node, pending_response);
     }
 
-    pub fn pop(&self, node: Node) {
-        match self.0.write().unwrap().remove(&node) {
-            Some(value) => {
-                println!(
-                    "[SUCCESS] PendingResponses::pop --> Received Valid Response --  {:?}",
-                    value
-                )
-            }
-            None => {
-                println!("[WARNING] PendingResponses::pop --> Received Non Expected Response -- ")
-            }
-        }
+    pub fn pop(&self, node: Node) -> Option<PendingResponse> {
+        self.0.write().unwrap().remove(&node)
     }
 }

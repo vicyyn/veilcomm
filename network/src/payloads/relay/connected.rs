@@ -1,11 +1,20 @@
 use serde::{Deserialize, Serialize};
 
-use crate::Node;
+use crate::{BeginPayload, Node};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConnectedPayload {
     pub address: [u8; 4],
     pub port: u16,
+}
+
+impl From<BeginPayload> for ConnectedPayload {
+    fn from(value: BeginPayload) -> Self {
+        Self {
+            address: value.address,
+            port: value.port,
+        }
+    }
 }
 
 impl ConnectedPayload {
@@ -14,6 +23,10 @@ impl ConnectedPayload {
             address: node.ip.octets(),
             port: u16::from_be_bytes(node.port.to_be_bytes()),
         }
+    }
+
+    pub fn get_node(&self) -> Node {
+        Node::new(self.address.into(), self.port)
     }
 
     pub fn serialize(&self) -> Vec<u8> {

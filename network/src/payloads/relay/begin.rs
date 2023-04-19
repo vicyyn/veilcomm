@@ -16,6 +16,10 @@ impl BeginPayload {
         }
     }
 
+    pub fn get_node(&self) -> Node {
+        Node::new(self.address.into(), self.port)
+    }
+
     pub fn serialize(&self) -> Vec<u8> {
         bincode::serialize(self)
             .expect("[FAILED] BeginPayload::serialize --> Unable to serialize payload")

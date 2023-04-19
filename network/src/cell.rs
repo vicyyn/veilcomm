@@ -47,15 +47,7 @@ impl Cell {
         Self::new(circ_id, 2, control_payload.into())
     }
 
-    pub fn new_extend_cell(circ_id: u16, relay_payload: RelayPayload) -> Self {
+    pub fn new_relay_cell(circ_id: u16, relay_payload: RelayPayload) -> Self {
         Self::new(circ_id, 3, relay_payload.into())
-    }
-
-    pub fn new_extended_cell(circ_id: u16, relay_payload: RelayPayload) -> Self {
-        Self::new(circ_id, 3, relay_payload.into())
-    }
-
-    pub fn new_data_cell(circ_id: u16, payload: Payload) -> Self {
-        Self::new(circ_id, 3, payload)
     }
 }

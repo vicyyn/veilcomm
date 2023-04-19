@@ -51,6 +51,20 @@ impl RelayPayload {
         EstablishIntroPayload { address }
     }
 
+    pub fn into_begin_payload(&self) -> BeginPayload {
+        BeginPayload {
+            address: self.data[..4].try_into().unwrap(),
+            port: u16::from_le_bytes(self.data[4..6].try_into().unwrap()),
+        }
+    }
+
+    pub fn into_connected_payload(&self) -> ConnectedPayload {
+        ConnectedPayload {
+            address: self.data[..4].try_into().unwrap(),
+            port: u16::from_le_bytes(self.data[4..6].try_into().unwrap()),
+        }
+    }
+
     pub fn new_extend_payload(extend_payload: ExtendPayload) -> Self {
         let data = extend_payload.serialize();
         let mut buffer = [0; PAYLOAD_LEN - 11];
@@ -106,28 +120,28 @@ impl RelayPayload {
         }
     }
 
-    pub fn new_begin_payload(begin_payload: BeginPayload) -> Self {
+    pub fn new_begin_payload(stream_id: u16, begin_payload: BeginPayload) -> Self {
         let data = begin_payload.serialize();
         let mut buffer = [0; PAYLOAD_LEN - 11];
         buffer[..data.len()].copy_from_slice(&data);
         Self {
             command: 1,
             recognized: 0,
-            stream_id: 0,
+            stream_id,
             digest: 0,
             length: 0,
             data: buffer,
         }
     }
 
-    pub fn new_connected_payload(connected_payload: ConnectedPayload) -> Self {
+    pub fn new_connected_payload(stream_id: u16, connected_payload: ConnectedPayload) -> Self {
         let data = connected_payload.serialize();
         let mut buffer = [0; PAYLOAD_LEN - 11];
         buffer[..data.len()].copy_from_slice(&data);
         Self {
             command: 4,
             recognized: 0,
-            stream_id: 0,
+            stream_id,
             digest: 0,
             length: 0,
             data: buffer,
