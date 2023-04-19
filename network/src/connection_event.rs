@@ -10,4 +10,5 @@ pub enum ConnectionEvent {
     SendCreate(Node),
     ReceiveCell(Node, Cell),
     OpenStream(Node, Node),
+    EstablishIntro(Node),
 }

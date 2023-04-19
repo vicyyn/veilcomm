@@ -120,6 +120,17 @@ impl RelayPayload {
         }
     }
 
+    pub fn new_intro_established_payload() -> Self {
+        Self {
+            command: 38,
+            recognized: 0,
+            stream_id: 0,
+            digest: 0,
+            length: 0,
+            data: [0; PAYLOAD_LEN - 11],
+        }
+    }
+
     pub fn new_begin_payload(stream_id: u16, begin_payload: BeginPayload) -> Self {
         let data = begin_payload.serialize();
         let mut buffer = [0; PAYLOAD_LEN - 11];
