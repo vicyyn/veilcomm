@@ -4,95 +4,78 @@ use std::net::{SocketAddr, TcpListener};
 use std::sync::{Arc, RwLock};
 use std::thread;
 
+pub mod directory_event;
 pub mod relay;
 pub mod relays;
 pub mod user_descriptor;
 pub mod user_descriptors;
 
+pub use directory_event::*;
 pub use relay::*;
 pub use relays::*;
 pub use user_descriptor::*;
 pub use user_descriptors::*;
 
-pub fn receive_user_descriptor(stream: TcpStream, user_descriptors: Arc<RwLock<UserDescriptors>>) {
-    let mut buffer = [0u8; 1024];
-    let mut stream = stream.try_clone().unwrap();
-    match stream.read(&mut buffer) {
-        Ok(0) => {
-            println!(
-                "[WARNING] Directory::receive_user_descriptor --> Connection has disconnected from {}",
-                stream.peer_addr().unwrap()
-            );
-        }
-        Ok(n) => {
-            println!(
-                "[SUCCESS] Directory::receive_user_descriptor --> Received : {} bytes from {:?}",
-                n,
-                stream.peer_addr().unwrap()
-            );
-
-            let user_descriptor = UserDescriptor::deserialize(&buffer);
-            user_descriptors
-                .write()
-                .unwrap()
-                .add_user_descriptor(user_descriptor);
-        }
-        Err(e) => {
-            println!(
-                "[FAILED] Directory::receive_user_descriptor --> Error reading from socket: {}",
-                e
-            );
+pub fn listen_for_events(
+    stream: TcpStream,
+    relays: Arc<RwLock<Relays>>,
+    user_descriptors: Arc<RwLock<UserDescriptors>>,
+) {
+    loop {
+        let mut buffer = Vec::new();
+        let mut stream = stream.try_clone().unwrap();
+        match stream.read_to_end(&mut buffer) {
+            Ok(0) => {
+                println!(
+                    "[WARNING] Directory::listen_for_events --> Connection has disconnected from {}",
+                    stream.peer_addr().unwrap()
+                );
+                break;
+            }
+            Ok(n) => {
+                println!(
+                    "[SUCCESS] Directory::listen_for_events --> Received : {} bytes from {:?}",
+                    n,
+                    stream.peer_addr().unwrap()
+                );
+                match DirectoryEvent::deserialize(buffer[0]) {
+                    DirectoryEvent::AddRelay => {
+                        let relay = Relay::deserialize(&buffer[1..]);
+                        relays.write().unwrap().add_relay(relay);
+                    }
+                    DirectoryEvent::AddUserDescriptor => {
+                        let user_descriptor = UserDescriptor::deserialize(&buffer[1..]);
+                        user_descriptors
+                            .write()
+                            .unwrap()
+                            .add_user_descriptor(user_descriptor);
+                    }
+                    DirectoryEvent::GetRelays => {
+                        let relays = relays.read().unwrap();
+                        println!(
+                            "[SUCCESS] Directory::send_relays --> sent {} relays",
+                            relays.len()
+                        );
+                        let mut stream = stream.try_clone().unwrap();
+                        stream.write(&relays.serialize()).unwrap();
+                    }
+                    DirectoryEvent::GetUserDescriptors => {
+                        let user_descriptors = user_descriptors.read().unwrap();
+                        println!("[SUCCESS] Directory::send_user_descriptors --> sent {} user_descriptors",user_descriptors.len());
+                        let mut stream = stream.try_clone().unwrap();
+                        stream.write(&user_descriptors.serialize()).unwrap();
+                    }
+                }
+            }
+            Err(e) => {
+                println!(
+                    "[FAILED] Directory::listen_for_events --> Error reading from socket: {}",
+                    e
+                );
+                break;
+            }
         }
     }
-}
-
-pub fn receive_relay(stream: TcpStream, relays: Arc<RwLock<Relays>>) {
-    let mut buffer = [0u8; 1024];
-    let mut stream = stream.try_clone().unwrap();
-    match stream.read(&mut buffer) {
-        Ok(0) => {
-            println!(
-                "[WARNING] Directory::receive --> Connection has disconnected from {}",
-                stream.peer_addr().unwrap()
-            );
-        }
-        Ok(n) => {
-            println!(
-                "[SUCCESS] Directory::receive --> Received : {} bytes from {:?}",
-                n,
-                stream.peer_addr().unwrap()
-            );
-
-            let relay = Relay::deserialize(&buffer);
-            relays.write().unwrap().add_relay(relay);
-        }
-        Err(e) => {
-            println!(
-                "[FAILED] Directory::receive --> Error reading from socket: {}",
-                e
-            );
-        }
-    }
-}
-
-pub fn send_relays(stream: TcpStream, relays: Arc<RwLock<Relays>>) {
-    let relays = relays.read().unwrap();
-    println!(
-        "[SUCCESS] Directory::send_relays --> sent {} relays",
-        relays.len()
-    );
-    let mut stream = stream.try_clone().unwrap();
-    stream.write(&relays.serialize()).unwrap();
-}
-
-pub fn send_user_descriptors(stream: TcpStream, user_descriptors: Arc<RwLock<UserDescriptors>>) {
-    let user_descriptors = user_descriptors.read().unwrap();
-    println!(
-        "[SUCCESS] Directory::send_user_descriptors --> sent {} user_descriptors",
-        user_descriptors.len()
-    );
-    let mut stream = stream.try_clone().unwrap();
-    stream.write(&user_descriptors.serialize()).unwrap();
 }
 
 pub fn start_directory(address: SocketAddr) {
@@ -113,19 +96,7 @@ pub fn start_directory(address: SocketAddr) {
                     thread::spawn({
                         let cloned_relays = Arc::clone(&relays);
                         let cloned_user_descriptors = Arc::clone(&user_descriptors);
-
-                        move || {
-                            send_relays(stream.try_clone().unwrap(), cloned_relays.clone());
-                            receive_relay(stream.try_clone().unwrap(), cloned_relays.clone());
-                            send_user_descriptors(
-                                stream.try_clone().unwrap(),
-                                cloned_user_descriptors.clone(),
-                            );
-                            receive_user_descriptor(
-                                stream.try_clone().unwrap(),
-                                cloned_user_descriptors.clone(),
-                            );
-                        }
+                        move || listen_for_events(stream, cloned_relays, cloned_user_descriptors)
                     });
                 }
                 Err(e) => {
