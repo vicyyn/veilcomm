@@ -1,3 +1,5 @@
+use std::sync::{Arc, RwLock};
+
 use directory::UserDescriptor;
 use network::Node;
 use openssl::{bn::BigNum, dh::Dh, pkey::Private, rand::rand_bytes, rsa::Rsa};
@@ -16,14 +18,34 @@ pub fn generate_random_address() -> [u8; 32] {
     address
 }
 
-pub struct Keys {
+pub struct Keys(Arc<RwLock<_Keys>>);
+
+impl Keys {
+    pub fn new() -> Self {
+        Self(Arc::new(RwLock::new(_Keys::new())))
+    }
+
+    pub fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+
+    pub fn read(&self) -> std::sync::RwLockReadGuard<_Keys> {
+        self.0.read().unwrap()
+    }
+
+    pub fn write(&self) -> std::sync::RwLockWriteGuard<_Keys> {
+        self.0.write().unwrap()
+    }
+}
+
+pub struct _Keys {
     pub relay_id_rsa: Rsa<Private>,
     pub address: [u8; 32],
     pub user_private: Rsa<Private>,
     pub dh: Dh<Private>,
 }
 
-impl Keys {
+impl _Keys {
     pub fn new() -> Self {
         let relay_id_rsa = Rsa::generate(1024).unwrap();
         let address = generate_random_address();

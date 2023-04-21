@@ -8,6 +8,8 @@ pub mod keys;
 pub mod pending_response;
 pub mod pending_responses;
 pub mod streams;
+pub mod tor_event;
+pub mod tor_state;
 
 pub use aes_key::*;
 pub use circuit::*;
@@ -19,3 +21,5 @@ pub use keys::*;
 pub use pending_response::*;
 pub use pending_responses::*;
 pub use streams::*;
+pub use tor_event::*;
+pub use tor_state::*;
