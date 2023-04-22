@@ -1,4 +1,4 @@
-use network::Node;
+use crate::Node;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -1,9 +1,8 @@
+use crate::{Connection, Node};
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
-
-use network::{Connection, Node};
 
 pub struct Connections(Arc<RwLock<HashMap<Node, Connection>>>);
 

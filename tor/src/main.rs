@@ -1,5 +1,4 @@
 use directory::{new_socket_addr, Relay, Relays, UserDescriptor, UserDescriptors};
-use network::*;
 use openssl::rsa::Rsa;
 use tor::*;
 
@@ -10,7 +9,7 @@ use std::{
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     sync::{
         mpsc::{channel, Sender},
-        Arc, RwLock,
+        Arc,
     },
     thread,
 };
@@ -40,30 +39,7 @@ pub fn listen_for_connections(node: Node, sender: Sender<ConnectionEvent>) {
     });
 }
 
-pub fn connect_to_peer(node: Node, sender: Sender<ConnectionEvent>) {
-    match TcpStream::connect(node.get_addr()) {
-        Ok(stream) => {
-            println!(
-                "[SUCCESS] tor::connect_to_peer --> Connected to Peer: {:?}",
-                node.get_addr()
-            );
-            sender
-                .send(ConnectionEvent::NewConnection(
-                    node,
-                    stream.try_clone().unwrap(),
-                ))
-                .unwrap();
-        }
-        Err(e) => {
-            println!(
-                "[FAILED] tor::connect_to_peer --> Error Connecting to Peer: {}",
-                e
-            );
-        }
-    }
-}
-
-fn process_connection_event(
+pub fn process_connection_event(
     connection_event: ConnectionEvent,
     connection_events_sender: Sender<ConnectionEvent>,
     tor_state: TorState,
@@ -75,7 +51,6 @@ fn process_connection_event(
                 stream.try_clone().unwrap(),
                 connection_events_sender.clone(),
             );
-
             tor_state.connections.insert(node, connection);
         }
         ConnectionEvent::Connect(node) => {
@@ -400,8 +375,8 @@ fn process_connection_event(
                                         String::from_utf8(relay_payload.data.to_vec())
                                     {
                                         println!(
-                                "[INFO] tor::process_connection_event --> Received Message : {message}",
-                            );
+                                 "[INFO] tor::process_connection_event --> Received Message : {message}",
+                             );
                                     }
                                 }
                                 _ => {}

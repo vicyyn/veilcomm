@@ -1,5 +1,4 @@
-use crate::{Circuits, Connections, Keys, PendingResponses, Streams};
-use directory::Relays;
+use crate::{Circuits, Connections, Keys, PendingResponses, Relays, Streams};
 
 pub struct TorState {
     pub connections: Connections,

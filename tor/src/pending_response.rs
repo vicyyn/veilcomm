@@ -1,4 +1,4 @@
-use network::Node;
+use crate::Node;
 
 #[derive(Debug, Clone)]
 pub enum PendingResponse {

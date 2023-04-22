@@ -1,10 +1,8 @@
 use std::sync::{Arc, RwLock};
 
-use directory::UserDescriptor;
-use network::Node;
 use openssl::{bn::BigNum, dh::Dh, pkey::Private, rand::rand_bytes, rsa::Rsa};
 
-use crate::AESKey;
+use crate::{AESKey, Node, UserDescriptor};
 
 pub fn generate_random_aes_key() -> [u8; 16] {
     let mut key = [0u8; 16];

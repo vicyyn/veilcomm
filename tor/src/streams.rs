@@ -1,9 +1,8 @@
+use crate::Node;
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
-
-use network::Node;
 
 #[derive(Debug, Clone)]
 pub struct Streams(Arc<RwLock<HashMap<u16, Node>>>);

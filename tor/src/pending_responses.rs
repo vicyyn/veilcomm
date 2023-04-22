@@ -1,10 +1,8 @@
+use crate::{Node, PendingResponse};
 use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
-
-use crate::PendingResponse;
-use network::Node;
 
 pub struct PendingResponses(Arc<RwLock<HashMap<Node, PendingResponse>>>);
 

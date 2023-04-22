@@ -1,5 +1,6 @@
-use crate::*;
+use crate::Relay;
 use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Relays(Vec<Relay>);
