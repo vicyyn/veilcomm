@@ -14,31 +14,6 @@ use std::{
     thread,
 };
 
-pub fn listen_for_connections(node: Node, sender: Sender<ConnectionEvent>) {
-    thread::spawn(move || loop {
-        let socket = TcpListener::bind(node.get_addr())
-            .expect("[FAILED] tor::listen_for_connections --> Error while binding TcpSocket to specified addr");
-
-        match socket.accept() {
-            Ok((stream, addr)) => {
-                println!(
-                    "[SUCCESS] tor::listen_for_connections - New client connected: {:?}",
-                    addr
-                );
-                sender
-                    .send(ConnectionEvent::NewConnection(addr.into(), stream))
-                    .unwrap()
-            }
-            Err(e) => {
-                println!(
-                    "[FAILED] tor::listen_for_connections - Error accepting client connection: {}",
-                    e
-                );
-            }
-        }
-    });
-}
-
 pub fn process_connection_event(
     connection_event: ConnectionEvent,
     connection_events_sender: Sender<ConnectionEvent>,

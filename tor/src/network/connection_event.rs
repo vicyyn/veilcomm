@@ -1,14 +1,17 @@
 use crate::*;
-use std::net::TcpStream;
 
-#[derive(Debug)]
-pub enum ConnectionEvent {
-    Connect(Node),
-    NewConnection(Node, TcpStream),
-    SendCell(Node, Cell),
-    SendExtend(Node, Node),
-    SendCreate(Node),
-    ReceiveCell(Node, Cell),
-    OpenStream(Node, Node),
-    EstablishIntro(Node),
+pub enum ReadConnectionEvent {
+    ReceiveUserDescriptor(UserDescriptor),
+    ReceiveUserDescriptors(UserDescriptors),
+    ReceiveRelay(Relay),
+    ReceiveRelays(Relays),
+    ReceiveCell(Cell),
+}
+
+pub enum WriteConnectionEvent {
+    SendUserDescriptor(UserDescriptor),
+    SendRelay(Relay),
+    SendRelays(Relays),
+    SendCell(Cell),
+    SendUserDescriptors(UserDescriptors),
 }

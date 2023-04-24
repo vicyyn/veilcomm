@@ -1,6 +1,6 @@
 use crate::{Circuits, Connections, Keys, PendingResponses, Streams, TorState, *};
 use directory::{Relay, Relays, UserDescriptor};
-use network::{Cell, ConnectionEvent, Node};
+use network::{Cell, Node};
 use std::{
     future::Future,
     io::Result,
@@ -10,8 +10,10 @@ use std::{
 
 #[derive(Debug)]
 pub enum TorEvent {
-    Connect(Node),
-    NewConnection(Node, TcpStream),
+    ConnectToPeer(Node),
+    ConnectToDirectory(Node),
+    NewPeerConnection(Node, TcpStream),
+
     SendCell(Node, Cell),
     SendExtend(Node, Node),
     SendCreate(Node),
@@ -23,16 +25,40 @@ pub enum TorEvent {
     SendUserDescriptor(UserDescriptor),
 }
 
-pub fn process_tor_event(tor_event: TorEvent, tor_state: TorState) -> Result<(), Error> {
+pub fn process_tor_event(
+    tor_event: TorEvent,
+    tor_state: TorState,
+    tor_event_sender: Sender<TorEvent>,
+) -> Result<(), Error> {
     std::thread::spawn(move || match tor_event {
-        TorEvent::Connect(node) => {
-            println!("[INFO] tor::process_connection_event --> Connect event");
-            connect_to_peer(node, connection_events_sender.clone());
+        TorEvent::ConnectToPeer(node) => {
+            println!("[INFO] tor::process_connection_event --> Connect to peer event");
+            let stream = connect(node)?;
+            tor_state
+                .connections
+                .insert(node, Connection::new(stream, ConnectionType::Peer));
+            Ok(())
+        }
+        TorEvent::ConnectToDirectory(node) => {
+            println!("[INFO] tor::process_connection_event --> Connect to directory event");
+            let stream = connect(node)?;
+            tor_state
+                .connections
+                .insert(node, Connection::new(stream, ConnectionType::Directory));
+            Ok(())
+        }
+        TorEvent::NewPeerConnection(node, stream) => {
+            tor_state
+                .connections
+                .insert(node, Connection::new(stream, ConnectionType::Peer));
+            Ok(())
         }
         TorEvent::EstablishIntro(node) => {}
-        TorEvent::NewConnection(node, stream) => {}
-        TorEvent::Connect(_) => todo!(),
-        TorEvent::SendCell(_, _) => todo!(),
+        TorEvent::SendCell(node, cell) => {
+            let connection = tor_state.connections.get(&node).unwrap();
+            connection.send_cell(cell);
+            Ok(())
+        }
         TorEvent::SendExtend(_, _) => todo!(),
         TorEvent::SendCreate(_) => todo!(),
         TorEvent::OpenStream(_, _) => todo!(),

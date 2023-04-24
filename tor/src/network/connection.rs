@@ -1,50 +1,56 @@
 use crate::*;
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::sync::mpsc::{self, Receiver, Sender, SyncSender};
+use std::sync::mpsc::{self, Receiver};
 use std::thread;
 
-#[derive(Clone)]
+pub enum ConnectionType {
+    Directory,
+    Peer,
+}
+
 pub struct Connection {
-    pub writer: SyncSender<Cell>,
+    pub stream: TcpStream,
+    pub connection_type: ConnectionType,
 }
 
 impl Connection {
-    pub fn new(stream: TcpStream, events_sender: Sender<ConnectionEvent>) -> Connection {
-        Connection::open_read(stream.try_clone().unwrap(), events_sender);
+    pub fn clone(&self) -> Self {
         Self {
-            writer: Connection::open_write(stream.try_clone().unwrap()),
+            stream: self.stream.try_clone().unwrap(),
+            connection_type: self.connection_type,
         }
     }
 
-    pub fn write(&self, cell: Cell) {
-        self.writer.send(cell).unwrap();
+    pub fn get_type(&self) -> ConnectionType {
+        self.connection_type
     }
 
-    fn open_write(stream: TcpStream) -> SyncSender<Cell> {
-        let mut stream = stream.try_clone().unwrap();
-        let (write_sender, write_receiver): (SyncSender<Cell>, Receiver<Cell>) =
-            mpsc::sync_channel(0);
-        thread::spawn(move || loop {
-            let cell = write_receiver
-                .recv()
-                .expect("[FAILED] Connection::open_write --> Error reading from socket");
-            stream.write(&cell.serialize()).unwrap();
-            println!(
-                "[SUCCESS] Connection::open_write --> Sent cell ({:?}) to {:?}",
-                cell.command,
-                stream.peer_addr().unwrap()
-            );
-        });
-        return write_sender;
+    pub fn new(
+        stream: TcpStream,
+        connection_type: ConnectionType,
+    ) -> (Connection, Receiver<Vec<u8>>) {
+        let read_receive = Connection::open_read(stream.try_clone().unwrap());
+        (
+            Self {
+                // writer: Connection::open_write(stream.try_clone().unwrap()),
+                stream: stream.try_clone().unwrap(),
+                connection_type,
+            },
+            read_receive,
+        )
     }
 
-    fn open_read(stream: TcpStream, events_sender: Sender<ConnectionEvent>) {
-        let mut buffer = [0u8; CELL_SIZE];
-        let mut stream = stream.try_clone().unwrap();
+    pub fn write(&self, data: Vec<u8>) {
+        self.stream.try_clone().unwrap().write(&data).unwrap();
+    }
+
+    fn open_read(stream: TcpStream) -> Receiver<Vec<u8>> {
+        let (read_sender, read_receiver) = mpsc::channel();
         let node: Node = stream.peer_addr().unwrap().into();
         thread::spawn(move || loop {
-            match stream.read(&mut buffer) {
+            let mut buffer: Vec<u8> = vec![];
+            match stream.read_to_end(&mut buffer) {
                 Ok(0) => {
                     println!(
                         "[WARNING] Connection::receive --> Connection has disconnected from {}",
@@ -59,12 +65,7 @@ impl Connection {
                         stream.peer_addr().unwrap()
                     );
 
-                    events_sender
-                        .send(ConnectionEvent::ReceiveCell(
-                            node,
-                            Cell::deserialize(&buffer),
-                        ))
-                        .unwrap();
+                    read_sender.send(buffer).unwrap();
                 }
                 Err(e) => {
                     println!(
@@ -75,5 +76,6 @@ impl Connection {
                 }
             }
         });
+        return read_receiver;
     }
 }
