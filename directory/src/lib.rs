@@ -16,11 +16,7 @@ pub use relays::*;
 pub use user_descriptor::*;
 pub use user_descriptors::*;
 
-pub fn listen_for_events(
-    stream: TcpStream,
-    relays: Arc<RwLock<Relays>>,
-    user_descriptors: Arc<RwLock<UserDescriptors>>,
-) {
+pub fn listen_for_events(stream: TcpStream, relays: Relays, user_descriptors: UserDescriptors) {
     loop {
         let mut buffer = [0u8; 16384]; // 16KB
         let mut stream = stream.try_clone().unwrap();
@@ -44,7 +40,7 @@ pub fn listen_for_events(
                             "[SUCCESS] Directory::listen_for_events --> Received Add Relay event"
                         );
                         let relay = Relay::deserialize(&buffer[1..n]);
-                        relays.write().unwrap().add_relay(relay);
+                        relays.add_relay(relay);
                         stream
                             .write(&[DirectoryEvent::AddedRelay.serialize()])
                             .unwrap();
@@ -53,16 +49,12 @@ pub fn listen_for_events(
                         println!(
                             "[SUCCESS] Directory::listen_for_events --> Received Add User Descriptor event");
                         let user_descriptor = UserDescriptor::deserialize(&buffer[1..n]);
-                        user_descriptors
-                            .write()
-                            .unwrap()
-                            .add_user_descriptor(user_descriptor);
+                        user_descriptors.add_user_descriptor(user_descriptor);
                         stream
                             .write(&[DirectoryEvent::AddedUserDescriptor.serialize()])
                             .unwrap();
                     }
                     DirectoryEvent::GetRelays => {
-                        let relays = relays.read().unwrap();
                         println!(
                             "[SUCCESS] Directory::send_relays --> sent {} relays",
                             relays.len()
@@ -71,7 +63,6 @@ pub fn listen_for_events(
                         stream.write(&relays.serialize()).unwrap();
                     }
                     DirectoryEvent::GetUserDescriptors => {
-                        let user_descriptors = user_descriptors.read().unwrap();
                         println!("[SUCCESS] Directory::send_user_descriptors --> sent {} user_descriptors",user_descriptors.len());
                         let mut stream = stream.try_clone().unwrap();
                         stream.write(&user_descriptors.serialize()).unwrap();
@@ -95,35 +86,36 @@ pub fn listen_for_events(
 }
 
 pub fn start_directory(address: SocketAddr) {
-    thread::spawn(move || {
-        let relays = Arc::new(RwLock::new(Relays::new()));
-        let user_descriptors = Arc::new(RwLock::new(UserDescriptors::new()));
-        let socket = TcpListener::bind(address)
-            .expect("[FAILED] Directory::start_directory --> Error while binding TcpSocket to specified addr");
+    let relays = Relays::new();
+    let user_descriptors = UserDescriptors::new();
+    let socket = TcpListener::bind(address).expect(
+        "[FAILED] Directory::start_directory --> Error while binding TcpSocket to specified addr",
+    );
 
-        loop {
-            match socket.accept() {
-                Ok((stream, addr)) => {
-                    println!(
-                        "[SUCCESS] Directory::start_directory - New client connected: {:?}",
-                        addr
-                    );
+    loop {
+        match socket.accept() {
+            Ok((stream, addr)) => {
+                println!(
+                    "[SUCCESS] Directory::start_directory - New client connected: {:?}",
+                    addr
+                );
 
-                    thread::spawn({
-                        let cloned_relays = Arc::clone(&relays);
-                        let cloned_user_descriptors = Arc::clone(&user_descriptors);
-                        move || listen_for_events(stream, cloned_relays, cloned_user_descriptors)
-                    });
-                }
-                Err(e) => {
-                    println!(
+                thread::spawn({
+                    let cloned_relays = relays.clone();
+                    let cloned_user_descriptors = user_descriptors.clone();
+                    move || {
+                        listen_for_events(stream, cloned_relays, cloned_user_descriptors);
+                    }
+                });
+            }
+            Err(e) => {
+                println!(
                     "[FAILED] Directory::start_directory - Error accepting client connection: {}",
                     e
                 );
-                }
             }
         }
-    });
+    }
 }
 
 pub fn new_socket_addr(port: u16) -> SocketAddr {

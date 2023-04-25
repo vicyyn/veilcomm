@@ -1,4 +1,7 @@
-use directory::{new_socket_addr, DirectoryEvent, Relay, Relays, UserDescriptor, UserDescriptors};
+use directory::{
+    new_socket_addr, user_descriptors, DirectoryEvent, Relay, Relays, UserDescriptor,
+    UserDescriptors,
+};
 use network::*;
 use openssl::rsa::Rsa;
 use tor::*;
@@ -71,7 +74,8 @@ fn process_connection_event(
     connection_events_sender: Sender<ConnectionEvent>,
     keys: Arc<RwLock<Keys>>,
     circuits: Circuits,
-    relays: Arc<Relays>,
+    relays: Relays,
+    user_descriptors: UserDescriptors,
     streams: Streams,
     directory_stream: TcpStream,
     user_descriptor: Arc<RwLock<UserDescriptor>>,
@@ -188,6 +192,29 @@ fn process_connection_event(
             let len = directory_stream.read(&mut buffer).unwrap();
             assert!(len == 1);
             assert!(buffer[0] == DirectoryEvent::AddedUserDescriptor.serialize());
+        }
+        ConnectionEvent::FetchFromDirectory => {
+            println!("[INFO] tor::process_connection_event --> Fetch from directory event");
+            let mut request_buf = vec![];
+            let mut buffer = [0u8; 16384];
+            let mut stream = directory_stream.try_clone().unwrap();
+
+            // read relays
+            request_buf.push(DirectoryEvent::GetRelays.serialize());
+            stream.write(&request_buf).unwrap();
+            let len = stream.read(&mut buffer).unwrap();
+            let _relays = Relays::deserialize(&buffer[0..len]);
+            request_buf.clear();
+
+            // read user descriptors
+            request_buf.push(DirectoryEvent::GetUserDescriptors.serialize());
+            stream.write(&request_buf).unwrap();
+            let len = stream.read(&mut buffer).unwrap();
+            let _user_descriptors = UserDescriptors::deserialize(&buffer[0..len]);
+            request_buf.clear();
+
+            relays.set(_relays);
+            user_descriptors.set(_user_descriptors);
         }
         ConnectionEvent::ReceiveCell(node, cell) => {
             print!("[INFO] tor::process_connection_event --> New receive cell event - ");
@@ -501,6 +528,8 @@ fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
     let connections = Connections::new();
     let pending_responses = PendingResponses::new();
     let keys = Arc::new(RwLock::new(Keys::new()));
+    let relays = Relays::new();
+    let user_descriptors = UserDescriptors::new();
     let (connection_events_sender, connection_events_receiver) = channel();
 
     let relay = Relay::new(
@@ -518,8 +547,7 @@ fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
         keys.read().unwrap().get_user_descriptor(vec![]),
     ));
 
-    let (relays, user_descriptors, directory_stream) =
-        connect_to_directory(relay, new_socket_addr(8090)).unwrap();
+    let (_, _, directory_stream) = connect_to_directory(relay, new_socket_addr(8090)).unwrap();
 
     listen_for_connections(main_node, connection_events_sender.clone());
     std::thread::spawn({
@@ -533,7 +561,8 @@ fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
                 connection_events_sender.clone(),
                 Arc::clone(&keys),
                 circuits.clone(),
-                Arc::clone(&relays),
+                relays.clone(),
+                user_descriptors.clone(),
                 streams.clone(),
                 directory_stream.try_clone().unwrap(),
                 Arc::clone(&user_descriptor),
@@ -566,13 +595,19 @@ mod tests {
         let node4 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8004);
         let node5 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8005);
 
-        start_directory(new_socket_addr(8090));
+        thread::spawn(|| {
+            start_directory(new_socket_addr(8090));
+        });
 
         let t5 = start_peer(node5, false);
         let t4 = start_peer(node4, false);
         let t3 = start_peer(node3, false);
         let t2 = start_peer(node2, false);
         let t1 = start_peer(node1, true);
+
+        println!(" - -- - - - -");
+        t1.send(ConnectionEvent::FetchFromDirectory).unwrap();
+        thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - -- - - - -");
         t1.send(ConnectionEvent::Connect(node2)).unwrap();

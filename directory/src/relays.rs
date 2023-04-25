@@ -2,9 +2,9 @@ use crate::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Relays(Vec<Relay>);
+pub struct _Relays(Vec<Relay>);
 
-impl Relays {
+impl _Relays {
     pub fn new() -> Self {
         Self(vec![])
     }
@@ -28,5 +28,52 @@ impl Relays {
     pub fn deserialize(buffer: &[u8]) -> Self {
         bincode::deserialize(&buffer.to_vec())
             .expect("[FAILED] Relays::deserialize --> Unable to deserialize")
+    }
+
+    pub fn set(&mut self, relays: Vec<Relay>) {
+        self.0.clear();
+        for relay in relays {
+            self.0.push(relay);
+        }
+    }
+}
+
+pub struct Relays(Arc<RwLock<_Relays>>);
+
+impl Relays {
+    pub fn new() -> Self {
+        Self(Arc::new(RwLock::new(_Relays::new())))
+    }
+
+    pub fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+
+    pub fn get_relay(&self, address: SocketAddr) -> Option<Relay> {
+        self.0.read().unwrap().get_relay(address)
+    }
+
+    pub fn add_relay(&self, relay: Relay) {
+        self.0.write().unwrap().add_relay(relay);
+    }
+
+    pub fn get_relays(&self) -> Vec<Relay> {
+        self.0.read().unwrap().0.clone()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.read().unwrap().len()
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        self.0.read().unwrap().serialize()
+    }
+
+    pub fn deserialize(buffer: &[u8]) -> Self {
+        Self(Arc::new(RwLock::new(_Relays::deserialize(buffer))))
+    }
+
+    pub fn set(&self, relays: Self) {
+        self.0.write().unwrap().set(relays.get_relays());
     }
 }
