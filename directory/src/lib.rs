@@ -40,6 +40,9 @@ pub fn listen_for_events(
                 );
                 match DirectoryEvent::deserialize(buffer[0]) {
                     DirectoryEvent::AddRelay => {
+                        println!(
+                            "[SUCCESS] Directory::listen_for_events --> Received Add Relay event"
+                        );
                         let relay = Relay::deserialize(&buffer[1..n]);
                         relays.write().unwrap().add_relay(relay);
                         stream
@@ -47,6 +50,8 @@ pub fn listen_for_events(
                             .unwrap();
                     }
                     DirectoryEvent::AddUserDescriptor => {
+                        println!(
+                            "[SUCCESS] Directory::listen_for_events --> Received Add User Descriptor event");
                         let user_descriptor = UserDescriptor::deserialize(&buffer[1..n]);
                         user_descriptors
                             .write()
@@ -73,7 +78,7 @@ pub fn listen_for_events(
                     }
                     _ => {
                         println!(
-                            "[FAILED] Directory::listen_for_events --> Invalid DirectoryEvent"
+                            "[FAILED] Directory::listen_for_events --> Invalid Directory Event"
                         );
                     }
                 }

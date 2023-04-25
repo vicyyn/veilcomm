@@ -11,4 +11,5 @@ pub enum ConnectionEvent {
     ReceiveCell(Node, Cell),
     OpenStream(Node, Node),
     EstablishIntro(Node),
+    PublishUserDescriptor,
 }

@@ -6,5 +6,5 @@ pub enum PendingResponse {
     Extended,
     Created(Option<Node>), // optional node is the node trying to extend the circuit
     Connected(u16),
-    IntroEstablished,
+    IntroEstablished(Node),
 }

@@ -73,6 +73,8 @@ fn process_connection_event(
     circuits: Circuits,
     relays: Arc<Relays>,
     streams: Streams,
+    directory_stream: TcpStream,
+    user_descriptor: Arc<RwLock<UserDescriptor>>,
 ) {
     std::thread::spawn(move || match connection_event {
         ConnectionEvent::NewConnection(node, stream) => {
@@ -101,7 +103,12 @@ fn process_connection_event(
             if let Circuit::OpCircuit(op_circuit) = circuits.get(cell.circ_id).unwrap() {
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
                 connection.write(encrypted_cell);
-                pending_responses.insert(node, PendingResponse::IntroEstablished);
+                pending_responses.insert(
+                    node,
+                    PendingResponse::IntroEstablished(
+                        op_circuit.get_successors().last().unwrap().node,
+                    ),
+                );
             }
         }
         ConnectionEvent::OpenStream(node, stream_node) => {
@@ -166,6 +173,21 @@ fn process_connection_event(
 
             pending_responses.insert(node, PendingResponse::Created(None));
             connection.write(cell);
+        }
+        ConnectionEvent::PublishUserDescriptor => {
+            println!("[INFO] tor::process_connection_event --> Publish user descriptor event");
+            let mut request_buf = vec![];
+            let mut buffer = [0u8; 16384]; // 16KB
+            let mut directory_stream = directory_stream.try_clone().unwrap();
+            request_buf.push(DirectoryEvent::AddUserDescriptor.serialize());
+            request_buf.extend(user_descriptor.read().unwrap().serialize());
+            directory_stream.write(&request_buf).unwrap();
+            request_buf.clear();
+
+            // receive added descriptor
+            let len = directory_stream.read(&mut buffer).unwrap();
+            assert!(len == 1);
+            assert!(buffer[0] == DirectoryEvent::AddedUserDescriptor.serialize());
         }
         ConnectionEvent::ReceiveCell(node, cell) => {
             print!("[INFO] tor::process_connection_event --> New receive cell event - ");
@@ -343,7 +365,16 @@ fn process_connection_event(
                                 }
                                 RelayCommand::IntroEstablished => {
                                     println!("Received Intro Established Cell");
-                                    pending_responses.pop(node);
+                                    let pending_response = pending_responses.pop(node).unwrap();
+                                    if let PendingResponse::IntroEstablished(intro_node) =
+                                        pending_response
+                                    {
+                                        user_descriptor
+                                            .write()
+                                            .unwrap()
+                                            .introduction_points
+                                            .push(intro_node);
+                                    }
                                 }
                                 RelayCommand::Begin => {
                                     println!("Received Begin Cell");
@@ -416,8 +447,7 @@ fn process_connection_event(
 pub fn connect_to_directory(
     relay: Relay,
     address: SocketAddr,
-    user_descriptor: Option<UserDescriptor>,
-) -> Result<(Arc<Relays>, Arc<UserDescriptors>), ()> {
+) -> Result<(Arc<Relays>, Arc<UserDescriptors>, TcpStream), ()> {
     match TcpStream::connect(address) {
         Ok(stream) => {
             println!(
@@ -453,19 +483,7 @@ pub fn connect_to_directory(
             let user_descriptors = UserDescriptors::deserialize(&buffer[0..len]);
             request_buf.clear();
 
-            // send descriptor if is a client
-            if user_descriptor.is_some() {
-                request_buf.push(DirectoryEvent::AddUserDescriptor.serialize());
-                request_buf.extend(user_descriptor.unwrap().serialize());
-                stream.write(&request_buf).unwrap();
-                request_buf.clear();
-
-                // receive added descriptor
-                let len = stream.read(&mut buffer).unwrap();
-                assert!(len == 1);
-                assert!(buffer[0] == DirectoryEvent::AddedUserDescriptor.serialize());
-            }
-            Ok((Arc::new(relays), Arc::new(user_descriptors)))
+            Ok((Arc::new(relays), Arc::new(user_descriptors), stream))
         }
         Err(e) => {
             println!(
@@ -496,14 +514,12 @@ fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
         "joe@gmail.com".to_string(),
     );
 
-    let user_descriptor;
-    if is_user == true {
-        user_descriptor = Some(keys.read().unwrap().get_user_descriptor(vec![]));
-    } else {
-        user_descriptor = None;
-    }
-    let (relays, user_descriptors) =
-        connect_to_directory(relay, new_socket_addr(8090), user_descriptor).unwrap();
+    let user_descriptor = Arc::new(RwLock::new(
+        keys.read().unwrap().get_user_descriptor(vec![]),
+    ));
+
+    let (relays, user_descriptors, directory_stream) =
+        connect_to_directory(relay, new_socket_addr(8090)).unwrap();
 
     listen_for_connections(main_node, connection_events_sender.clone());
     std::thread::spawn({
@@ -519,6 +535,8 @@ fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
                 circuits.clone(),
                 Arc::clone(&relays),
                 streams.clone(),
+                directory_stream.try_clone().unwrap(),
+                Arc::clone(&user_descriptor),
             );
         }
     });
@@ -578,6 +596,10 @@ mod tests {
 
         println!(" - -- - - - -");
         t1.send(ConnectionEvent::EstablishIntro(node2)).unwrap();
+        thread::sleep(time::Duration::from_millis(4000));
+
+        println!(" - -- - - - -");
+        t1.send(ConnectionEvent::PublishUserDescriptor).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - -- - - - -");
