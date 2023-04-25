@@ -4,6 +4,9 @@ pub enum DirectoryEvent {
     AddRelay = 1,
     GetUserDescriptors = 2,
     GetRelays = 3,
+
+    AddedUserDescriptor = 4,
+    AddedRelay = 5,
 }
 
 impl DirectoryEvent {
@@ -13,6 +16,8 @@ impl DirectoryEvent {
             DirectoryEvent::AddRelay => 1,
             DirectoryEvent::GetUserDescriptors => 2,
             DirectoryEvent::GetRelays => 3,
+            DirectoryEvent::AddedUserDescriptor => 4,
+            DirectoryEvent::AddedRelay => 5,
         }
     }
 
@@ -22,6 +27,8 @@ impl DirectoryEvent {
             1 => DirectoryEvent::AddRelay,
             2 => DirectoryEvent::GetUserDescriptors,
             3 => DirectoryEvent::GetRelays,
+            4 => DirectoryEvent::AddedUserDescriptor,
+            5 => DirectoryEvent::AddedRelay,
             _ => panic!("[FAILED] DirectoryEvent::deserialize --> Invalid value"),
         }
     }

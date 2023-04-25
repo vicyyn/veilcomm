@@ -1,4 +1,4 @@
-use directory::{new_socket_addr, Relay, Relays, UserDescriptor, UserDescriptors};
+use directory::{new_socket_addr, DirectoryEvent, Relay, Relays, UserDescriptor, UserDescriptors};
 use network::*;
 use openssl::rsa::Rsa;
 use tor::*;
@@ -12,7 +12,8 @@ use std::{
         mpsc::{channel, Sender},
         Arc, RwLock,
     },
-    thread,
+    thread::{self, sleep},
+    time::Duration,
 };
 
 pub fn listen_for_connections(node: Node, sender: Sender<ConnectionEvent>) {
@@ -423,24 +424,46 @@ pub fn connect_to_directory(
                 "[SUCCESS] tor::connect_to_directory --> Connected to Directory: {:?}",
                 address
             );
-            let mut buffer = [0u8; 10240];
+            let mut request_buf = vec![];
+            let mut buffer = [0u8; 16384];
             let mut stream = stream.try_clone().unwrap();
 
             // read relays
-            stream.read(&mut buffer).unwrap();
-            let relays = Relays::deserialize(&buffer);
+            request_buf.push(DirectoryEvent::GetRelays.serialize());
+            stream.write(&request_buf).unwrap();
+            let len = stream.read(&mut buffer).unwrap();
+            let relays = Relays::deserialize(&buffer[0..len]);
+            request_buf.clear();
 
             // send relay
-            stream.write(&relay.serialize()).unwrap();
-            println!("[SUCCESS] tor::connect_to_directory --> Sent relay to directory");
+            request_buf.push(DirectoryEvent::AddRelay.serialize());
+            request_buf.extend(relay.serialize());
+            stream.write(&request_buf).unwrap();
+            request_buf.clear();
+
+            // received added relay
+            let len = stream.read(&mut buffer).unwrap();
+            assert!(len == 1);
+            assert!(buffer[0] == DirectoryEvent::AddedRelay.serialize());
 
             // read user descriptors
-            stream.read(&mut buffer).unwrap();
-            let user_descriptors = UserDescriptors::deserialize(&buffer);
+            request_buf.push(DirectoryEvent::GetUserDescriptors.serialize());
+            stream.write(&request_buf).unwrap();
+            let len = stream.read(&mut buffer).unwrap();
+            let user_descriptors = UserDescriptors::deserialize(&buffer[0..len]);
+            request_buf.clear();
 
             // send descriptor if is a client
             if user_descriptor.is_some() {
-                stream.write(&user_descriptor.unwrap().serialize()).unwrap();
+                request_buf.push(DirectoryEvent::AddUserDescriptor.serialize());
+                request_buf.extend(user_descriptor.unwrap().serialize());
+                stream.write(&request_buf).unwrap();
+                request_buf.clear();
+
+                // receive added descriptor
+                let len = stream.read(&mut buffer).unwrap();
+                assert!(len == 1);
+                assert!(buffer[0] == DirectoryEvent::AddedUserDescriptor.serialize());
             }
             Ok((Arc::new(relays), Arc::new(user_descriptors)))
         }

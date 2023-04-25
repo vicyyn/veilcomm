@@ -22,9 +22,9 @@ pub fn listen_for_events(
     user_descriptors: Arc<RwLock<UserDescriptors>>,
 ) {
     loop {
-        let mut buffer = Vec::new();
+        let mut buffer = [0u8; 16384]; // 16KB
         let mut stream = stream.try_clone().unwrap();
-        match stream.read_to_end(&mut buffer) {
+        match stream.read(&mut buffer) {
             Ok(0) => {
                 println!(
                     "[WARNING] Directory::listen_for_events --> Connection has disconnected from {}",
@@ -40,15 +40,21 @@ pub fn listen_for_events(
                 );
                 match DirectoryEvent::deserialize(buffer[0]) {
                     DirectoryEvent::AddRelay => {
-                        let relay = Relay::deserialize(&buffer[1..]);
+                        let relay = Relay::deserialize(&buffer[1..n]);
                         relays.write().unwrap().add_relay(relay);
+                        stream
+                            .write(&[DirectoryEvent::AddedRelay.serialize()])
+                            .unwrap();
                     }
                     DirectoryEvent::AddUserDescriptor => {
-                        let user_descriptor = UserDescriptor::deserialize(&buffer[1..]);
+                        let user_descriptor = UserDescriptor::deserialize(&buffer[1..n]);
                         user_descriptors
                             .write()
                             .unwrap()
                             .add_user_descriptor(user_descriptor);
+                        stream
+                            .write(&[DirectoryEvent::AddedUserDescriptor.serialize()])
+                            .unwrap();
                     }
                     DirectoryEvent::GetRelays => {
                         let relays = relays.read().unwrap();
@@ -64,6 +70,11 @@ pub fn listen_for_events(
                         println!("[SUCCESS] Directory::send_user_descriptors --> sent {} user_descriptors",user_descriptors.len());
                         let mut stream = stream.try_clone().unwrap();
                         stream.write(&user_descriptors.serialize()).unwrap();
+                    }
+                    _ => {
+                        println!(
+                            "[FAILED] Directory::listen_for_events --> Invalid DirectoryEvent"
+                        );
                     }
                 }
             }
