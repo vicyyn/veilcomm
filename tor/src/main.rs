@@ -1,6 +1,6 @@
 use directory::{
-    new_socket_addr, user_descriptors, DirectoryEvent, Relay, Relays, UserDescriptor,
-    UserDescriptors,
+    connect_to_directory, fetch_relays, fetch_user_descriptors, new_socket_addr,
+    publish_user_descriptor, Relay, Relays, UserDescriptor, UserDescriptors,
 };
 use network::*;
 use openssl::rsa::Rsa;
@@ -9,14 +9,12 @@ use tor::*;
 use core::time;
 use std::{
     env,
-    io::{Read, Write},
-    net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
+    net::{Ipv4Addr, TcpListener, TcpStream},
     sync::{
         mpsc::{channel, Sender},
         Arc, RwLock,
     },
-    thread::{self, sleep},
-    time::Duration,
+    thread::{self},
 };
 
 pub fn listen_for_connections(node: Node, sender: Sender<ConnectionEvent>) {
@@ -180,38 +178,12 @@ fn process_connection_event(
         }
         ConnectionEvent::PublishUserDescriptor => {
             println!("[INFO] tor::process_connection_event --> Publish user descriptor event");
-            let mut request_buf = vec![];
-            let mut buffer = [0u8; 16384]; // 16KB
-            let mut directory_stream = directory_stream.try_clone().unwrap();
-            request_buf.push(DirectoryEvent::AddUserDescriptor.serialize());
-            request_buf.extend(user_descriptor.read().unwrap().serialize());
-            directory_stream.write(&request_buf).unwrap();
-            request_buf.clear();
-
-            // receive added descriptor
-            let len = directory_stream.read(&mut buffer).unwrap();
-            assert!(len == 1);
-            assert!(buffer[0] == DirectoryEvent::AddedUserDescriptor.serialize());
+            publish_user_descriptor(directory_stream, user_descriptor.read().unwrap().clone());
         }
         ConnectionEvent::FetchFromDirectory => {
             println!("[INFO] tor::process_connection_event --> Fetch from directory event");
-            let mut request_buf = vec![];
-            let mut buffer = [0u8; 16384];
-            let mut stream = directory_stream.try_clone().unwrap();
-
-            // read relays
-            request_buf.push(DirectoryEvent::GetRelays.serialize());
-            stream.write(&request_buf).unwrap();
-            let len = stream.read(&mut buffer).unwrap();
-            let _relays = Relays::deserialize(&buffer[0..len]);
-            request_buf.clear();
-
-            // read user descriptors
-            request_buf.push(DirectoryEvent::GetUserDescriptors.serialize());
-            stream.write(&request_buf).unwrap();
-            let len = stream.read(&mut buffer).unwrap();
-            let _user_descriptors = UserDescriptors::deserialize(&buffer[0..len]);
-            request_buf.clear();
+            let _relays = fetch_relays(directory_stream.try_clone().unwrap()).unwrap();
+            let _user_descriptors = fetch_user_descriptors(directory_stream).unwrap();
 
             relays.set(_relays);
             user_descriptors.set(_user_descriptors);
@@ -471,57 +443,6 @@ fn process_connection_event(
     });
 }
 
-pub fn connect_to_directory(
-    relay: Relay,
-    address: SocketAddr,
-) -> Result<(Arc<Relays>, Arc<UserDescriptors>, TcpStream), ()> {
-    match TcpStream::connect(address) {
-        Ok(stream) => {
-            println!(
-                "[SUCCESS] tor::connect_to_directory --> Connected to Directory: {:?}",
-                address
-            );
-            let mut request_buf = vec![];
-            let mut buffer = [0u8; 16384];
-            let mut stream = stream.try_clone().unwrap();
-
-            // read relays
-            request_buf.push(DirectoryEvent::GetRelays.serialize());
-            stream.write(&request_buf).unwrap();
-            let len = stream.read(&mut buffer).unwrap();
-            let relays = Relays::deserialize(&buffer[0..len]);
-            request_buf.clear();
-
-            // send relay
-            request_buf.push(DirectoryEvent::AddRelay.serialize());
-            request_buf.extend(relay.serialize());
-            stream.write(&request_buf).unwrap();
-            request_buf.clear();
-
-            // received added relay
-            let len = stream.read(&mut buffer).unwrap();
-            assert!(len == 1);
-            assert!(buffer[0] == DirectoryEvent::AddedRelay.serialize());
-
-            // read user descriptors
-            request_buf.push(DirectoryEvent::GetUserDescriptors.serialize());
-            stream.write(&request_buf).unwrap();
-            let len = stream.read(&mut buffer).unwrap();
-            let user_descriptors = UserDescriptors::deserialize(&buffer[0..len]);
-            request_buf.clear();
-
-            Ok((Arc::new(relays), Arc::new(user_descriptors), stream))
-        }
-        Err(e) => {
-            println!(
-                "[FAILED] tor::connect_to_peer --> Error Connecting to Peer: {}",
-                e
-            );
-            Err(())
-        }
-    }
-}
-
 fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
     let circuits = Circuits::new();
     let streams = Streams::new();
@@ -547,7 +468,7 @@ fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
         keys.read().unwrap().get_user_descriptor(vec![]),
     ));
 
-    let (_, _, directory_stream) = connect_to_directory(relay, new_socket_addr(8090)).unwrap();
+    let directory_stream = connect_to_directory(relay, new_socket_addr(8090)).unwrap();
 
     listen_for_connections(main_node, connection_events_sender.clone());
     std::thread::spawn({
