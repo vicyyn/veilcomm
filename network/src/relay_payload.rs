@@ -83,6 +83,12 @@ impl RelayPayload {
         }
     }
 
+    pub fn into_introduce_ack(&self) -> IntroduceAckPayload {
+        IntroduceAckPayload {
+            status: self.data[0],
+        }
+    }
+
     pub fn new_extend_payload(extend_payload: ExtendPayload) -> Self {
         let data = extend_payload.serialize();
         let mut buffer = [0; PAYLOAD_LEN - 11];
@@ -217,6 +223,20 @@ impl RelayPayload {
             command: 4,
             recognized: 0,
             stream_id,
+            digest: 0,
+            length: 0,
+            data: buffer,
+        }
+    }
+
+    pub fn new_introduce_ack_payload(introduce_ack_payload: IntroduceAckPayload) -> Self {
+        let data = introduce_ack_payload.serialize();
+        let mut buffer = [0; PAYLOAD_LEN - 11];
+        buffer[..data.len()].copy_from_slice(&data);
+        Self {
+            command: 40,
+            recognized: 0,
+            stream_id: 0,
             digest: 0,
             length: 0,
             data: buffer,

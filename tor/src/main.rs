@@ -79,7 +79,7 @@ fn process_connection_event(
     user_descriptor: Arc<RwLock<UserDescriptor>>,
 ) {
     std::thread::spawn(move || match connection_event {
-        ConnectionEvent::Introduce1(node, port) => {
+        ConnectionEvent::Introduce1(node, _) => {
             println!("[INFO] tor::process_connection_event --> Introduce1 event");
             let connection = connections.get(node).unwrap();
             let introduce1 = Introduce1Payload::new(generate_random_address());

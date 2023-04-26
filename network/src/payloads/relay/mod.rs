@@ -6,6 +6,7 @@ pub mod established_rend_point;
 pub mod extend;
 pub mod extended;
 pub mod introduce1;
+pub mod introduce_ack;
 
 pub use begin::*;
 pub use connected::*;
@@ -15,3 +16,4 @@ pub use established_rend_point::*;
 pub use extend::*;
 pub use extended::*;
 pub use introduce1::*;
+pub use introduce_ack::*;
