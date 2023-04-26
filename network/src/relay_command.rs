@@ -15,7 +15,9 @@ pub enum RelayCommand {
     Extend2 = 14,
     Extended2 = 15,
     EstablishIntro = 32,
+    EstablishRendPoint = 33,
     IntroEstablished = 38,
+    RendPointEstablished = 39,
 }
 
 impl TryFrom<u8> for RelayCommand {
@@ -39,7 +41,9 @@ impl TryFrom<u8> for RelayCommand {
             14 => Ok(Self::Extend),
             15 => Ok(Self::Extend2),
             32 => Ok(Self::EstablishIntro),
+            33 => Ok(Self::EstablishRendPoint),
             38 => Ok(Self::IntroEstablished),
+            39 => Ok(Self::RendPointEstablished),
             _ => Err("unrecognized command"),
         }
     }

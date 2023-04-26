@@ -110,6 +110,25 @@ fn process_connection_event(
                 );
             }
         }
+        ConnectionEvent::EstablishRendPoint(node) => {
+            println!("[INFO] tor::process_connection_event --> Establish rend point event");
+            let connection = connections.get(node).unwrap();
+            let establish_rend_point = EstablishRendPointPayload::new(generate_random_cookie());
+            let relay_payload =
+                RelayPayload::new_establish_rend_point_payload(establish_rend_point);
+            let cell = Cell::new_relay_cell(0, relay_payload);
+
+            if let Circuit::OpCircuit(op_circuit) = circuits.get(cell.circ_id).unwrap() {
+                let encrypted_cell = op_circuit.encrypt_cell(cell);
+                connection.write(encrypted_cell);
+                pending_responses.insert(
+                    node,
+                    PendingResponse::RendPointEstablished(
+                        op_circuit.get_successors().last().unwrap().node,
+                    ),
+                );
+            }
+        }
         ConnectionEvent::OpenStream(node, stream_node) => {
             println!("[INFO] tor::process_connection_event --> Open stream event");
             let connection = connections.get(node).unwrap();
@@ -370,6 +389,50 @@ fn process_connection_event(
                                             .unwrap()
                                             .introduction_points
                                             .push(intro_node);
+                                        pending_responses.pop(node);
+                                    }
+                                }
+                                RelayCommand::EstablishRendPoint => {
+                                    println!("Received Establish Rend Point Cell");
+                                    let establish_rend_point_payload: EstablishRendPointPayload =
+                                        relay_payload.into_establish_rend_point();
+
+                                    println!(
+                                        "[SUCCESS] REND POINT COOKIE --> {:?}",
+                                        hex::encode(establish_rend_point_payload.cookie)
+                                    );
+
+                                    let circuit = circuits.get(cell.circ_id).unwrap();
+                                    let connection = connections.get(node).unwrap();
+
+                                    let encrypted_relay_payload: RelayPayload = circuit
+                                        .get_predecessor()
+                                        .unwrap()
+                                        .encrypt_payload(
+                                            RelayPayload::new_rend_point_established_payload(
+                                                establish_rend_point_payload.into(),
+                                            )
+                                            .into(),
+                                        )
+                                        .into();
+                                    let cell =
+                                        Cell::new_relay_cell(cell.circ_id, encrypted_relay_payload);
+                                    connection.write(cell);
+                                }
+
+                                RelayCommand::RendPointEstablished => {
+                                    println!("Received Rend Point Established Cell");
+                                    let established_rend_point =
+                                        relay_payload.into_rend_point_established_payload();
+                                    let pending_response = pending_responses.pop(node).unwrap();
+                                    if let PendingResponse::RendPointEstablished(rend_node) =
+                                        pending_response
+                                    {
+                                        println!(
+                                            "[SUCCESS] REND POINT COOKIE --> {:?}",
+                                            hex::encode(established_rend_point.cookie)
+                                        );
+                                        pending_responses.pop(node);
                                     }
                                 }
                                 RelayCommand::Begin => {
@@ -552,6 +615,10 @@ mod tests {
 
         println!(" - -- - - - -");
         t1.send(ConnectionEvent::PublishUserDescriptor).unwrap();
+        thread::sleep(time::Duration::from_millis(4000));
+
+        println!(" - -- - - - -");
+        t1.send(ConnectionEvent::EstablishRendPoint(node2)).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - -- - - - -");

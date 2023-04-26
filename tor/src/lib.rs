@@ -7,6 +7,7 @@ pub mod constants;
 pub mod keys;
 pub mod pending_response;
 pub mod pending_responses;
+pub mod rendezvous;
 pub mod streams;
 
 pub use aes_key::*;
@@ -18,4 +19,5 @@ pub use constants::*;
 pub use keys::*;
 pub use pending_response::*;
 pub use pending_responses::*;
+pub use rendezvous::*;
 pub use streams::*;
