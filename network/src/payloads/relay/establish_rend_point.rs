@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use crate::EstablishedRendPointPayload;
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EstablishRendPointPayload {
     pub cookie: [u8; 20],

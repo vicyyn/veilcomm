@@ -425,7 +425,7 @@ fn process_connection_event(
                                     let established_rend_point =
                                         relay_payload.into_rend_point_established_payload();
                                     let pending_response = pending_responses.pop(node).unwrap();
-                                    if let PendingResponse::RendPointEstablished(rend_node) =
+                                    if let PendingResponse::RendPointEstablished(_) =
                                         pending_response
                                     {
                                         println!(
