@@ -12,6 +12,7 @@ pub enum ConnectionEvent {
     OpenStream(Node, Node),
     EstablishIntro(Node),
     EstablishRendPoint(Node),
+    Introduce1(Node, u16),
 
     PublishUserDescriptor,
     FetchFromDirectory,

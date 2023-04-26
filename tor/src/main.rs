@@ -79,6 +79,19 @@ fn process_connection_event(
     user_descriptor: Arc<RwLock<UserDescriptor>>,
 ) {
     std::thread::spawn(move || match connection_event {
+        ConnectionEvent::Introduce1(node, port) => {
+            println!("[INFO] tor::process_connection_event --> Introduce1 event");
+            let connection = connections.get(node).unwrap();
+            let introduce1 = Introduce1Payload::new(generate_random_address());
+            let relay_payload = RelayPayload::new_introduce1_payload(introduce1);
+            let cell = Cell::new_relay_cell(0, relay_payload);
+
+            if let Circuit::OpCircuit(op_circuit) = circuits.get(cell.circ_id).unwrap() {
+                let encrypted_cell = op_circuit.encrypt_cell(cell);
+                connection.write(encrypted_cell);
+                pending_responses.insert(node, PendingResponse::IntroduceAck(node));
+            }
+        }
         ConnectionEvent::NewConnection(node, stream) => {
             println!("[INFO] tor::process_connection_event --> New connection event");
             let connection = Connection::new(

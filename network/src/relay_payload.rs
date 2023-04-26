@@ -51,6 +51,12 @@ impl RelayPayload {
         EstablishIntroPayload { address }
     }
 
+    pub fn into_introduce1(&self) -> Introduce1Payload {
+        let mut address = [0; 32];
+        address.copy_from_slice(&self.data[0..32]);
+        Introduce1Payload { address }
+    }
+
     pub fn into_establish_rend_point(&self) -> EstablishRendPointPayload {
         let mut cookie = [0; 20];
         cookie.copy_from_slice(&self.data[0..20]);
@@ -124,6 +130,20 @@ impl RelayPayload {
         buffer[..data.len()].copy_from_slice(&data);
         Self {
             command: 32,
+            recognized: 0,
+            stream_id: 0,
+            digest: 0,
+            length: 0,
+            data: buffer,
+        }
+    }
+
+    pub fn new_introduce1_payload(introduce1_payload: Introduce1Payload) -> Self {
+        let data = introduce1_payload.serialize();
+        let mut buffer = [0; PAYLOAD_LEN - 11];
+        buffer[..data.len()].copy_from_slice(&data);
+        Self {
+            command: 34,
             recognized: 0,
             stream_id: 0,
             digest: 0,

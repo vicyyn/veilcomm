@@ -8,4 +8,5 @@ pub enum PendingResponse {
     Connected(u16),
     IntroEstablished(Node),
     RendPointEstablished(Node),
+    IntroduceAck(Node),
 }
