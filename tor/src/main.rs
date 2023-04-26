@@ -95,9 +95,6 @@ fn process_connection_event(
         ConnectionEvent::EstablishIntro(node) => {
             println!("[INFO] tor::process_connection_event --> Establish intro event");
             let connection = connections.get(node).unwrap();
-            // TODO GENERATE USER ADDRESS,
-            // TODO MAKE AN ABSTRACT METHOD THAT CREATES AN INTRODUCTION POINT USING 3 HOPS (YOU
-            // ONLY PROVIDE THE NODE YOU WANT AND IT CREATES THE CIRCUIT BEFOREHAND)
             let establish_intro = EstablishIntroPayload::new(generate_random_address());
             let relay_payload = RelayPayload::new_establish_intro_payload(establish_intro);
             let cell = Cell::new_relay_cell(0, relay_payload);
@@ -429,7 +426,7 @@ fn process_connection_event(
                                 }
                                 _ => {}
                             },
-                            Err(e) => {}
+                            Err(_) => {}
                         }
                     }
                     _ => println!("Other"),
@@ -439,11 +436,10 @@ fn process_connection_event(
                 }
             }
         }
-        _ => {}
     });
 }
 
-fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
+fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
     let circuits = Circuits::new();
     let streams = Streams::new();
     let connections = Connections::new();
@@ -496,10 +492,10 @@ fn start_peer(main_node: Node, is_user: bool) -> Sender<ConnectionEvent> {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let _ = start_peer(
-        Node::new(Ipv4Addr::new(127, 0, 0, 1), args[1].parse().unwrap()),
-        false,
-    );
+    let _ = start_peer(Node::new(
+        Ipv4Addr::new(127, 0, 0, 1),
+        args[1].parse().unwrap(),
+    ));
     loop {}
 }
 
@@ -520,11 +516,11 @@ mod tests {
             start_directory(new_socket_addr(8090));
         });
 
-        let t5 = start_peer(node5, false);
-        let t4 = start_peer(node4, false);
-        let t3 = start_peer(node3, false);
-        let t2 = start_peer(node2, false);
-        let t1 = start_peer(node1, true);
+        let _ = start_peer(node5);
+        let _ = start_peer(node4);
+        let _ = start_peer(node3);
+        let _ = start_peer(node2);
+        let t1 = start_peer(node1);
 
         println!(" - -- - - - -");
         t1.send(ConnectionEvent::FetchFromDirectory).unwrap();
