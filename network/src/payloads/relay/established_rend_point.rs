@@ -1,23 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-use crate::EstablishRendPointPayload;
-
 #[derive(Debug, Serialize, Deserialize)]
-pub struct EstablishedRendPointPayload {
-    pub cookie: [u8; 20],
-}
-
-impl From<EstablishRendPointPayload> for EstablishedRendPointPayload {
-    fn from(value: EstablishRendPointPayload) -> Self {
-        Self {
-            cookie: value.cookie,
-        }
-    }
-}
+pub struct EstablishedRendPointPayload {}
 
 impl EstablishedRendPointPayload {
-    pub fn new(cookie: [u8; 20]) -> Self {
-        Self { cookie }
+    pub fn new() -> Self {
+        Self {}
     }
 
     pub fn serialize(&self) -> Vec<u8> {

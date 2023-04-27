@@ -183,7 +183,7 @@ fn process_connection_event(
             if let Circuit::OpCircuit(op_circuit) = circuits.get(cell.circ_id).unwrap() {
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
                 connection.write(encrypted_cell);
-                pending_responses.insert(node, PendingResponse::Extended);
+                pending_responses.insert(node, PendingResponse::Extended(next_node));
             }
         }
         ConnectionEvent::SendCreate(node) => {
@@ -360,13 +360,15 @@ fn process_connection_event(
                                         hex::encode(aes_key.get_key())
                                     );
 
-                                    // add successor to op circuit
-                                    circuits.add_successor(
-                                        cell.circ_id,
-                                        CircuitNode::new(Some(aes_key), node),
-                                    );
-
-                                    pending_responses.pop(node);
+                                    if let PendingResponse::Extended(extended_node) =
+                                        pending_responses.pop(node).unwrap()
+                                    {
+                                        // add successor to op circuit
+                                        circuits.add_successor(
+                                            cell.circ_id,
+                                            CircuitNode::new(Some(aes_key), extended_node),
+                                        );
+                                    }
                                 }
                                 RelayCommand::EstablishIntro => {
                                     println!("Received Establish Intro Cell");
@@ -422,10 +424,8 @@ fn process_connection_event(
                                         .get_predecessor()
                                         .unwrap()
                                         .encrypt_payload(
-                                            RelayPayload::new_rend_point_established_payload(
-                                                establish_rend_point_payload.into(),
-                                            )
-                                            .into(),
+                                            RelayPayload::new_rend_point_established_payload()
+                                                .into(),
                                         )
                                         .into();
                                     let cell =
@@ -435,16 +435,11 @@ fn process_connection_event(
 
                                 RelayCommand::RendPointEstablished => {
                                     println!("Received Rend Point Established Cell");
-                                    let established_rend_point =
-                                        relay_payload.into_rend_point_established_payload();
                                     let pending_response = pending_responses.pop(node).unwrap();
-                                    if let PendingResponse::RendPointEstablished(_) =
+                                    if let PendingResponse::RendPointEstablished(node) =
                                         pending_response
                                     {
-                                        println!(
-                                            "[SUCCESS] REND POINT COOKIE --> {:?}",
-                                            hex::encode(established_rend_point.cookie)
-                                        );
+                                        println!("Rend Point Established --> {:?}", node);
                                         pending_responses.pop(node);
                                     }
                                 }

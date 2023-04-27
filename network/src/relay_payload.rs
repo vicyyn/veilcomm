@@ -63,12 +63,6 @@ impl RelayPayload {
         EstablishRendPointPayload { cookie }
     }
 
-    pub fn into_rend_point_established_payload(&self) -> EstablishedRendPointPayload {
-        let mut cookie = [0; 20];
-        cookie.copy_from_slice(&self.data[0..20]);
-        EstablishedRendPointPayload { cookie }
-    }
-
     pub fn into_begin_payload(&self) -> BeginPayload {
         BeginPayload {
             address: self.data[..4].try_into().unwrap(),
@@ -185,19 +179,14 @@ impl RelayPayload {
         }
     }
 
-    pub fn new_rend_point_established_payload(
-        established_rend_point_payload: EstablishedRendPointPayload,
-    ) -> Self {
-        let data = established_rend_point_payload.serialize();
-        let mut buffer = [0; PAYLOAD_LEN - 11];
-        buffer[..data.len()].copy_from_slice(&data);
+    pub fn new_rend_point_established_payload() -> Self {
         Self {
             command: 39,
             recognized: 0,
             stream_id: 0,
             digest: 0,
             length: 0,
-            data: buffer,
+            data: [0; PAYLOAD_LEN - 11],
         }
     }
 
