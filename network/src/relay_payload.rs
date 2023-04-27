@@ -63,14 +63,14 @@ impl RelayPayload {
         EstablishRendPointPayload { cookie }
     }
 
-    pub fn into_begin_payload(&self) -> BeginPayload {
+    pub fn into_begin(&self) -> BeginPayload {
         BeginPayload {
             address: self.data[..4].try_into().unwrap(),
             port: u16::from_le_bytes(self.data[4..6].try_into().unwrap()),
         }
     }
 
-    pub fn into_connected_payload(&self) -> ConnectedPayload {
+    pub fn into_connected(&self) -> ConnectedPayload {
         ConnectedPayload {
             address: self.data[..4].try_into().unwrap(),
             port: u16::from_le_bytes(self.data[4..6].try_into().unwrap()),

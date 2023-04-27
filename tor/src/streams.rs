@@ -17,8 +17,11 @@ impl Streams {
         Self(Arc::clone(&self.0))
     }
 
-    pub fn get(&self, id: u16) -> Node {
-        self.0.read().unwrap().get(&id).unwrap().clone()
+    pub fn get(&self, id: u16) -> Option<Node> {
+        if let Some(node) = self.0.read().unwrap().get(&id) {
+            return Some(node.clone());
+        }
+        None
     }
 
     pub fn insert(&self, id: u16, node: Node) {

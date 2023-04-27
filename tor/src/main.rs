@@ -451,8 +451,7 @@ fn process_connection_event(
                                 }
                                 RelayCommand::Begin => {
                                     println!("Received Begin Cell");
-                                    let begin_payload: BeginPayload =
-                                        relay_payload.into_begin_payload();
+                                    let begin_payload: BeginPayload = relay_payload.into_begin();
                                     let stream_node = begin_payload.get_node();
                                     let stream_id = relay_payload.stream_id;
                                     connect_to_peer(stream_node, connection_events_sender.clone());
@@ -477,7 +476,7 @@ fn process_connection_event(
                                 RelayCommand::Connected => {
                                     println!("Received Connected Cell");
                                     let connected_payload: ConnectedPayload =
-                                        relay_payload.into_connected_payload();
+                                        relay_payload.into_connected();
                                     let stream_node = connected_payload.get_node();
                                     if let Some(pending_response) = pending_responses.pop(node) {
                                         if let PendingResponse::Connected(stream_id) =
@@ -490,6 +489,17 @@ fn process_connection_event(
                                         }
                                     };
                                     pending_responses.pop(node);
+                                }
+                                RelayCommand::Introduce1 => {
+                                    print!("Received Introduce1 Cell");
+
+                                    if let Some(stream_node) = streams.get(relay_payload.stream_id)
+                                    {
+                                        println!("Relaying to Stream Node --> {:?}", stream_node);
+                                        let connection = connections.get(stream_node).unwrap();
+                                        connection.write(cell);
+                                    } else {
+                                    }
                                 }
                                 RelayCommand::Data => {
                                     println!("Received Data Cell");
