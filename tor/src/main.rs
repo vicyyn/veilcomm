@@ -77,6 +77,7 @@ fn process_connection_event(
     streams: Streams,
     directory_stream: TcpStream,
     user_descriptor: Arc<RwLock<UserDescriptor>>,
+    cookies: Cookies,
 ) {
     std::thread::spawn(move || match connection_event {
         ConnectionEvent::Introduce1(node, _) => {
@@ -417,6 +418,11 @@ fn process_connection_event(
                                         hex::encode(establish_rend_point_payload.cookie)
                                     );
 
+                                    cookies.insert(
+                                        Cookie(establish_rend_point_payload.cookie),
+                                        cell.circ_id,
+                                    );
+
                                     let circuit = circuits.get(cell.circ_id).unwrap();
                                     let connection = connections.get(node).unwrap();
 
@@ -518,6 +524,7 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
     let keys = Arc::new(RwLock::new(Keys::new()));
     let relays = Relays::new();
     let user_descriptors = UserDescriptors::new();
+    let cookies = Cookies::new();
     let (connection_events_sender, connection_events_receiver) = channel();
 
     let relay = Relay::new(
@@ -554,6 +561,7 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
                 streams.clone(),
                 directory_stream.try_clone().unwrap(),
                 Arc::clone(&user_descriptor),
+                cookies.clone(),
             );
         }
     });
