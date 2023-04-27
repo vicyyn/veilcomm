@@ -54,7 +54,17 @@ impl RelayPayload {
     pub fn into_introduce1(&self) -> Introduce1Payload {
         let mut address = [0; 32];
         address.copy_from_slice(&self.data[0..32]);
-        Introduce1Payload { address }
+        let mut ip = [0; 4];
+        ip.copy_from_slice(&self.data[32..36]);
+        let port = u16::from_le_bytes(self.data[36..38].try_into().unwrap());
+        let mut cookie = [0; 20];
+        cookie.copy_from_slice(&self.data[38..58]);
+        Introduce1Payload {
+            address,
+            ip,
+            port,
+            cookie,
+        }
     }
 
     pub fn into_establish_rend_point(&self) -> EstablishRendPointPayload {
