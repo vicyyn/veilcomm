@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use crate::{Node, OnionSkin};
 
 #[derive(Debug)]

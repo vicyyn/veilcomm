@@ -1,5 +1,4 @@
 use directory::UserDescriptor;
-use network::Node;
 use openssl::{bn::BigNum, dh::Dh, pkey::Private, rand::rand_bytes, rsa::Rsa};
 
 use crate::AESKey;
@@ -49,11 +48,11 @@ impl Keys {
         dh[0..16].try_into().unwrap()
     }
 
-    pub fn get_user_descriptor(&self, introduction_points: Vec<Node>) -> UserDescriptor {
+    pub fn get_user_descriptor(&self) -> UserDescriptor {
         UserDescriptor::new(
             self.address,
             self.user_private.public_key_to_der().unwrap(),
-            introduction_points,
+            vec![],
         )
     }
 }

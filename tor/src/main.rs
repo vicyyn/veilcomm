@@ -509,7 +509,7 @@ fn process_connection_event(
                                     pending_responses.pop(node);
                                 }
                                 RelayCommand::Introduce1 => {
-                                    print!("Received Introduce1 Cell -- ");
+                                    println!("Received Introduce1 Cell");
                                     let introduce1_payload = relay_payload.into_introduce1();
 
                                     if let Some(stream_node) = streams.get(relay_payload.stream_id)
@@ -532,13 +532,11 @@ fn process_connection_event(
                                         let connection = connections.get(node).unwrap();
                                         connection.write(new_cell);
 
-                                        println!("Relaying to Stream Node --> {:?}", stream_node);
                                         let connection = connections.get(stream_node).unwrap();
                                         let cell =
                                             Cell::new_relay_cell(circ_id, relay_payload).into();
                                         connection.write(cell);
                                     } else {
-                                        println!("Processing Introduce1 Cell");
                                         let circ_id = introduction_points
                                             .get(introduce1_payload.address)
                                             .unwrap();
@@ -562,7 +560,6 @@ fn process_connection_event(
                                 RelayCommand::IntroduceAck => {
                                     println!("Received IntroduceAck Cell");
                                     let introduce_ack_payload = relay_payload.into_introduce_ack();
-                                    println!("{:?}", introduce_ack_payload);
                                 }
                                 RelayCommand::Introduce2 => {
                                     println!("Received Introduce2 Cell");
@@ -572,8 +569,6 @@ fn process_connection_event(
                                     // establish stream to rendezvous point
 
                                     // send rendezvous1
-
-                                    println!("{:?}", introduce2_payload);
                                 }
 
                                 RelayCommand::Data => {
@@ -624,9 +619,7 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
         "joe@gmail.com".to_string(),
     );
 
-    let user_descriptor = Arc::new(RwLock::new(
-        keys.read().unwrap().get_user_descriptor(vec![]),
-    ));
+    let user_descriptor = Arc::new(RwLock::new(keys.read().unwrap().get_user_descriptor()));
 
     let directory_stream = connect_to_directory(relay, new_socket_addr(8090)).unwrap();
 
@@ -725,11 +718,16 @@ mod tests {
 
         println!(" First Circuit * * * * * * * * * *");
         create_circuit(t1.clone(), node2, node3, node4);
+
         println!(" Second Circuit * * * * * * * * * *");
         create_circuit(t8.clone(), node7, node6, node5);
         println!(" * * * * * * * * * *");
 
-        println!(" - -- - - - -");
+        println!(" - - - - - - -");
+        t8.send(ConnectionEvent::PublishUserDescriptor).unwrap();
+        thread::sleep(time::Duration::from_millis(4000));
+
+        println!(" - - - - - - -");
         t1.send(ConnectionEvent::OpenStream(node2, node5)).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
@@ -737,19 +735,19 @@ mod tests {
         // t1.send(ConnectionEvent::EstablishRendPoint(node2)).unwrap();
         // thread::sleep(time::Duration::from_millis(4000));
 
-        println!(" - -- - - - -");
+        println!(" - - - - - - -");
         t8.send(ConnectionEvent::EstablishIntro(node7)).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
-        println!(" - -- - - - -");
-        t8.send(ConnectionEvent::PublishUserDescriptor).unwrap();
+        println!(" - - - - - - -");
+        t1.send(ConnectionEvent::FetchFromDirectory).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
-        println!(" - -- - - - -");
+        println!(" - - - - - - -");
         t1.send(ConnectionEvent::Introduce1(node2, 0)).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
-        println!(" - -- - - - -");
+        println!(" - - - - - - -");
         let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes());
         let cell = Cell::new_relay_cell(0, relay_payload);
         t1.send(ConnectionEvent::SendCell(node2, cell)).unwrap();
