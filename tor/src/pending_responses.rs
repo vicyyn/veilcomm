@@ -5,6 +5,7 @@ use std::{
 
 use crate::PendingResponse;
 
+#[derive(Debug)]
 pub struct PendingResponses(Arc<RwLock<HashMap<u16, PendingResponse>>>);
 
 impl PendingResponses {

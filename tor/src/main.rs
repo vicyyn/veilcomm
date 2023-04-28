@@ -100,7 +100,7 @@ fn process_connection_event(
                     onion_skin,
                 );
                 let relay_payload = RelayPayload::new_introduce1_payload(introduce1);
-                let cell = Cell::new_relay_cell(0, relay_payload);
+                let cell = Cell::new_relay_cell(circ_id, relay_payload);
 
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
 
@@ -130,7 +130,7 @@ fn process_connection_event(
                 let connection = connections.get(op_circuit.get_first().node).unwrap();
                 let establish_intro = EstablishIntroPayload::new(generate_random_address());
                 let relay_payload = RelayPayload::new_establish_intro_payload(establish_intro);
-                let cell = Cell::new_relay_cell(0, relay_payload);
+                let cell = Cell::new_relay_cell(circ_id, relay_payload);
 
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
                 connection.write(encrypted_cell);
@@ -150,7 +150,7 @@ fn process_connection_event(
                 let establish_rend_point = EstablishRendPointPayload::new([0; 20]);
                 let relay_payload =
                     RelayPayload::new_establish_rend_point_payload(establish_rend_point);
-                let cell = Cell::new_relay_cell(0, relay_payload);
+                let cell = Cell::new_relay_cell(circ_id, relay_payload);
 
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
                 connection.write(encrypted_cell);
@@ -169,7 +169,7 @@ fn process_connection_event(
                 let connection = connections.get(op_circuit.get_first().node).unwrap();
                 let begin_payload = BeginPayload::new(stream_node);
                 let relay_payload = RelayPayload::new_begin_payload(0, begin_payload);
-                let cell = Cell::new_relay_cell(0, relay_payload);
+                let cell = Cell::new_relay_cell(circ_id, relay_payload);
 
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
                 connection.write(encrypted_cell);
@@ -202,7 +202,7 @@ fn process_connection_event(
                 let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap());
                 let extend_payload = ExtendPayload::new(next_node, onion_skin);
                 let relay_payload = RelayPayload::new_extend_payload(extend_payload);
-                let cell = Cell::new_relay_cell(0, relay_payload);
+                let cell = Cell::new_relay_cell(circ_id, relay_payload);
 
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
                 connection.write(encrypted_cell);
@@ -223,7 +223,7 @@ fn process_connection_event(
             let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap());
             let create_payload = CreatePayload::new(onion_skin);
             let control_payload = ControlPayload::new_create_payload(create_payload);
-            let cell = Cell::new_create_cell(0, control_payload);
+            let cell = Cell::new_create_cell(circ_id, control_payload);
 
             pending_responses.insert(circ_id, PendingResponse::Created(None));
             connection.write(cell);
@@ -265,7 +265,7 @@ fn process_connection_event(
 
                         let created_payload = CreatedPayload::new(&public_key_bytes);
                         let control_payload = ControlPayload::new_created_payload(created_payload);
-                        let cell = Cell::new_created_cell(0, control_payload);
+                        let cell = Cell::new_created_cell(cell.circ_id, control_payload);
 
                         let connection = connections.get(node).unwrap();
                         connection.write(cell);
@@ -284,7 +284,7 @@ fn process_connection_event(
                                 let relay_payload: RelayPayload =
                                     RelayPayload::new_extended_payload(extended_payload);
                                 let extended_cell = Cell::new_relay_cell(
-                                    0,
+                                    cell.circ_id,
                                     circuits
                                         .get(cell.circ_id)
                                         .unwrap()
@@ -360,7 +360,7 @@ fn process_connection_event(
                                                 extend_payload.into();
                                             let control_payload: ControlPayload =
                                                 ControlPayload::new_create_payload(create_payload);
-                                            let cell = Cell::new_create_cell(0, control_payload);
+                                            let cell = Cell::new_create_cell(cell.circ_id, control_payload);
                                             connection.unwrap().write(cell);
                                             break;
                                         }
@@ -783,5 +783,7 @@ mod tests {
         let cell = Cell::new_relay_cell(0, relay_payload);
         t1.send(ConnectionEvent::SendCell(cell)).unwrap();
         thread::sleep(time::Duration::from_millis(1000));
+
+        loop {}
     }
 }
