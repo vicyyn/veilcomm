@@ -360,7 +360,10 @@ fn process_connection_event(
                                                 extend_payload.into();
                                             let control_payload: ControlPayload =
                                                 ControlPayload::new_create_payload(create_payload);
-                                            let cell = Cell::new_create_cell(cell.circ_id, control_payload);
+                                            let cell = Cell::new_create_cell(
+                                                cell.circ_id,
+                                                control_payload,
+                                            );
                                             connection.unwrap().write(cell);
                                             break;
                                         }
@@ -580,18 +583,43 @@ fn process_connection_event(
                                     let node9 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8009);
                                     let node10 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8010);
                                     let node11 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8011);
+
+                                    let circ_id = circuits.get_unused_circ_id();
                                     create_circuit(
-                                        circuits.get_unused(),
+                                        circ_id,
                                         connection_events_sender.clone(),
                                         node9,
                                         node10,
                                         node11,
                                     );
                                     // establish stream to rendezvous point
+                                    let rendezvous_point = introduce2_payload.get_node();
+                                    println!(" - - - - - - -");
+                                    connection_events_sender
+                                        .send(ConnectionEvent::OpenStream(
+                                            circ_id,
+                                            rendezvous_point,
+                                        ))
+                                        .unwrap();
+                                    thread::sleep(time::Duration::from_millis(4000));
 
                                     // send rendezvous1
-                                }
+                                    println!(" - - - - - - -");
+                                    let half_dh_bytes =
+                                        keys.read().unwrap().dh.public_key().to_vec();
+                                    let rendezvous1 = Rendezvous1Payload::new(
+                                        introduce2_payload.cookie,
+                                        half_dh_bytes.try_into().unwrap(),
+                                    );
+                                    let relay_payload =
+                                        RelayPayload::new_rendezvous1_payload(rendezvous1);
+                                    let cell = Cell::new_relay_cell(circ_id, relay_payload);
 
+                                    connection_events_sender
+                                        .send(ConnectionEvent::SendCell(cell))
+                                        .unwrap();
+                                    thread::sleep(time::Duration::from_millis(4000));
+                                }
                                 RelayCommand::Data => {
                                     println!("Received Data Cell");
                                     if let Ok(message) =
@@ -778,11 +806,11 @@ mod tests {
         t1.send(ConnectionEvent::Introduce1(0)).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
-        println!(" - - - - - - -");
-        let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes());
-        let cell = Cell::new_relay_cell(0, relay_payload);
-        t1.send(ConnectionEvent::SendCell(cell)).unwrap();
-        thread::sleep(time::Duration::from_millis(1000));
+        // println!(" - - - - - - -");
+        // let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes());
+        // let cell = Cell::new_relay_cell(0, relay_payload);
+        // t1.send(ConnectionEvent::SendCell(cell)).unwrap();
+        // thread::sleep(time::Duration::from_millis(1000));
 
         loop {}
     }

@@ -13,7 +13,7 @@ impl Circuits {
         Self(Arc::new(RwLock::new(HashMap::new())))
     }
 
-    pub fn get_unused(&self) -> u16 {
+    pub fn get_unused_circ_id(&self) -> u16 {
         (0..=std::u16::MAX)
             .find(|&x| !self.0.read().unwrap().contains_key(&x))
             .unwrap()

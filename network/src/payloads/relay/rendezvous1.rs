@@ -1,15 +1,16 @@
-use crate::OnionSkin;
 use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Rendezvous1Payload {
     pub cookie: [u8; 20],
-    pub onion_skin: OnionSkin,
+    #[serde(with = "BigArray")]
+    pub dh_key: [u8; 256],
 }
 
 impl Rendezvous1Payload {
-    pub fn new(cookie: [u8; 20], onion_skin: OnionSkin) -> Self {
-        Self { cookie, onion_skin }
+    pub fn new(cookie: [u8; 20], dh_key: [u8; 256]) -> Self {
+        Self { cookie, dh_key }
     }
 
     pub fn serialize(&self) -> Vec<u8> {
