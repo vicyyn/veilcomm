@@ -1,11 +1,15 @@
+use crate::OnionSkin;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Rendezvous1Payload {}
+pub struct Rendezvous1Payload {
+    pub cookie: [u8; 20],
+    pub onion_skin: OnionSkin,
+}
 
 impl Rendezvous1Payload {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(cookie: [u8; 20], onion_skin: OnionSkin) -> Self {
+        Self { cookie, onion_skin }
     }
 
     pub fn serialize(&self) -> Vec<u8> {

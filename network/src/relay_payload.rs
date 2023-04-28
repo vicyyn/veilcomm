@@ -59,11 +59,13 @@ impl RelayPayload {
         let port = u16::from_le_bytes(self.data[36..38].try_into().unwrap());
         let mut cookie = [0; 20];
         cookie.copy_from_slice(&self.data[38..58]);
+        let onion_skin = OnionSkin::deserialize(&self.data[58..(58 + ONION_SKIN_LEN)]);
         Introduce1Payload {
             address,
             ip,
             port,
             cookie,
+            onion_skin,
         }
     }
 
@@ -73,7 +75,13 @@ impl RelayPayload {
         let port = u16::from_le_bytes(self.data[4..6].try_into().unwrap());
         let mut cookie = [0; 20];
         cookie.copy_from_slice(&self.data[6..26]);
-        Introduce2Payload { ip, port, cookie }
+        let onion_skin = OnionSkin::deserialize(&self.data[26..(26 + ONION_SKIN_LEN)]);
+        Introduce2Payload {
+            ip,
+            port,
+            cookie,
+            onion_skin,
+        }
     }
 
     pub fn into_establish_rend_point(&self) -> EstablishRendPointPayload {

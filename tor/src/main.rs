@@ -87,8 +87,19 @@ fn process_connection_event(
 
             if let Circuit::OpCircuit(op_circuit) = circuits.get(0).unwrap() {
                 let rendezvous_point = op_circuit.get_successors().last().unwrap().node;
-                let introduce1 =
-                    Introduce1Payload::new(generate_random_address(), rendezvous_point, [0; 20]);
+
+                let user_descriptor = user_descriptors.get_user_descriptor([0; 32]).unwrap();
+                let rsa_public = Rsa::public_key_from_der(&user_descriptor.publickey).unwrap();
+                let half_dh_bytes = keys.read().unwrap().dh.public_key().to_vec();
+                let aes = generate_random_aes_key();
+                let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap());
+
+                let introduce1 = Introduce1Payload::new(
+                    generate_random_address(),
+                    rendezvous_point,
+                    [0; 20],
+                    onion_skin,
+                );
                 let relay_payload = RelayPayload::new_introduce1_payload(introduce1);
                 let cell = Cell::new_relay_cell(0, relay_payload);
 
@@ -556,6 +567,12 @@ fn process_connection_event(
                                 RelayCommand::Introduce2 => {
                                     println!("Received Introduce2 Cell");
                                     let introduce2_payload = relay_payload.into_introduce2();
+                                    // TODO
+                                    // create circuit
+                                    // establish stream to rendezvous point
+
+                                    // send rendezvous1
+
                                     println!("{:?}", introduce2_payload);
                                 }
 
