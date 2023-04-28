@@ -4,9 +4,8 @@ use std::{
 };
 
 use crate::PendingResponse;
-use network::Node;
 
-pub struct PendingResponses(Arc<RwLock<HashMap<Node, PendingResponse>>>);
+pub struct PendingResponses(Arc<RwLock<HashMap<u16, PendingResponse>>>);
 
 impl PendingResponses {
     pub fn new() -> Self {
@@ -17,18 +16,18 @@ impl PendingResponses {
         Self(Arc::clone(&self.0))
     }
 
-    pub fn get(&self, node: Node) -> Option<PendingResponse> {
-        match self.0.read().unwrap().get(&node) {
+    pub fn get(&self, circ_id: u16) -> Option<PendingResponse> {
+        match self.0.read().unwrap().get(&circ_id) {
             Some(v) => Some(v.clone()),
             None => None,
         }
     }
 
-    pub fn insert(&self, node: Node, pending_response: PendingResponse) {
-        self.0.write().unwrap().insert(node, pending_response);
+    pub fn insert(&self, circ_id: u16, pending_response: PendingResponse) {
+        self.0.write().unwrap().insert(circ_id, pending_response);
     }
 
-    pub fn pop(&self, node: Node) -> Option<PendingResponse> {
-        self.0.write().unwrap().remove(&node)
+    pub fn pop(&self, circ_id: u16) -> Option<PendingResponse> {
+        self.0.write().unwrap().remove(&circ_id)
     }
 }

@@ -13,6 +13,12 @@ impl Circuits {
         Self(Arc::new(RwLock::new(HashMap::new())))
     }
 
+    pub fn get_unused(&self) -> u16 {
+        (0..=std::u16::MAX)
+            .find(|&x| !self.0.read().unwrap().contains_key(&x))
+            .unwrap()
+    }
+
     pub fn clone(&self) -> Self {
         Self(Arc::clone(&self.0))
     }

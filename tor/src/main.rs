@@ -81,11 +81,10 @@ fn process_connection_event(
     introduction_points: IntroductionPoints,
 ) {
     std::thread::spawn(move || match connection_event {
-        ConnectionEvent::Introduce1(node, _) => {
+        ConnectionEvent::Introduce1(circ_id) => {
             println!("[INFO] tor::process_connection_event --> Introduce1 event");
-            let connection = connections.get(node).unwrap();
 
-            if let Circuit::OpCircuit(op_circuit) = circuits.get(0).unwrap() {
+            if let Circuit::OpCircuit(op_circuit) = circuits.get(circ_id).unwrap() {
                 let rendezvous_point = op_circuit.get_successors().last().unwrap().node;
 
                 let user_descriptor = user_descriptors.get_user_descriptor([0; 32]).unwrap();
@@ -104,8 +103,11 @@ fn process_connection_event(
                 let cell = Cell::new_relay_cell(0, relay_payload);
 
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
+
+                let connection = connections.get(op_circuit.get_first().node).unwrap();
+
                 connection.write(encrypted_cell);
-                pending_responses.insert(node, PendingResponse::IntroduceAck(node));
+                pending_responses.insert(circ_id, PendingResponse::IntroduceAck(rendezvous_point));
             }
         }
         ConnectionEvent::NewConnection(node, stream) => {
@@ -121,88 +123,93 @@ fn process_connection_event(
             println!("[INFO] tor::process_connection_event --> Connect event");
             connect_to_peer(node, connection_events_sender.clone());
         }
-        ConnectionEvent::EstablishIntro(node) => {
+        ConnectionEvent::EstablishIntro(circ_id) => {
             println!("[INFO] tor::process_connection_event --> Establish intro event");
-            let connection = connections.get(node).unwrap();
-            let establish_intro = EstablishIntroPayload::new(generate_random_address());
-            let relay_payload = RelayPayload::new_establish_intro_payload(establish_intro);
-            let cell = Cell::new_relay_cell(0, relay_payload);
 
-            if let Circuit::OpCircuit(op_circuit) = circuits.get(cell.circ_id).unwrap() {
+            if let Circuit::OpCircuit(op_circuit) = circuits.get(circ_id).unwrap() {
+                let connection = connections.get(op_circuit.get_first().node).unwrap();
+                let establish_intro = EstablishIntroPayload::new(generate_random_address());
+                let relay_payload = RelayPayload::new_establish_intro_payload(establish_intro);
+                let cell = Cell::new_relay_cell(0, relay_payload);
+
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
                 connection.write(encrypted_cell);
                 pending_responses.insert(
-                    node,
+                    circ_id,
                     PendingResponse::IntroEstablished(
                         op_circuit.get_successors().last().unwrap().node,
                     ),
                 );
             }
         }
-        ConnectionEvent::EstablishRendPoint(node) => {
+        ConnectionEvent::EstablishRendPoint(circ_id) => {
             println!("[INFO] tor::process_connection_event --> Establish rend point event");
-            let connection = connections.get(node).unwrap();
-            let establish_rend_point = EstablishRendPointPayload::new([0; 20]);
-            let relay_payload =
-                RelayPayload::new_establish_rend_point_payload(establish_rend_point);
-            let cell = Cell::new_relay_cell(0, relay_payload);
 
-            if let Circuit::OpCircuit(op_circuit) = circuits.get(cell.circ_id).unwrap() {
+            if let Circuit::OpCircuit(op_circuit) = circuits.get(circ_id).unwrap() {
+                let connection = connections.get(op_circuit.get_first().node).unwrap();
+                let establish_rend_point = EstablishRendPointPayload::new([0; 20]);
+                let relay_payload =
+                    RelayPayload::new_establish_rend_point_payload(establish_rend_point);
+                let cell = Cell::new_relay_cell(0, relay_payload);
+
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
                 connection.write(encrypted_cell);
                 pending_responses.insert(
-                    node,
+                    circ_id,
                     PendingResponse::RendPointEstablished(
                         op_circuit.get_successors().last().unwrap().node,
                     ),
                 );
             }
         }
-        ConnectionEvent::OpenStream(node, stream_node) => {
+        ConnectionEvent::OpenStream(circ_id, stream_node) => {
             println!("[INFO] tor::process_connection_event --> Open stream event");
-            let connection = connections.get(node).unwrap();
-            let begin_payload = BeginPayload::new(stream_node);
-            let relay_payload = RelayPayload::new_begin_payload(0, begin_payload);
-            let cell = Cell::new_relay_cell(0, relay_payload);
 
-            if let Circuit::OpCircuit(op_circuit) = circuits.get(cell.circ_id).unwrap() {
+            if let Circuit::OpCircuit(op_circuit) = circuits.get(circ_id).unwrap() {
+                let connection = connections.get(op_circuit.get_first().node).unwrap();
+                let begin_payload = BeginPayload::new(stream_node);
+                let relay_payload = RelayPayload::new_begin_payload(0, begin_payload);
+                let cell = Cell::new_relay_cell(0, relay_payload);
+
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
                 connection.write(encrypted_cell);
-                pending_responses.insert(node, PendingResponse::Connected(0));
+                pending_responses.insert(circ_id, PendingResponse::Connected(0));
             }
         }
-        ConnectionEvent::SendCell(node, cell) => {
+        ConnectionEvent::SendCell(cell) => {
             println!("[INFO] tor::process_connection_event --> Send cell event");
-            let connection = connections.get(node).unwrap();
 
             if let Circuit::OpCircuit(op_circuit) = circuits.get(cell.circ_id).unwrap() {
+                let connection = connections.get(op_circuit.get_first().node).unwrap();
+
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
                 connection.write(encrypted_cell);
             }
         }
-        ConnectionEvent::SendExtend(node, next_node) => {
+        ConnectionEvent::SendExtend(circ_id, next_node) => {
             println!("[INFO] tor::process_connection_event --> Send extend event");
-            let connection = connections.get(node).unwrap();
 
-            // get destination rsa publickey
-            let destination_relay = relays.get_relay(next_node.get_addr()).unwrap();
-            let rsa_public = Rsa::public_key_from_der(&destination_relay.identity_key).unwrap();
+            if let Circuit::OpCircuit(op_circuit) = circuits.get(circ_id).unwrap() {
+                let connection = connections.get(op_circuit.get_first().node).unwrap();
 
-            // create the cell
-            let half_dh_bytes = keys.read().unwrap().dh.public_key().to_vec();
-            let aes = generate_random_aes_key();
-            let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap());
-            let extend_payload = ExtendPayload::new(next_node, onion_skin);
-            let relay_payload = RelayPayload::new_extend_payload(extend_payload);
-            let cell = Cell::new_relay_cell(0, relay_payload);
+                // get destination rsa publickey
+                let destination_relay = relays.get_relay(next_node.get_addr()).unwrap();
+                let rsa_public = Rsa::public_key_from_der(&destination_relay.identity_key).unwrap();
 
-            if let Circuit::OpCircuit(op_circuit) = circuits.get(cell.circ_id).unwrap() {
+                // create the cell
+                let half_dh_bytes = keys.read().unwrap().dh.public_key().to_vec();
+                let aes = generate_random_aes_key();
+                let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap());
+                let extend_payload = ExtendPayload::new(next_node, onion_skin);
+                let relay_payload = RelayPayload::new_extend_payload(extend_payload);
+                let cell = Cell::new_relay_cell(0, relay_payload);
+
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
                 connection.write(encrypted_cell);
-                pending_responses.insert(node, PendingResponse::Extended(next_node));
+                pending_responses.insert(circ_id, PendingResponse::Extended(next_node));
             }
         }
-        ConnectionEvent::SendCreate(node) => {
+        ConnectionEvent::SendCreate(circ_id, node) => {
             println!("[INFO] tor::process_connection_event --> Send create event");
             let connection = connections.get(node).unwrap();
 
@@ -218,7 +225,7 @@ fn process_connection_event(
             let control_payload = ControlPayload::new_create_payload(create_payload);
             let cell = Cell::new_create_cell(0, control_payload);
 
-            pending_responses.insert(node, PendingResponse::Created(None));
+            pending_responses.insert(circ_id, PendingResponse::Created(None));
             connection.write(cell);
         }
         ConnectionEvent::PublishUserDescriptor => {
@@ -268,7 +275,7 @@ fn process_connection_event(
 
                         let created_payload: CreatedPayload = cell.payload.into_created().unwrap();
 
-                        let pending_response = pending_responses.get(node);
+                        let pending_response = pending_responses.get(cell.circ_id);
                         if pending_response.is_some() {
                             if let PendingResponse::Created(Some(return_node)) =
                                 pending_response.unwrap()
@@ -306,7 +313,7 @@ fn process_connection_event(
                                 circuits.insert(cell.circ_id, op_circuit);
                                 println!("[SUCCESS] Added To Op Circuit --> Node {:?}", node);
                             }
-                            pending_responses.pop(node);
+                            pending_responses.pop(cell.circ_id);
                         }
                     }
                     CellCommand::Relay => {
@@ -345,16 +352,16 @@ fn process_connection_event(
                                     loop {
                                         connection = connections.get(next_node);
                                         if connection.is_some() {
+                                            pending_responses.insert(
+                                                cell.circ_id,
+                                                PendingResponse::Created(Some(node)),
+                                            );
                                             let create_payload: CreatePayload =
                                                 extend_payload.into();
                                             let control_payload: ControlPayload =
                                                 ControlPayload::new_create_payload(create_payload);
                                             let cell = Cell::new_create_cell(0, control_payload);
                                             connection.unwrap().write(cell);
-                                            pending_responses.insert(
-                                                next_node,
-                                                PendingResponse::Created(Some(node)),
-                                            );
                                             break;
                                         }
                                         println!("[WARNING] tor::process_connection_event --> (Extend) Error getting connection (retrying in 1000ms...)");
@@ -377,7 +384,7 @@ fn process_connection_event(
                                     );
 
                                     if let PendingResponse::Extended(extended_node) =
-                                        pending_responses.pop(node).unwrap()
+                                        pending_responses.pop(cell.circ_id).unwrap()
                                     {
                                         // add successor to op circuit
                                         circuits.add_successor(
@@ -414,7 +421,8 @@ fn process_connection_event(
                                 }
                                 RelayCommand::IntroEstablished => {
                                     println!("Received Intro Established Cell");
-                                    let pending_response = pending_responses.pop(node).unwrap();
+                                    let pending_response =
+                                        pending_responses.pop(cell.circ_id).unwrap();
                                     if let PendingResponse::IntroEstablished(intro_node) =
                                         pending_response
                                     {
@@ -423,7 +431,7 @@ fn process_connection_event(
                                             .unwrap()
                                             .introduction_points
                                             .push(intro_node);
-                                        pending_responses.pop(node);
+                                        pending_responses.pop(cell.circ_id);
                                     }
                                 }
                                 RelayCommand::EstablishRendPoint => {
@@ -459,12 +467,13 @@ fn process_connection_event(
 
                                 RelayCommand::RendPointEstablished => {
                                     println!("Received Rend Point Established Cell");
-                                    let pending_response = pending_responses.pop(node).unwrap();
+                                    let pending_response =
+                                        pending_responses.pop(cell.circ_id).unwrap();
                                     if let PendingResponse::RendPointEstablished(node) =
                                         pending_response
                                     {
                                         println!("Rend Point Established --> {:?}", node);
-                                        pending_responses.pop(node);
+                                        pending_responses.pop(cell.circ_id);
                                     }
                                 }
                                 RelayCommand::Begin => {
@@ -496,7 +505,9 @@ fn process_connection_event(
                                     let connected_payload: ConnectedPayload =
                                         relay_payload.into_connected();
                                     let stream_node = connected_payload.get_node();
-                                    if let Some(pending_response) = pending_responses.pop(node) {
+                                    if let Some(pending_response) =
+                                        pending_responses.pop(cell.circ_id)
+                                    {
                                         if let PendingResponse::Connected(stream_id) =
                                             pending_response
                                         {
@@ -506,7 +517,7 @@ fn process_connection_event(
                                             }
                                         }
                                     };
-                                    pending_responses.pop(node);
+                                    pending_responses.pop(cell.circ_id);
                                 }
                                 RelayCommand::Introduce1 => {
                                     println!("Received Introduce1 Cell");
@@ -558,14 +569,24 @@ fn process_connection_event(
                                     }
                                 }
                                 RelayCommand::IntroduceAck => {
-                                    println!("Received IntroduceAck Cell");
+                                    print!("Received IntroduceAck Cell");
                                     let introduce_ack_payload = relay_payload.into_introduce_ack();
+                                    println!("STATUS : {}", introduce_ack_payload.status);
                                 }
                                 RelayCommand::Introduce2 => {
                                     println!("Received Introduce2 Cell");
                                     let introduce2_payload = relay_payload.into_introduce2();
-                                    // TODO
                                     // create circuit
+                                    let node9 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8009);
+                                    let node10 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8010);
+                                    let node11 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8011);
+                                    create_circuit(
+                                        circuits.get_unused(),
+                                        connection_events_sender.clone(),
+                                        node9,
+                                        node10,
+                                        node11,
+                                    );
                                     // establish stream to rendezvous point
 
                                     // send rendezvous1
@@ -659,6 +680,7 @@ fn main() {
 }
 
 pub fn create_circuit(
+    circ_id: u16,
     t: Sender<ConnectionEvent>,
     first_hop: Node,
     second_hop: Node,
@@ -673,16 +695,17 @@ pub fn create_circuit(
     thread::sleep(time::Duration::from_millis(1000));
 
     println!(" - -- - - - -");
-    t.send(ConnectionEvent::SendCreate(first_hop)).unwrap();
+    t.send(ConnectionEvent::SendCreate(circ_id, first_hop))
+        .unwrap();
     thread::sleep(time::Duration::from_millis(1000));
 
     println!(" - -- - - - -");
-    t.send(ConnectionEvent::SendExtend(first_hop, second_hop))
+    t.send(ConnectionEvent::SendExtend(circ_id, second_hop))
         .unwrap();
     thread::sleep(time::Duration::from_millis(4000));
 
     println!(" - -- - - - -");
-    t.send(ConnectionEvent::SendExtend(first_hop, third_hop))
+    t.send(ConnectionEvent::SendExtend(circ_id, third_hop))
         .unwrap();
     thread::sleep(time::Duration::from_millis(4000));
 }
@@ -703,9 +726,17 @@ mod tests {
         let node7 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8007);
         let node8 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8008);
 
+        let node9 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8009);
+        let node10 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8010);
+        let node11 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8011);
+
         thread::spawn(|| {
             start_directory(new_socket_addr(8090));
         });
+
+        _ = start_peer(node11);
+        _ = start_peer(node10);
+        _ = start_peer(node9);
 
         let t8 = start_peer(node8);
         let _ = start_peer(node7);
@@ -717,10 +748,10 @@ mod tests {
         let t1 = start_peer(node1);
 
         println!(" First Circuit * * * * * * * * * *");
-        create_circuit(t1.clone(), node2, node3, node4);
+        create_circuit(0, t1.clone(), node2, node3, node4);
 
         println!(" Second Circuit * * * * * * * * * *");
-        create_circuit(t8.clone(), node7, node6, node5);
+        create_circuit(0, t8.clone(), node7, node6, node5);
         println!(" * * * * * * * * * *");
 
         println!(" - - - - - - -");
@@ -728,7 +759,7 @@ mod tests {
         thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - - - - - - -");
-        t1.send(ConnectionEvent::OpenStream(node2, node5)).unwrap();
+        t1.send(ConnectionEvent::OpenStream(0, node5)).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
         // println!(" - -- - - - -");
@@ -736,7 +767,7 @@ mod tests {
         // thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - - - - - - -");
-        t8.send(ConnectionEvent::EstablishIntro(node7)).unwrap();
+        t8.send(ConnectionEvent::EstablishIntro(0)).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - - - - - - -");
@@ -744,13 +775,13 @@ mod tests {
         thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - - - - - - -");
-        t1.send(ConnectionEvent::Introduce1(node2, 0)).unwrap();
+        t1.send(ConnectionEvent::Introduce1(0)).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - - - - - - -");
         let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes());
         let cell = Cell::new_relay_cell(0, relay_payload);
-        t1.send(ConnectionEvent::SendCell(node2, cell)).unwrap();
+        t1.send(ConnectionEvent::SendCell(cell)).unwrap();
         thread::sleep(time::Duration::from_millis(1000));
     }
 }

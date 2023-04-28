@@ -32,6 +32,10 @@ impl OpCircuit {
         self.successors.clone()
     }
 
+    pub fn get_first(&self) -> CircuitNode {
+        self.successors[0].clone()
+    }
+
     pub fn encrypt_cell(&self, cell: Cell) -> Cell {
         let mut new_cell = cell.clone();
         for circuit_node in self.get_successors().iter().rev() {

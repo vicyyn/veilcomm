@@ -5,14 +5,15 @@ use std::net::TcpStream;
 pub enum ConnectionEvent {
     Connect(Node),
     NewConnection(Node, TcpStream),
-    SendCell(Node, Cell),
-    SendExtend(Node, Node),
-    SendCreate(Node),
     ReceiveCell(Node, Cell),
-    OpenStream(Node, Node),
-    EstablishIntro(Node),
-    EstablishRendPoint(Node),
-    Introduce1(Node, u16),
+
+    SendCell(Cell),
+    SendExtend(u16, Node),
+    SendCreate(u16, Node),
+    OpenStream(u16, Node),
+    EstablishIntro(u16),
+    EstablishRendPoint(u16),
+    Introduce1(u16),
 
     PublishUserDescriptor,
     FetchFromDirectory,
