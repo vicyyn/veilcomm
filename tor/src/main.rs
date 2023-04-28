@@ -78,6 +78,7 @@ fn process_connection_event(
     directory_stream: TcpStream,
     user_descriptor: Arc<RwLock<UserDescriptor>>,
     cookies: Cookies,
+    introduction_points: IntroductionPoints,
 ) {
     std::thread::spawn(move || match connection_event {
         ConnectionEvent::Introduce1(node, _) => {
@@ -384,6 +385,9 @@ fn process_connection_event(
                                         hex::encode(establish_intro_payload.address)
                                     );
 
+                                    introduction_points
+                                        .insert(establish_intro_payload.address, cell.circ_id);
+
                                     let circuit = circuits.get(cell.circ_id).unwrap();
                                     let connection = connections.get(node).unwrap();
                                     let encrypted_relay_payload: RelayPayload = circuit
@@ -507,8 +511,32 @@ fn process_connection_event(
                                         connection.write(cell);
                                     } else {
                                         println!("Processing Introduce1 Cell");
+                                        let circ_id = introduction_points
+                                            .get(introduce1_payload.address)
+                                            .unwrap();
+                                        let circuit = circuits.get(circ_id).unwrap();
+                                        let relay_payload = RelayPayload::new_introduce2_payload(
+                                            introduce1_payload.into(),
+                                        );
+                                        let encrypted_payload = circuit
+                                            .get_predecessor()
+                                            .unwrap()
+                                            .encrypt_payload(relay_payload.into());
+
+                                        let cell =
+                                            Cell::new_relay_cell(circ_id, encrypted_payload.into());
+
+                                        let node = circuit.get_predecessor().unwrap().node;
+                                        let connection = connections.get(node).unwrap();
+                                        connection.write(cell);
                                     }
                                 }
+                                RelayCommand::Introduce2 => {
+                                    println!("Received Introduce2 Cell");
+                                    let introduce2_payload = relay_payload.into_introduce2();
+                                    println!("{:?}", introduce2_payload);
+                                }
+
                                 RelayCommand::Data => {
                                     println!("Received Data Cell");
                                     if let Ok(message) =
@@ -543,6 +571,7 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
     let relays = Relays::new();
     let user_descriptors = UserDescriptors::new();
     let cookies = Cookies::new();
+    let introduction_points = IntroductionPoints::new();
     let (connection_events_sender, connection_events_receiver) = channel();
 
     let relay = Relay::new(
@@ -580,6 +609,7 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
                 directory_stream.try_clone().unwrap(),
                 Arc::clone(&user_descriptor),
                 cookies.clone(),
+                introduction_points.clone(),
             );
         }
     });
@@ -668,9 +698,9 @@ mod tests {
         // t1.send(ConnectionEvent::EstablishRendPoint(node2)).unwrap();
         // thread::sleep(time::Duration::from_millis(4000));
 
-        // println!(" - -- - - - -");
-        // t1.send(ConnectionEvent::EstablishIntro(node2)).unwrap();
-        // thread::sleep(time::Duration::from_millis(4000));
+        println!(" - -- - - - -");
+        t8.send(ConnectionEvent::EstablishIntro(node7)).unwrap();
+        thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - -- - - - -");
         t8.send(ConnectionEvent::PublishUserDescriptor).unwrap();

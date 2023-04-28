@@ -1,12 +1,22 @@
 use serde::{Deserialize, Serialize};
 
-use crate::Node;
+use crate::{Introduce1Payload, Node};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Introduce2Payload {
     pub ip: [u8; 4],
     pub port: u16,
     pub cookie: [u8; 20],
+}
+
+impl From<Introduce1Payload> for Introduce2Payload {
+    fn from(value: Introduce1Payload) -> Self {
+        Self {
+            ip: value.ip,
+            port: value.port,
+            cookie: value.cookie,
+        }
+    }
 }
 
 impl Introduce2Payload {
