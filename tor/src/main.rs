@@ -503,11 +503,28 @@ fn process_connection_event(
 
                                     if let Some(stream_node) = streams.get(relay_payload.stream_id)
                                     {
+                                        let circ_id = cell.circ_id;
+                                        // send introduce ack back to client
+                                        let circuit = circuits.get(circ_id).unwrap();
+                                        let introduce_ack = RelayPayload::new_introduce_ack_payload(
+                                            IntroduceAckPayload::new(0),
+                                        );
+                                        let new_cell = Cell::new_relay_cell(
+                                            circ_id,
+                                            circuit
+                                                .get_predecessor()
+                                                .unwrap()
+                                                .encrypt_payload(introduce_ack.into())
+                                                .into(),
+                                        );
+                                        let new_cell = circuit.handle_cell(node, new_cell);
+                                        let connection = connections.get(node).unwrap();
+                                        connection.write(new_cell);
+
                                         println!("Relaying to Stream Node --> {:?}", stream_node);
                                         let connection = connections.get(stream_node).unwrap();
                                         let cell =
-                                            Cell::new_relay_cell(cell.circ_id, relay_payload)
-                                                .into();
+                                            Cell::new_relay_cell(circ_id, relay_payload).into();
                                         connection.write(cell);
                                     } else {
                                         println!("Processing Introduce1 Cell");
@@ -530,6 +547,11 @@ fn process_connection_event(
                                         let connection = connections.get(node).unwrap();
                                         connection.write(cell);
                                     }
+                                }
+                                RelayCommand::IntroduceAck => {
+                                    println!("Received IntroduceAck Cell");
+                                    let introduce_ack_payload = relay_payload.into_introduce_ack();
+                                    println!("{:?}", introduce_ack_payload);
                                 }
                                 RelayCommand::Introduce2 => {
                                     println!("Received Introduce2 Cell");
