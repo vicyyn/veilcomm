@@ -501,6 +501,9 @@ fn process_connection_event(
                                     {
                                         println!("Relaying to Stream Node --> {:?}", stream_node);
                                         let connection = connections.get(stream_node).unwrap();
+                                        let cell =
+                                            Cell::new_relay_cell(cell.circ_id, relay_payload)
+                                                .into();
                                         connection.write(cell);
                                     } else {
                                         println!("Processing Introduce1 Cell");
@@ -593,6 +596,35 @@ fn main() {
     loop {}
 }
 
+pub fn create_circuit(
+    t: Sender<ConnectionEvent>,
+    first_hop: Node,
+    second_hop: Node,
+    third_hop: Node,
+) {
+    println!(" - -- - - - -");
+    t.send(ConnectionEvent::FetchFromDirectory).unwrap();
+    thread::sleep(time::Duration::from_millis(4000));
+
+    println!(" - -- - - - -");
+    t.send(ConnectionEvent::Connect(first_hop)).unwrap();
+    thread::sleep(time::Duration::from_millis(1000));
+
+    println!(" - -- - - - -");
+    t.send(ConnectionEvent::SendCreate(first_hop)).unwrap();
+    thread::sleep(time::Duration::from_millis(1000));
+
+    println!(" - -- - - - -");
+    t.send(ConnectionEvent::SendExtend(first_hop, second_hop))
+        .unwrap();
+    thread::sleep(time::Duration::from_millis(4000));
+
+    println!(" - -- - - - -");
+    t.send(ConnectionEvent::SendExtend(first_hop, third_hop))
+        .unwrap();
+    thread::sleep(time::Duration::from_millis(4000));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -605,51 +637,43 @@ mod tests {
         let node3 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8003);
         let node4 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8004);
         let node5 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8005);
+        let node6 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8006);
+        let node7 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8007);
+        let node8 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8008);
 
         thread::spawn(|| {
             start_directory(new_socket_addr(8090));
         });
 
+        let t8 = start_peer(node8);
+        let _ = start_peer(node7);
+        let _ = start_peer(node6);
         let _ = start_peer(node5);
         let _ = start_peer(node4);
         let _ = start_peer(node3);
         let _ = start_peer(node2);
         let t1 = start_peer(node1);
 
-        println!(" - -- - - - -");
-        t1.send(ConnectionEvent::FetchFromDirectory).unwrap();
-        thread::sleep(time::Duration::from_millis(4000));
-
-        println!(" - -- - - - -");
-        t1.send(ConnectionEvent::Connect(node2)).unwrap();
-        thread::sleep(time::Duration::from_millis(1000));
-
-        println!(" - -- - - - -");
-        t1.send(ConnectionEvent::SendCreate(node2)).unwrap();
-        thread::sleep(time::Duration::from_millis(1000));
-
-        println!(" - -- - - - -");
-        t1.send(ConnectionEvent::SendExtend(node2, node3)).unwrap();
-        thread::sleep(time::Duration::from_millis(4000));
-
-        println!(" - -- - - - -");
-        t1.send(ConnectionEvent::SendExtend(node2, node4)).unwrap();
-        thread::sleep(time::Duration::from_millis(4000));
+        println!(" First Circuit * * * * * * * * * *");
+        create_circuit(t1.clone(), node2, node3, node4);
+        println!(" Second Circuit * * * * * * * * * *");
+        create_circuit(t8.clone(), node7, node6, node5);
+        println!(" * * * * * * * * * *");
 
         println!(" - -- - - - -");
         t1.send(ConnectionEvent::OpenStream(node2, node5)).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
-        println!(" - -- - - - -");
-        t1.send(ConnectionEvent::EstablishIntro(node2)).unwrap();
-        thread::sleep(time::Duration::from_millis(4000));
+        // println!(" - -- - - - -");
+        // t1.send(ConnectionEvent::EstablishRendPoint(node2)).unwrap();
+        // thread::sleep(time::Duration::from_millis(4000));
+
+        // println!(" - -- - - - -");
+        // t1.send(ConnectionEvent::EstablishIntro(node2)).unwrap();
+        // thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - -- - - - -");
-        t1.send(ConnectionEvent::PublishUserDescriptor).unwrap();
-        thread::sleep(time::Duration::from_millis(4000));
-
-        println!(" - -- - - - -");
-        t1.send(ConnectionEvent::EstablishRendPoint(node2)).unwrap();
+        t8.send(ConnectionEvent::PublishUserDescriptor).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - -- - - - -");
