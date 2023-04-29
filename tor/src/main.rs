@@ -236,7 +236,6 @@ fn process_connection_event(
         }
         ConnectionEvent::PublishUserDescriptor => {
             println!("[INFO] tor::process_connection_event --> Publish user descriptor event");
-            println!("{:?}", user_descriptor);
             publish_user_descriptor(directory_stream, user_descriptor.read().unwrap().clone());
         }
         ConnectionEvent::FetchFromDirectory => {
@@ -717,19 +716,18 @@ fn process_connection_event(
                                                 .into();
                                         connection.write(cell);
                                     } else {
-                                        if let Some(circuit) = circuits.get(cell.circ_id) {
-                                            let encrypted_payload = circuit
-                                                .get_predecessor()
-                                                .unwrap()
-                                                .encrypt_payload(relay_payload.into());
-                                            let cell = Cell::new_relay_cell(
-                                                cell.circ_id,
-                                                encrypted_payload.into(),
-                                            );
-                                            let node = circuit.get_predecessor().unwrap().node;
-                                            let connection = connections.get(node).unwrap();
-                                            connection.write(cell);
-                                        }
+                                        let circuit = circuits.get(cell.circ_id).unwrap();
+                                        let encrypted_payload = circuit
+                                            .get_predecessor()
+                                            .unwrap()
+                                            .encrypt_payload(relay_payload.into());
+                                        let cell = Cell::new_relay_cell(
+                                            cell.circ_id,
+                                            encrypted_payload.into(),
+                                        );
+                                        let node = circuit.get_predecessor().unwrap().node;
+                                        let connection = connections.get(node).unwrap();
+                                        connection.write(cell);
                                     }
                                 }
                                 _ => {}
