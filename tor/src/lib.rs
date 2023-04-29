@@ -1,4 +1,5 @@
 pub mod aes_key;
+pub mod circ_ids;
 pub mod circuit;
 pub mod circuit_node;
 pub mod circuits;
@@ -13,6 +14,7 @@ pub mod rendezvous;
 pub mod streams;
 
 pub use aes_key::*;
+pub use circ_ids::*;
 pub use circuit::*;
 pub use circuit_node::*;
 pub use circuits::*;

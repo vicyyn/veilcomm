@@ -79,6 +79,7 @@ fn process_connection_event(
     user_descriptor: Arc<RwLock<UserDescriptor>>,
     cookies: Cookies,
     introduction_points: IntroductionPoints,
+    circ_ids: CircIds,
 ) {
     std::thread::spawn(move || match connection_event {
         ConnectionEvent::Introduce1(circ_id) => {
@@ -695,6 +696,7 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
     let cookies = Cookies::new();
     let introduction_points = IntroductionPoints::new();
     let (connection_events_sender, connection_events_receiver) = channel();
+    let circ_ids = CircIds::new();
 
     let relay = Relay::new(
         "Joe".to_string(),
@@ -730,6 +732,7 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
                 Arc::clone(&user_descriptor),
                 cookies.clone(),
                 introduction_points.clone(),
+                circ_ids.clone(),
             );
         }
     });
