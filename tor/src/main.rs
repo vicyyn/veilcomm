@@ -163,13 +163,13 @@ fn process_connection_event(
                 );
             }
         }
-        ConnectionEvent::OpenStream(circ_id, stream_node) => {
+        ConnectionEvent::OpenStream(circ_id, stream_node, stream_id) => {
             println!("[INFO] tor::process_connection_event --> Open stream event");
 
             if let Circuit::OpCircuit(op_circuit) = circuits.get(circ_id).unwrap() {
                 let connection = connections.get(op_circuit.get_first().node).unwrap();
                 let begin_payload = BeginPayload::new(stream_node);
-                let relay_payload = RelayPayload::new_begin_payload(0, begin_payload);
+                let relay_payload = RelayPayload::new_begin_payload(stream_id, begin_payload);
                 let cell = Cell::new_relay_cell(circ_id, relay_payload);
 
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
@@ -585,9 +585,9 @@ fn process_connection_event(
                                     let node10 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8010);
                                     let node11 = Node::new(Ipv4Addr::new(127, 0, 0, 1), 8011);
 
-                                    let circ_id = circuits.get_unused_circ_id();
+                                    // let circ_id = circuits.get_unused_circ_id();
                                     create_circuit(
-                                        circ_id,
+                                        cell.circ_id,
                                         connection_events_sender.clone(),
                                         node9,
                                         node10,
@@ -598,8 +598,9 @@ fn process_connection_event(
                                     println!(" - - - - - - -");
                                     connection_events_sender
                                         .send(ConnectionEvent::OpenStream(
-                                            circ_id,
+                                            cell.circ_id,
                                             rendezvous_point,
+                                            1,
                                         ))
                                         .unwrap();
                                     thread::sleep(time::Duration::from_millis(4000));
@@ -613,8 +614,8 @@ fn process_connection_event(
                                         half_dh_bytes.try_into().unwrap(),
                                     );
                                     let relay_payload =
-                                        RelayPayload::new_rendezvous1_payload(rendezvous1);
-                                    let cell = Cell::new_relay_cell(circ_id, relay_payload);
+                                        RelayPayload::new_rendezvous1_payload(rendezvous1, 1);
+                                    let cell = Cell::new_relay_cell(cell.circ_id, relay_payload);
 
                                     connection_events_sender
                                         .send(ConnectionEvent::SendCell(cell))
@@ -828,13 +829,13 @@ mod tests {
         t8.send(ConnectionEvent::PublishUserDescriptor).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
-        println!(" - - - - - - -");
-        t1.send(ConnectionEvent::OpenStream(0, node5)).unwrap();
+        println!(" - -- - - - -");
+        t1.send(ConnectionEvent::EstablishRendPoint(0)).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
 
-        // println!(" - -- - - - -");
-        // t1.send(ConnectionEvent::EstablishRendPoint(node2)).unwrap();
-        // thread::sleep(time::Duration::from_millis(4000));
+        println!(" - - - - - - -");
+        t1.send(ConnectionEvent::OpenStream(0, node5, 0)).unwrap();
+        thread::sleep(time::Duration::from_millis(4000));
 
         println!(" - - - - - - -");
         t8.send(ConnectionEvent::EstablishIntro(0)).unwrap();

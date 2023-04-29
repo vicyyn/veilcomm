@@ -10,7 +10,7 @@ pub enum ConnectionEvent {
     SendCell(Cell),
     SendExtend(u16, Node),
     SendCreate(u16, Node),
-    OpenStream(u16, Node),
+    OpenStream(u16, Node, u16),
     EstablishIntro(u16),
     EstablishRendPoint(u16),
     Introduce1(u16),

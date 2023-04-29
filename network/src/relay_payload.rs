@@ -137,14 +137,17 @@ impl RelayPayload {
         }
     }
 
-    pub fn new_rendezvous1_payload(rendezvous1_payload: Rendezvous1Payload) -> Self {
+    pub fn new_rendezvous1_payload(
+        rendezvous1_payload: Rendezvous1Payload,
+        stream_id: u16,
+    ) -> Self {
         let data = rendezvous1_payload.serialize();
         let mut buffer = [0; PAYLOAD_LEN - 11];
         buffer[..data.len()].copy_from_slice(&data);
         Self {
             command: 36,
             recognized: 0,
-            stream_id: 0,
+            stream_id,
             digest: 0,
             length: 0,
             data: buffer,
