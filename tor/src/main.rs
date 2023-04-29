@@ -8,6 +8,7 @@ use tor::*;
 
 use core::time;
 use std::{
+    collections::HashMap,
     env,
     net::{Ipv4Addr, TcpListener, TcpStream},
     sync::{
@@ -80,6 +81,7 @@ fn process_connection_event(
     cookies: Cookies,
     introduction_points: IntroductionPoints,
     circ_ids: CircIds,
+    users: Users,
 ) {
     std::thread::spawn(move || match connection_event {
         ConnectionEvent::Introduce1(circ_id) => {
@@ -674,6 +676,7 @@ fn process_connection_event(
                                             let connection = connections.get(node).unwrap();
                                             connection.write(cell);
                                         }
+                                        streams.insert(3, node);
                                     }
                                 }
                                 RelayCommand::Rendezvous2 => {
@@ -687,6 +690,14 @@ fn process_connection_event(
                                         "[SUCCESS] Handshake Complete With User --> AES key {:?}",
                                         hex::encode(aes_key.get_key())
                                     );
+
+                                    println!(" - - - - - - -");
+                                    let relay_payload =
+                                        RelayPayload::new_data_payload("Hello!".as_bytes(), 3);
+                                    let cell = Cell::new_relay_cell(cell.circ_id, relay_payload);
+                                    connection_events_sender
+                                        .send(ConnectionEvent::SendCell(cell))
+                                        .unwrap();
                                 }
                                 RelayCommand::Data => {
                                     println!("Received Data Cell");
@@ -696,6 +707,29 @@ fn process_connection_event(
                                         println!(
                                 "[INFO] tor::process_connection_event --> Received Message : {message}",
                             );
+                                    }
+
+                                    if let Some(stream_node) = streams.get(relay_payload.stream_id)
+                                    {
+                                        let connection = connections.get(stream_node).unwrap();
+                                        let cell =
+                                            Cell::new_relay_cell(cell.circ_id, relay_payload)
+                                                .into();
+                                        connection.write(cell);
+                                    } else {
+                                        if let Some(circuit) = circuits.get(cell.circ_id) {
+                                            let encrypted_payload = circuit
+                                                .get_predecessor()
+                                                .unwrap()
+                                                .encrypt_payload(relay_payload.into());
+                                            let cell = Cell::new_relay_cell(
+                                                cell.circ_id,
+                                                encrypted_payload.into(),
+                                            );
+                                            let node = circuit.get_predecessor().unwrap().node;
+                                            let connection = connections.get(node).unwrap();
+                                            connection.write(cell);
+                                        }
                                     }
                                 }
                                 _ => {}
@@ -725,6 +759,7 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
     let introduction_points = IntroductionPoints::new();
     let (connection_events_sender, connection_events_receiver) = channel();
     let circ_ids = CircIds::new();
+    let users = Users::new();
 
     let relay = Relay::new(
         "Joe".to_string(),
@@ -761,6 +796,7 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
                 cookies.clone(),
                 introduction_points.clone(),
                 circ_ids.clone(),
+                users.clone(),
             );
         }
     });
@@ -875,12 +911,6 @@ mod tests {
         println!(" - - - - - - -");
         t1.send(ConnectionEvent::Introduce1(0)).unwrap();
         thread::sleep(time::Duration::from_millis(4000));
-
-        // println!(" - - - - - - -");
-        // let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes());
-        // let cell = Cell::new_relay_cell(0, relay_payload);
-        // t1.send(ConnectionEvent::SendCell(cell)).unwrap();
-        // thread::sleep(time::Duration::from_millis(1000));
 
         loop {}
     }

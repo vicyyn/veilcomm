@@ -12,6 +12,7 @@ pub mod pending_response;
 pub mod pending_responses;
 pub mod rendezvous;
 pub mod streams;
+pub mod users;
 
 pub use aes_key::*;
 pub use circ_ids::*;
@@ -27,3 +28,4 @@ pub use pending_response::*;
 pub use pending_responses::*;
 pub use rendezvous::*;
 pub use streams::*;
+pub use users::*;

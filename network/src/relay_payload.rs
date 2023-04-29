@@ -182,13 +182,13 @@ impl RelayPayload {
         }
     }
 
-    pub fn new_data_payload(data: &[u8]) -> Self {
+    pub fn new_data_payload(data: &[u8], stream_id: u16) -> Self {
         let mut buffer = [0; PAYLOAD_LEN - 11];
         buffer[..data.len()].copy_from_slice(&data);
         Self {
             command: 2,
             recognized: 0,
-            stream_id: 0,
+            stream_id,
             digest: 0,
             length: 0,
             data: buffer,
