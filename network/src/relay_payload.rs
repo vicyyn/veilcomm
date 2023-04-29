@@ -117,6 +117,26 @@ impl RelayPayload {
         }
     }
 
+    pub fn into_rendezvous2(&self) -> Rendezvous2Payload {
+        Rendezvous2Payload {
+            dh_key: self.data[0..256].try_into().unwrap(),
+        }
+    }
+
+    pub fn new_rendezvous2_payload(rendezvous2_payload: Rendezvous2Payload) -> Self {
+        let data = rendezvous2_payload.serialize();
+        let mut buffer = [0; PAYLOAD_LEN - 11];
+        buffer[..data.len()].copy_from_slice(&data);
+        Self {
+            command: 37,
+            recognized: 0,
+            stream_id: 0,
+            digest: 0,
+            length: 0,
+            data: buffer,
+        }
+    }
+
     pub fn new_rendezvous1_payload(rendezvous1_payload: Rendezvous1Payload) -> Self {
         let data = rendezvous1_payload.serialize();
         let mut buffer = [0; PAYLOAD_LEN - 11];

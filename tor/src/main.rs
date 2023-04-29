@@ -620,6 +620,45 @@ fn process_connection_event(
                                         .unwrap();
                                     thread::sleep(time::Duration::from_millis(4000));
                                 }
+                                RelayCommand::Rendezvous1 => {
+                                    println!("Received Rendezvous1 Cell");
+                                    let rendezvous1_payload = relay_payload.into_rendezvous1();
+
+                                    if let Some(stream_node) = streams.get(relay_payload.stream_id)
+                                    {
+                                        let circ_id = cell.circ_id;
+                                        let connection = connections.get(stream_node).unwrap();
+                                        let cell =
+                                            Cell::new_relay_cell(circ_id, relay_payload).into();
+                                        connection.write(cell);
+                                    } else {
+                                        if let Some(circ_id) =
+                                            cookies.get(rendezvous1_payload.cookie.into())
+                                        {
+                                            streams.insert(circ_id, node);
+
+                                            let circuit = circuits.get(circ_id).unwrap();
+                                            let relay_payload =
+                                                RelayPayload::new_rendezvous2_payload(
+                                                    rendezvous1_payload.into(),
+                                                );
+                                            let encrypted_payload = circuit
+                                                .get_predecessor()
+                                                .unwrap()
+                                                .encrypt_payload(relay_payload.into());
+                                            let cell = Cell::new_relay_cell(
+                                                circ_id,
+                                                encrypted_payload.into(),
+                                            );
+                                            let node = circuit.get_predecessor().unwrap().node;
+                                            let connection = connections.get(node).unwrap();
+                                            connection.write(cell);
+                                        }
+                                    }
+                                }
+                                RelayCommand::Rendezvous2 => {
+                                    println!("Received Rendezvous2 Cell");
+                                }
                                 RelayCommand::Data => {
                                     println!("Received Data Cell");
                                     if let Ok(message) =

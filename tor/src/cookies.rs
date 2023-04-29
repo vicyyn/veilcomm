@@ -6,6 +6,12 @@ use std::{
 #[derive(Hash, PartialEq, Eq)]
 pub struct Cookie(pub [u8; 20]);
 
+impl From<[u8; 20]> for Cookie {
+    fn from(value: [u8; 20]) -> Self {
+        Self(value)
+    }
+}
+
 pub struct Cookies(Arc<RwLock<HashMap<Cookie, u16>>>);
 
 impl Cookies {
