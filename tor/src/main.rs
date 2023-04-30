@@ -501,7 +501,7 @@ fn process_connection_event(
                                     if let PendingResponse::RendPointEstablished(node) =
                                         pending_response
                                     {
-                                        println!("Rend Point Established --> {:?}", node);
+                                        println!("[SUCCESS] Rend Point Established --> {:?}", node);
                                         pending_responses.pop(cell.circ_id);
                                     }
                                 }
@@ -668,9 +668,6 @@ fn process_connection_event(
                                 RelayCommand::Rendezvous1 => {
                                     println!("Received Rendezvous1 Cell");
                                     let rendezvous1_payload = relay_payload.into_rendezvous1();
-                                    println!("{:?}", rendezvous1_payload);
-                                    println!("{:?}", streams);
-                                    println!("{:?}", cookies);
 
                                     if let Some(stream_node) = streams.get(relay_payload.stream_id)
                                     {
@@ -727,7 +724,7 @@ fn process_connection_event(
                                     println!("Received Data Cell");
 
                                     if let Some(user) = users.get([0; 32]) {
-                                        let user_decrypted_data = encrypt(
+                                        let user_decrypted_data = decrypt(
                                             Cipher::aes_128_ctr(),
                                             &user.0.get_key(),
                                             None,
