@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Hash, PartialEq, Eq, Debug)]
 pub struct Cookie(pub [u8; 20]);
 
 impl From<[u8; 20]> for Cookie {
@@ -12,6 +12,7 @@ impl From<[u8; 20]> for Cookie {
     }
 }
 
+#[derive(Debug)]
 pub struct Cookies(Arc<RwLock<HashMap<Cookie, u16>>>);
 
 impl Cookies {

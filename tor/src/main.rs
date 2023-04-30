@@ -4,11 +4,11 @@ use directory::{
 };
 use network::*;
 use openssl::rsa::Rsa;
+use openssl::symm::{decrypt, encrypt, Cipher};
 use tor::*;
 
 use core::time;
 use std::{
-    collections::HashMap,
     env,
     net::{Ipv4Addr, TcpListener, TcpStream},
     sync::{
@@ -186,9 +186,29 @@ fn process_connection_event(
             println!("[INFO] tor::process_connection_event --> Send cell event");
 
             if let Circuit::OpCircuit(op_circuit) = circuits.get(cell.circ_id).unwrap() {
+                let new_cell: Cell;
+                if let Some(user) = users.get([0; 32]) {
+                    let aes_key = user.0;
+                    let mut relay_payload: RelayPayload = cell.payload.into();
+
+                    let user_encrypted_data = encrypt(
+                        Cipher::aes_128_ctr(),
+                        &aes_key.get_key(),
+                        None,
+                        &relay_payload.data,
+                    )
+                    .unwrap();
+
+                    relay_payload.data = user_encrypted_data.try_into().unwrap();
+
+                    new_cell = Cell::new_relay_cell(cell.circ_id, relay_payload);
+                } else {
+                    new_cell = cell;
+                }
+
                 let connection = connections.get(op_circuit.get_first().node).unwrap();
 
-                let encrypted_cell = op_circuit.encrypt_cell(cell);
+                let encrypted_cell = op_circuit.encrypt_cell(new_cell);
                 connection.write(encrypted_cell);
             }
         }
@@ -540,14 +560,8 @@ fn process_connection_event(
                                         let introduce_ack = RelayPayload::new_introduce_ack_payload(
                                             IntroduceAckPayload::new(0),
                                         );
-                                        let new_cell = Cell::new_relay_cell(
-                                            circ_id,
-                                            circuit
-                                                .get_predecessor()
-                                                .unwrap()
-                                                .encrypt_payload(introduce_ack.into())
-                                                .into(),
-                                        );
+                                        let new_cell =
+                                            Cell::new_relay_cell(circ_id, introduce_ack.into());
                                         let new_cell = circuit.handle_cell(node, new_cell);
                                         let connection = connections.get(node).unwrap();
                                         connection.write(new_cell);
@@ -584,6 +598,7 @@ fn process_connection_event(
                                         "[SUCCESS] Introduce Complete, Status : {}",
                                         introduce_ack_payload.status
                                     );
+                                    pending_responses.pop(cell.circ_id);
                                 }
                                 RelayCommand::Introduce2 => {
                                     println!("Received Introduce2 Cell");
@@ -634,16 +649,28 @@ fn process_connection_event(
                                     );
                                     let relay_payload =
                                         RelayPayload::new_rendezvous1_payload(rendezvous1, 1);
-                                    let cell = Cell::new_relay_cell(cell.circ_id, relay_payload);
+                                    let cell =
+                                        Cell::new_relay_cell(cell.circ_id, relay_payload.clone());
 
+                                    // send rendezvous1
                                     connection_events_sender
-                                        .send(ConnectionEvent::SendCell(cell))
+                                        .send(ConnectionEvent::SendCell(cell.clone()))
                                         .unwrap();
                                     thread::sleep(time::Duration::from_millis(4000));
+
+                                    users.insert(
+                                        [0; 32],
+                                        aes_key,
+                                        cell.circ_id,
+                                        relay_payload.stream_id,
+                                    );
                                 }
                                 RelayCommand::Rendezvous1 => {
                                     println!("Received Rendezvous1 Cell");
                                     let rendezvous1_payload = relay_payload.into_rendezvous1();
+                                    println!("{:?}", rendezvous1_payload);
+                                    println!("{:?}", streams);
+                                    println!("{:?}", cookies);
 
                                     if let Some(stream_node) = streams.get(relay_payload.stream_id)
                                     {
@@ -689,23 +716,31 @@ fn process_connection_event(
                                         "[SUCCESS] Handshake Complete With User --> AES key {:?}",
                                         hex::encode(aes_key.get_key())
                                     );
-
-                                    println!(" - - - - - - -");
-                                    let relay_payload =
-                                        RelayPayload::new_data_payload("Hello!".as_bytes(), 3);
-                                    let cell = Cell::new_relay_cell(cell.circ_id, relay_payload);
-                                    connection_events_sender
-                                        .send(ConnectionEvent::SendCell(cell))
-                                        .unwrap();
+                                    users.insert(
+                                        [0; 32],
+                                        aes_key,
+                                        cell.circ_id,
+                                        relay_payload.stream_id,
+                                    )
                                 }
                                 RelayCommand::Data => {
                                     println!("Received Data Cell");
-                                    if let Ok(message) =
-                                        String::from_utf8(relay_payload.data.to_vec())
-                                    {
-                                        println!(
+
+                                    if let Some(user) = users.get([0; 32]) {
+                                        let user_decrypted_data = encrypt(
+                                            Cipher::aes_128_ctr(),
+                                            &user.0.get_key(),
+                                            None,
+                                            &relay_payload.data,
+                                        )
+                                        .unwrap();
+
+                                        if let Ok(message) = String::from_utf8(user_decrypted_data)
+                                        {
+                                            println!(
                                 "[INFO] tor::process_connection_event --> Received Message : {message}",
                             );
+                                        }
                                     }
 
                                     if let Some(stream_node) = streams.get(relay_payload.stream_id)
@@ -716,18 +751,20 @@ fn process_connection_event(
                                                 .into();
                                         connection.write(cell);
                                     } else {
-                                        let circuit = circuits.get(cell.circ_id).unwrap();
-                                        let encrypted_payload = circuit
-                                            .get_predecessor()
-                                            .unwrap()
-                                            .encrypt_payload(relay_payload.into());
-                                        let cell = Cell::new_relay_cell(
-                                            cell.circ_id,
-                                            encrypted_payload.into(),
-                                        );
-                                        let node = circuit.get_predecessor().unwrap().node;
-                                        let connection = connections.get(node).unwrap();
-                                        connection.write(cell);
+                                        if let Some(circuit) = circuits.get(cell.circ_id) {
+                                            if let Circuit::OrCircuit(or_circuit) = circuit {
+                                                let encrypted_payload = or_circuit
+                                                    .get_predecessor()
+                                                    .encrypt_payload(relay_payload.into());
+                                                let cell = Cell::new_relay_cell(
+                                                    cell.circ_id,
+                                                    encrypted_payload.into(),
+                                                );
+                                                let node = or_circuit.get_predecessor().node;
+                                                let connection = connections.get(node).unwrap();
+                                                connection.write(cell);
+                                            }
+                                        }
                                     }
                                 }
                                 _ => {}
@@ -908,7 +945,12 @@ mod tests {
 
         println!(" - - - - - - -");
         t1.send(ConnectionEvent::Introduce1(0)).unwrap();
-        thread::sleep(time::Duration::from_millis(4000));
+        thread::sleep(time::Duration::from_millis(30000));
+
+        println!(" - - - - - - -");
+        let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes(), 3);
+        let cell = Cell::new_relay_cell(0, relay_payload);
+        t1.send(ConnectionEvent::SendCell(cell)).unwrap();
 
         loop {}
     }

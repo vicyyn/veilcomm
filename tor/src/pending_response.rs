@@ -9,4 +9,5 @@ pub enum PendingResponse {
     IntroEstablished(Node),
     RendPointEstablished(Node),
     IntroduceAck(Node),
+    Rendezvous2([u8;32])
 }

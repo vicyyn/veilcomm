@@ -23,10 +23,10 @@ impl Users {
         }
     }
 
-    pub fn insert(&self, address: [u8; 32], aes_key: AESKey, circ_id: u16, circ_id_2: u16) {
+    pub fn insert(&self, address: [u8; 32], aes_key: AESKey, circ_id: u16, stream_id: u16) {
         self.0
             .write()
             .unwrap()
-            .insert(address, (aes_key, circ_id, circ_id_2));
+            .insert(address, (aes_key, circ_id, stream_id));
     }
 }
