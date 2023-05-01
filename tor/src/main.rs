@@ -1,5 +1,5 @@
 use directory::{
-    connect_to_directory, fetch_relays, fetch_user_descriptors, new_socket_addr,
+    connect_to_directory, fetch_relays, fetch_user_descriptors, new_socket_addr, publish_relay,
     publish_user_descriptor, Relay, Relays, UserDescriptor, UserDescriptors,
 };
 use network::*;
@@ -806,7 +806,8 @@ fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
 
     let user_descriptor = Arc::new(RwLock::new(keys.read().unwrap().get_user_descriptor()));
 
-    let directory_stream = connect_to_directory(relay, new_socket_addr(8090)).unwrap();
+    let directory_stream = connect_to_directory(new_socket_addr(8090)).unwrap();
+    publish_relay(directory_stream.try_clone().unwrap(), relay);
 
     listen_for_connections(main_node, connection_events_sender.clone());
     std::thread::spawn({

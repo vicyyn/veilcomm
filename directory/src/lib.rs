@@ -206,14 +206,13 @@ pub fn start_directory(address: SocketAddr) {
     }
 }
 
-pub fn connect_to_directory(relay: Relay, address: SocketAddr) -> Option<TcpStream> {
+pub fn connect_to_directory(address: SocketAddr) -> Option<TcpStream> {
     match TcpStream::connect(address) {
         Ok(stream) => {
             println!(
                 "[SUCCESS] tor::connect_to_directory --> Connected to Directory: {:?}",
                 address
             );
-            publish_relay(stream.try_clone().unwrap(), relay);
             Some(stream)
         }
         Err(e) => {

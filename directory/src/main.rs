@@ -12,5 +12,4 @@ fn main() {
         args[1].parse().unwrap(),
     );
     start_directory(address);
-    loop {}
 }
