@@ -1,10 +1,9 @@
+use crate::*;
+use serde::{Deserialize, Serialize};
 use std::{
     net::SocketAddr,
     sync::{Arc, RwLock},
 };
-
-use crate::*;
-use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct _Relays(Vec<Relay>);

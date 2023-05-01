@@ -1,7 +1,6 @@
-use std::sync::{Arc, RwLock};
-
 use crate::*;
 use serde::{Deserialize, Serialize};
+use std::sync::{Arc, RwLock};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct _UserDescriptors(Vec<UserDescriptor>);

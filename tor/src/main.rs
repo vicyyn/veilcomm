@@ -1,8 +1,3 @@
-use directory::{
-    connect_to_directory, fetch_relays, fetch_user_descriptors, new_socket_addr, publish_relay,
-    publish_user_descriptor, Relay, Relays, UserDescriptor, UserDescriptors,
-};
-use network::*;
 use openssl::rsa::Rsa;
 use openssl::symm::{decrypt, encrypt, Cipher};
 use tor::*;

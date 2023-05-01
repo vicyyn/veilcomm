@@ -1,5 +1,3 @@
-use network::{Cell, Node};
-
 use crate::*;
 
 #[derive(Debug, Clone)]

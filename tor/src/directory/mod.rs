@@ -1,20 +1,12 @@
+use crate::*;
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, TcpStream};
 use std::net::{SocketAddr, TcpListener};
-use std::sync::{Arc, RwLock};
 use std::thread;
 
 pub mod directory_event;
-pub mod relay;
-pub mod relays;
-pub mod user_descriptor;
-pub mod user_descriptors;
 
 pub use directory_event::*;
-pub use relay::*;
-pub use relays::*;
-pub use user_descriptor::*;
-pub use user_descriptors::*;
 
 pub fn fetch_relays(stream: TcpStream) -> Option<Relays> {
     let mut stream = stream.try_clone().unwrap();
