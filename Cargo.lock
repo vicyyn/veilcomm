@@ -471,17 +471,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "directory"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "network",
- "openssl",
- "serde",
- "serde-big-array",
-]
-
-[[package]]
 name = "enumset"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -976,16 +965,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "network"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "openssl",
- "serde",
- "serde-big-array",
-]
-
-[[package]]
 name = "notify"
 version = "5.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1466,11 +1445,12 @@ checksum = "c7c4ceeeca15c8384bbc3e011dbd8fccb7f068a440b752b7d9b32ceb0ca0e2e8"
 name = "tor"
 version = "0.1.0"
 dependencies = [
- "directory",
+ "bincode",
  "hex",
- "network",
  "openssl",
  "rand",
+ "serde",
+ "serde-big-array",
 ]
 
 [[package]]

@@ -1,4 +1,4 @@
-use network::Node;
+use crate::Node;
 
 #[derive(Debug, Clone)]
 pub enum PendingResponse {
@@ -9,5 +9,5 @@ pub enum PendingResponse {
     IntroEstablished(Node),
     RendPointEstablished(Node),
     IntroduceAck(Node),
-    Rendezvous2([u8;32])
+    Rendezvous2([u8; 32]),
 }

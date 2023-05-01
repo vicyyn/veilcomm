@@ -1,9 +1,7 @@
 [workspace]
 members = [
     "client",
-    "network",
     "tor",
-    "directory"
 ]
 
 [workspace.package]

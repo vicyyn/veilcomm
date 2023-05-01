@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use network::Node;
+use crate::Node;
 
 #[derive(Debug, Clone)]
 pub struct Streams(Arc<RwLock<HashMap<u16, Node>>>);

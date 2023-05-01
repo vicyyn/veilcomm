@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use network::{Connection, Node};
+use crate::{Connection, Node};
 
 pub struct Connections(Arc<RwLock<HashMap<Node, Connection>>>);
 

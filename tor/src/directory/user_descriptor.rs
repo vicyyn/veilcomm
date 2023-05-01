@@ -1,5 +1,6 @@
-use network::Node;
 use serde::{Deserialize, Serialize};
+
+use crate::Node;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UserDescriptor {
