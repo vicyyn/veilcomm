@@ -1,7 +1,7 @@
 // The basic unit of communication for onion routers and onion
 // proxies is a fixed-width "cell". 512 bytes size.
 
-use crate::PAYLOAD_SIZE;
+use crate::{Payload, PAYLOAD_SIZE};
 use openssl::symm::{decrypt, encrypt, Cipher};
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
@@ -13,7 +13,7 @@ pub struct Cell {
     pub circ_id: u16,
     pub command: u8,
     #[serde(with = "BigArray")]
-    pub payload: [u8; PAYLOAD_SIZE],
+    pub payload: Payload,
 }
 
 impl Cell {
