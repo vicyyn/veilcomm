@@ -1454,6 +1454,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tor_v2"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "hex",
+ "openssl",
+ "rand",
+ "serde",
+ "serde-big-array",
+]
+
+[[package]]
 name = "typenum"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

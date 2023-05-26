@@ -86,13 +86,10 @@ fn process_connection_event(
                 let rendezvous_point = op_circuit.get_successors().last().unwrap().node;
 
                 let user_descriptor = user_descriptors.get_user_descriptor([0; 32]).unwrap();
-                println!("{:?}", user_descriptor);
                 let rsa_public = Rsa::public_key_from_der(&user_descriptor.publickey).unwrap();
-
                 let half_dh_bytes = keys.read().unwrap().dh.public_key().to_vec();
                 let aes = generate_random_aes_key();
                 let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap());
-                println!("{:?}", onion_skin);
 
                 let introduce1 = Introduce1Payload::new(
                     generate_random_address(),
@@ -102,9 +99,7 @@ fn process_connection_event(
                 );
                 let relay_payload = RelayPayload::new_introduce1_payload(introduce1);
                 let cell = Cell::new_relay_cell(circ_id, relay_payload);
-
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
-
                 let connection = connections.get(op_circuit.get_first().node).unwrap();
 
                 connection.write(encrypted_cell);
