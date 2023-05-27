@@ -3,6 +3,7 @@ members = [
     "client",
     "tor",
     "tor_v2",
+    "directory",
 ]
 
 [workspace.package]
