@@ -15,12 +15,11 @@ impl CreatedPayload {
     }
 
     pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self).expect("[FAILED] Rpc::send_msg --> Unable to serialize message")
+        bincode::serialize(self).unwrap()
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec())
-            .expect("[FAILED] Rpc::open, serde_json --> Unable to decode string payload")
+        bincode::deserialize(&buffer.to_vec()).unwrap()
     }
 }
 

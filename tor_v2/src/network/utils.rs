@@ -1,5 +1,5 @@
 use crate::Connections;
-pub use log::{error, info};
+use log::{error, info};
 use std::{
     net::{SocketAddrV4, TcpListener, TcpStream},
     thread,
