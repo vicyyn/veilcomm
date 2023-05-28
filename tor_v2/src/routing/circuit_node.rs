@@ -1,0 +1,73 @@
+use crate::*;
+use openssl::symm::{decrypt, encrypt, Cipher};
+
+#[derive(Debug, Clone)]
+pub struct CircuitNode {
+    pub aes_key: Option<AesKey>,
+    pub socket_address: SocketAddrV4,
+}
+
+impl CircuitNode {
+    pub fn new(aes_key: Option<AesKey>, socket_address: SocketAddrV4) -> Self {
+        Self {
+            socket_address,
+            aes_key,
+        }
+    }
+
+    pub fn encrypt_payload(&self, payload: Payload) -> Payload {
+        match payload {
+            Payload::RelayPayload(relay_payload) => {
+                return Payload::new_relay_payload(RelayPayload::new(
+                    self.encrypt_data(relay_payload.serialize())
+                        .try_into()
+                        .unwrap(),
+                ));
+            }
+            Payload::ControlPayload(control_payload) => {
+                Payload::new_control_payload(ControlPayload::new(
+                    self.encrypt_data(control_payload.serialize())
+                        .try_into()
+                        .unwrap(),
+                ))
+            }
+        }
+    }
+
+    pub fn decrypt_payload(&self, payload: Payload) -> Payload {
+        match payload {
+            Payload::RelayPayload(relay_payload) => Payload::new_relay_payload(RelayPayload::new(
+                self.decrypt_data(relay_payload.serialize())
+                    .try_into()
+                    .unwrap(),
+            )),
+            Payload::ControlPayload(control_payload) => {
+                Payload::new_control_payload(ControlPayload::new(
+                    self.decrypt_data(control_payload.serialize())
+                        .try_into()
+                        .unwrap(),
+                ))
+            }
+        }
+    }
+
+    pub fn encrypt_data(&self, data: Vec<u8>) -> Vec<u8> {
+        encrypt(
+            Cipher::aes_128_ctr(),
+            &self.aes_key.unwrap(),
+            None,
+            &data[..],
+        )
+        .unwrap()
+    }
+
+    pub fn decrypt_data(&self, data: Vec<u8>) -> Vec<u8> {
+        decrypt(
+            Cipher::aes_128_ctr(),
+            &self.aes_key.unwrap(),
+            None,
+            &data[..],
+        )
+        .unwrap()
+    }
+}

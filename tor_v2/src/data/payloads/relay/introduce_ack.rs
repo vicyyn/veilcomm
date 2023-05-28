@@ -11,12 +11,10 @@ impl IntroduceAckPayload {
     }
 
     pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self)
-            .expect("[FAILED] IntroduceAck::serialize --> Unable to serialize payload")
+        bincode::serialize(self).unwrap()
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec())
-            .expect("[FAILED] IntroduceAck::deserialize --> Unable to deserialize payload")
+        bincode::deserialize(&buffer.to_vec()).unwrap()
     }
 }
