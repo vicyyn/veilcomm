@@ -10,7 +10,12 @@ function BottomBarContent() {
       alignItems={"center"}
       gap={1}
       p={2}
-      sx={{ background: theme.colors.alpha.white[5] }}
+      sx={{
+        overflow: "hidden",
+        background: theme.colors.alpha.white[5],
+        borderBottom: `${theme.colors.alpha.black[50]} solid 2px`,
+        borderTop: `${theme.colors.alpha.black[50]} solid 2px`,
+      }}
     >
       <Box flexGrow={1} display="flex" alignItems="center">
         <TextField
