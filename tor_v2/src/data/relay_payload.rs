@@ -1,6 +1,7 @@
 use crate::*;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct RelayPayload {
     pub command: u8,
@@ -32,7 +33,7 @@ impl RelayPayload {
 
     pub fn into_extend(&self) -> ExtendPayload {
         ExtendPayload {
-            ip: self.data[..4].try_into().unwrap(),
+            address: self.data[..4].try_into().unwrap(),
             port: u16::from_le_bytes(self.data[4..6].try_into().unwrap()),
             onion_skin: OnionSkin::deserialize(&self.data[6..(6 + ONION_SKIN_LEN)]),
         }
@@ -91,14 +92,14 @@ impl RelayPayload {
 
     pub fn into_begin(&self) -> BeginPayload {
         BeginPayload {
-            ip: self.data[..4].try_into().unwrap(),
+            address: self.data[..4].try_into().unwrap(),
             port: u16::from_le_bytes(self.data[4..6].try_into().unwrap()),
         }
     }
 
     pub fn into_connected(&self) -> ConnectedPayload {
         ConnectedPayload {
-            ip: self.data[..4].try_into().unwrap(),
+            address: self.data[..4].try_into().unwrap(),
             port: u16::from_le_bytes(self.data[4..6].try_into().unwrap()),
         }
     }

@@ -22,10 +22,10 @@ impl From<Introduce1Payload> for Introduce2Payload {
 }
 
 impl Introduce2Payload {
-    pub fn new(socket_address: SocketAddrV4, cookie: [u8; 20], onion_skin: OnionSkin) -> Self {
+    pub fn new(node: SocketAddrV4, cookie: [u8; 20], onion_skin: OnionSkin) -> Self {
         Self {
-            ip: socket_address.ip().octets(),
-            port: socket_address.port(),
+            ip: node.ip().octets(),
+            port: u16::from_be_bytes(node.port().to_be_bytes()),
             cookie,
             onion_skin,
         }

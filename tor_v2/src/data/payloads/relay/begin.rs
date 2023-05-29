@@ -1,29 +1,32 @@
-use serde::{Deserialize, Serialize};
 use std::net::SocketAddrV4;
+
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BeginPayload {
-    pub ip: [u8; 4],
+    pub address: [u8; 4],
     pub port: u16,
 }
 
 impl BeginPayload {
-    pub fn new(socket_address: SocketAddrV4) -> Self {
+    pub fn new(node: SocketAddrV4) -> Self {
         Self {
-            ip: socket_address.ip().octets(),
-            port: socket_address.port(),
+            address: node.ip().octets(),
+            port: u16::from_be_bytes(node.port().to_be_bytes()),
         }
     }
 
     pub fn get_address(&self) -> SocketAddrV4 {
-        SocketAddrV4::new(self.ip.into(), self.port)
+        SocketAddrV4::new(self.address.into(), self.port)
     }
 
     pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap()
+        bincode::serialize(self)
+            .expect("[FAILED] BeginPayload::serialize --> Unable to serialize payload")
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec()).unwrap()
+        bincode::deserialize(&buffer.to_vec())
+            .expect("[FAILED] BeginPayload::deserialize --> Unable to deserialize payload")
     }
 }

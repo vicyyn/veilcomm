@@ -1,5 +1,6 @@
-use crate::OnionSkin;
 use std::net::SocketAddrV4;
+
+use crate::OnionSkin;
 
 #[derive(Debug)]
 pub struct Introduce1Payload {
@@ -13,14 +14,14 @@ pub struct Introduce1Payload {
 impl Introduce1Payload {
     pub fn new(
         address: [u8; 32],
-        socket_address: SocketAddrV4,
+        node: SocketAddrV4,
         cookie: [u8; 20],
         onion_skin: OnionSkin,
     ) -> Self {
         Self {
             address,
-            ip: socket_address.ip().octets(),
-            port: socket_address.port(),
+            ip: node.ip().octets(),
+            port: u16::from_be_bytes(node.port().to_be_bytes()),
             cookie,
             onion_skin,
         }

@@ -11,11 +11,12 @@ impl EstablishRendPointPayload {
     }
 
     pub fn serialize(&self) -> Vec<u8> {
-        bincode::serialize(&self).unwrap()
+        bincode::serialize(&self)
+            .expect("[FAILED] EstablishRendPoint::serialize --> Unable to serialize payload")
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
         bincode::deserialize(buffer)
-        .unwrap()
+            .expect("[FAILED] EstablishRendPoint::deserialize --> Unable to deserialize payload")
     }
 }

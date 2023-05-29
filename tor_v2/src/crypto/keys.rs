@@ -1,6 +1,7 @@
-use crate::AesKey;
 use directory::UserDescriptor;
 use openssl::{bn::BigNum, dh::Dh, pkey::Private, rand::rand_bytes, rsa::Rsa};
+
+use crate::AesKey;
 
 pub fn generate_random_aes_key() -> [u8; 16] {
     let mut key = [0u8; 16];
