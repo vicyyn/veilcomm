@@ -1,53 +1,68 @@
-import TopBarContent from "./TopBarContent";
-import BottomBarContent from "./BottomBarContent";
-import ChatContent from "./ChatContent";
-import Scrollbar from "../components/Scrollbar";
-import { Box, styled, useTheme, Stack } from "@mui/material";
-import Logs from "./Logs";
-import Peers from "./Peers";
-
-const ChatWindow = styled(Box)(
-  () => `
-        width: 100%;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        flex: 0.7;
-`
-);
+import {
+  useTheme,
+  Grid,
+  CircularProgress,
+  Typography,
+  Stack,
+} from "@mui/material";
+import Logs from "./LeftBlock/Logs";
+import Peers from "./RightBlock/Peers";
+import MiddleBlock from "./MiddleBlock/MiddleBlock";
+import { useEffect, useState } from "react";
+import { listen, emit } from "@tauri-apps/api/event";
 
 export default function Messenger() {
+  const [initializing, setInitializing] = useState(true);
+  const [userKey, setUserKey] = useState<string | null>(null);
   const theme = useTheme();
 
+  useEffect(() => {
+    emit("tor-event", "initialize-true");
+
+    listen<string>("tor-change-initialize", (event) => {
+      setUserKey(event.payload);
+      setInitializing(false);
+    });
+  }, []);
+
   return (
-    <Stack
-      display={"flex"}
-      direction={"row"}
-      height={"98vh"}
-      sx={{ background: theme.colors.alpha.black[50] }}
-    >
-      <Box sx={{ flex: 0.4 }}>
+    <Grid container sx={{ background: theme.colors.alpha.black[50] }}>
+      <Grid
+        item
+        xs={3.5}
+        sx={{
+          height: "100vh",
+          border: `${theme.colors.alpha.black[50]} solid 2px`,
+        }}
+      >
         <Logs />
-      </Box>
-      <ChatWindow>
-        <Box
-          sx={{
-            flex: 1,
-            border: `${theme.colors.alpha.black[50]} solid 2px`,
-            padding: `${theme.spacing(2)}`,
-            alignItems: "center",
-          }}
-        >
-          <TopBarContent />
-        </Box>
-        <Scrollbar>
-          <ChatContent />
-        </Scrollbar>
-        <BottomBarContent />
-      </ChatWindow>
-      <Box sx={{ flex: 0.3 }}>
-        <Peers />
-      </Box>
-    </Stack>
+      </Grid>
+      <Grid item xs={4}>
+        {initializing ? (
+          <Stack
+            gap={1}
+            display={"flex"}
+            justifyContent={"center"}
+            alignItems={"center"}
+            height={"100vh"}
+          >
+            <CircularProgress />
+            <Typography>Initializing...</Typography>
+          </Stack>
+        ) : (
+          <MiddleBlock />
+        )}
+      </Grid>
+      <Grid
+        item
+        xs={4.5}
+        sx={{
+          height: "100vh",
+          border: `${theme.colors.alpha.black[50]} solid 2px`,
+        }}
+      >
+        <Peers userKey={userKey} />
+      </Grid>
+    </Grid>
   );
 }

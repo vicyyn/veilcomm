@@ -1,6 +1,7 @@
 import { Box, Avatar, Typography } from "@mui/material";
 
 function TopBarContent() {
+
   return (
     <Box display="flex" alignItems="center">
       <Avatar
