@@ -1,3 +1,5 @@
+use serde::Serialize;
+
 use crate::*;
 use std::net::{SocketAddrV4, TcpStream};
 
