@@ -12,7 +12,7 @@ const ChatWindow = styled(Box)(
         height: 100%;
         display: flex;
         flex-direction: column;
-        flex: 1;
+        flex: 0.7;
 `
 );
 
@@ -22,12 +22,11 @@ export default function Messenger() {
   return (
     <Stack
       display={"flex"}
-      margin={0}
       direction={"row"}
       height={"98vh"}
       sx={{ background: theme.colors.alpha.black[50] }}
     >
-      <Box sx={{ flex: 0.3 }}>
+      <Box sx={{ flex: 0.4 }}>
         <Logs />
       </Box>
       <ChatWindow>
