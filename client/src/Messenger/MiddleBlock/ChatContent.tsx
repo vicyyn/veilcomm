@@ -1,20 +1,5 @@
-import {
-  Box,
-  Avatar,
-  Typography,
-  Card,
-  styled,
-  Divider,
-  useTheme,
-} from "@mui/material";
-import {
-  formatDistance,
-  format,
-  subDays,
-  subHours,
-  subMinutes,
-} from "date-fns";
-import ScheduleTwoToneIcon from "@mui/icons-material/ScheduleTwoTone";
+import { Box, Card, styled, useTheme } from "@mui/material";
+import { ReactNode, useState } from "react";
 import { Scrollbars } from "react-custom-scrollbars-2";
 
 const CardWrapperPrimary = styled(Card)(
@@ -43,124 +28,49 @@ const CardWrapperSecondary = styled(Card)(
 
 function ChatContent() {
   const theme = useTheme();
+  const [conversation, setConversation] = useState<ReactNode[]>([]);
 
-  return (
-    <Scrollbars>
-      <Box p={3}>
-        <Box
-          display="flex"
-          alignItems="flex-start"
-          justifyContent="flex-start"
-          py={3}
-        >
-          <Box
-            display="flex"
-            alignItems="flex-start"
-            flexDirection="column"
-            justifyContent="flex-start"
-            ml={2}
-          >
-            <CardWrapperSecondary>
-              Hi. Can you send me the missing invoices asap?
-            </CardWrapperSecondary>
-          </Box>
-        </Box>
-
-        <Box
-          display="flex"
-          alignItems="flex-start"
-          justifyContent="flex-end"
-          py={3}
-        >
-          <Box
-            display="flex"
-            alignItems="flex-end"
-            flexDirection="column"
-            justifyContent="flex-end"
-            mr={2}
-          >
-            <CardWrapperPrimary>
-              Yes, I'll email them right now. I'll let you know once the
-              remaining invoices are done.
-            </CardWrapperPrimary>
-          </Box>
-        </Box>
-
-        <Box
-          display="flex"
-          alignItems="flex-start"
-          justifyContent="flex-end"
-          py={3}
-        >
-          <Box
-            display="flex"
-            alignItems="flex-end"
-            flexDirection="column"
-            justifyContent="flex-end"
-            mr={2}
-          >
-            <CardWrapperPrimary>Hey! Are you there?</CardWrapperPrimary>
-            <CardWrapperPrimary
-              sx={{
-                mt: 2,
-              }}
-            >
-              Heeeelloooo????
-            </CardWrapperPrimary>
-          </Box>
-        </Box>
-        <Box
-          display="flex"
-          alignItems="flex-start"
-          justifyContent="flex-start"
-          py={3}
-        >
-          <Box
-            display="flex"
-            alignItems="flex-start"
-            flexDirection="column"
-            justifyContent="flex-start"
-            ml={2}
-          >
-            <CardWrapperSecondary>Hey there!</CardWrapperSecondary>
-            <CardWrapperSecondary
-              sx={{
-                mt: 1,
-              }}
-            >
-              How are you? Is it ok if I call you?
-            </CardWrapperSecondary>
-          </Box>
-        </Box>
-        <Box
-          display="flex"
-          alignItems="flex-start"
-          justifyContent="flex-end"
-          py={3}
-        >
-          <Box
-            display="flex"
-            alignItems="flex-end"
-            flexDirection="column"
-            justifyContent="flex-end"
-            mr={2}
-          >
-            <CardWrapperPrimary>
-              Hello, I just got my Amazon order shipped and I’m very happy about
-              that.
-            </CardWrapperPrimary>
-            <CardWrapperPrimary
-              sx={{
-                mt: 1,
-              }}
-            >
-              Can you confirm?
-            </CardWrapperPrimary>
-          </Box>
-        </Box>
+  const renderLeft = (text: string) => (
+    <Box
+      key={Math.random()}
+      display="flex"
+      alignItems="flex-start"
+      justifyContent="flex-start"
+      py={3}
+    >
+      <Box
+        display="flex"
+        alignItems="flex-start"
+        flexDirection="column"
+        justifyContent="flex-start"
+        ml={2}
+      >
+        <CardWrapperSecondary>{text}</CardWrapperSecondary>
       </Box>
-    </Scrollbars>
+    </Box>
   );
+
+  const renderRight = (text: string) => (
+    <Box
+      key={Math.random()}
+      display="flex"
+      alignItems="flex-start"
+      justifyContent="flex-end"
+      py={3}
+    >
+      <Box
+        display="flex"
+        alignItems="flex-end"
+        flexDirection="column"
+        justifyContent="flex-end"
+        mr={2}
+      >
+        <CardWrapperPrimary>{text}</CardWrapperPrimary>
+      </Box>
+    </Box>
+  );
+
+  return ;
 }
 
 export default ChatContent;

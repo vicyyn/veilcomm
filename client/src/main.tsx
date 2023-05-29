@@ -1,11 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./styles.css";
-import Messenger from "./Messenger/Messenger";
+import App from "./App";
 import ThemeProviderWrapper from "./theme/ThemeProvider";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <ThemeProviderWrapper>
-    <Messenger />
+    <App />
   </ThemeProviderWrapper>
 );
