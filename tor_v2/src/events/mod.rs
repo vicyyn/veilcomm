@@ -269,11 +269,16 @@ pub fn process_tor_event(
                         .to_string(),
                 ))
                 .unwrap();
-            let _relays = RelayDescriptors::new_from(get_relays());
+            let relays2 = get_relays();
+            let _relays = RelayDescriptors::new_from(relays2.clone());
             let _user_descriptors = UserDescriptors::new_from(get_users());
 
             relays.set(_relays);
             user_descriptors.set(_user_descriptors);
+
+            tor_change_sender
+                .send(TorChange::ReceiveRelays(relays2))
+                .unwrap();
         }
         TorEvent::ReceiveCell(node, cell) => {
             print!("[INFO] tor::process_connection_event --> New receive cell event - ");

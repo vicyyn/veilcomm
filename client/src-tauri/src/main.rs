@@ -24,6 +24,13 @@ pub struct TorEventPayload {
     port: u16,
 }
 
+#[derive(Clone, serde::Serialize)]
+pub struct TorChangeFetchRelay {
+    ip: String,
+    port: u16,
+    id_key: String,
+}
+
 fn start_tor_change_listener(
     tor_change_reader: Receiver<tor_change::TorChange>,
     app_handle: AppHandle,
@@ -34,9 +41,23 @@ fn start_tor_change_listener(
             tor_change::TorChange::ReceiveMessage(_) => todo!(),
             tor_change::TorChange::SendMessage(_) => todo!(),
             tor_change::TorChange::Logs(logs) => {
-                app_handle.emit_all::<String>("tor-change", logs).unwrap();
+                app_handle
+                    .emit_all::<String>("tor-change-logs", logs)
+                    .unwrap();
             }
-            tor_change::TorChange::ReceiveRelays(_) => todo!(),
+            tor_change::TorChange::ReceiveRelays(relays) => {
+                let mut changes = vec![];
+                for relay in relays {
+                    changes.push(TorChangeFetchRelay {
+                        ip: relay.socket_address.ip().to_string(),
+                        port: relay.socket_address.port(),
+                        id_key: hex::encode(&relay.identity_key),
+                    })
+                }
+                app_handle
+                    .emit_all::<Vec<TorChangeFetchRelay>>("tor-change-fetch-relays", changes)
+                    .unwrap();
+            }
             tor_change::TorChange::ReceiveUsers(_) => todo!(),
         }
     });
@@ -53,8 +74,15 @@ fn main() {
 
             start_tor_change_listener(tor_change_reader, app.handle());
 
-            app.listen_global("tor-event", |event| {
-                println!("got tor-event with payload {:?}", event.payload());
+            app.listen_global("tor-event", move |event| match event.payload() {
+                Some(payload) => match payload {
+                    "fetch-relays" => {
+                        tor_event_sender.send(TorEvent::FetchFromDirectory).unwrap();
+                    }
+                    "create-circuit" => {}
+                    _ => {}
+                },
+                _ => {}
             });
 
             Ok(())
