@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "client1": "set VITE_INIT=true && npm run tauri dev",
+    "client2": "set VITE_INIT=false && npm run tauri dev"
   },
   "dependencies": {
     "@emotion/react": "^11.11.0",

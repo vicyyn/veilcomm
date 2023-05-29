@@ -17,7 +17,8 @@ export default function Messenger() {
   const theme = useTheme();
 
   useEffect(() => {
-    emit("tor-event", "initialize-true");
+    console.log("initialize-" + import.meta.env.VITE_INIT)
+    emit("tor-event", "initialize-" + import.meta.env.VITE_INIT);
 
     listen<string>("tor-change-initialized", (event) => {
       setUserKey(event.payload);
