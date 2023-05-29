@@ -1,16 +1,62 @@
-import { Box, Button, Stack, TextField, useTheme } from "@mui/material";
+import {
+  Box,
+  Card,
+  styled,
+  Stack,
+  TextField,
+  useTheme,
+  CircularProgress,
+} from "@mui/material";
 import TopBarContent from "./TopBarContent";
 import ChatContent from "./ChatContent";
 import BottomBarContent from "./BottomBarContent";
-import { useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { listen, emit } from "@tauri-apps/api/event";
 import { LoadingButton } from "@mui/lab";
+import Scrollbars from "react-custom-scrollbars-2";
+
+const CardWrapperPrimary = styled(Card)(
+  ({ theme }) => `
+      background: ${theme.colors.primary.main};
+      color: ${theme.palette.primary.contrastText};
+      padding: ${theme.spacing(2)};
+      border-radius: ${theme.general.borderRadiusXl};
+      border-top-right-radius: ${theme.general.borderRadius};
+      max-width: 380px;
+      display: inline-flex;
+`
+);
+
+const CardWrapperSecondary = styled(Card)(
+  ({ theme }) => `
+      background: ${theme.palette.grey[200]};
+      color: ${theme.colors.alpha.black[100]};
+      padding: ${theme.spacing(2)};
+      border-radius: ${theme.general.borderRadiusXl};
+      border-top-left-radius: ${theme.general.borderRadius};
+      max-width: 380px;
+      display: inline-flex;
+`
+);
 
 export default function MiddleBlock() {
   const theme = useTheme();
   const [connected, setConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [clientId, setClientId] = useState("");
+  const [conversation, setConversation] = useState<ReactNode[]>([]);
+
+  useEffect(() => {
+    listen<string>("tor-event-receive-message", (event) =>
+      receiveMessage(event.payload)
+    );
+  }, []);
+
+  const VielCommLoadingButton = styled(LoadingButton)(({ theme }) => ({
+    "&.Mui-disabled": {
+      color: "grey",
+    },
+  }));
 
   const connect = () => {
     setIsLoading(true);
@@ -20,6 +66,44 @@ export default function MiddleBlock() {
       setIsLoading(false);
       setConnected(true);
     });
+  };
+
+  const sendMessage = (text: string) => {
+    setConversation((prev) => [...prev, renderRight(text)]);
+  };
+
+  const receiveMessage = (text: string) => {
+    setConversation((prev) => [...prev, renderLeft(text)]);
+  };
+
+  const renderLeft = (text: string) => (
+    <Box
+      key={Math.random()}
+      display="flex"
+      alignItems="flex-start"
+      justifyContent="flex-start"
+      py={1}
+    >
+      <CardWrapperSecondary>{text}</CardWrapperSecondary>
+    </Box>
+  );
+
+  const renderRight = (text: string) => (
+    <Box
+      key={Math.random()}
+      display="flex"
+      alignItems="flex-start"
+      justifyContent="flex-end"
+      py={1}
+    >
+      <CardWrapperPrimary>{text}</CardWrapperPrimary>
+    </Box>
+  );
+
+  const endConversation = () => {
+    setConversation([]);
+    setClientId("");
+    setConnected(false);
   };
 
   if (connected) {
@@ -39,10 +123,26 @@ export default function MiddleBlock() {
             alignItems: "center",
           }}
         >
-          <TopBarContent />
+          <TopBarContent
+            clientId={clientId}
+            endConversation={endConversation}
+          />
         </Box>
-        <ChatContent />
-        <BottomBarContent />
+        <Scrollbars>
+          {conversation.length > 0 ? (
+            conversation
+          ) : (
+            <Box
+              height={"70vh"}
+              display={"flex"}
+              justifyContent={"center"}
+              alignItems={"center"}
+            >
+              Start your conversation with {clientId}
+            </Box>
+          )}
+        </Scrollbars>
+        <BottomBarContent sendMessage={sendMessage} />
       </Box>
     );
   }
@@ -69,9 +169,15 @@ export default function MiddleBlock() {
         placeholder="Write your destination key here"
         fullWidth
       />
-      <LoadingButton variant="contained" loading={isLoading} onClick={connect}>
-        Connect
-      </LoadingButton>
+      <VielCommLoadingButton
+        variant="contained"
+        loading={isLoading}
+        onClick={connect}
+        disabled={!clientId.length}
+        loadingIndicator={<CircularProgress color="info" />}
+      >
+        {isLoading ? "" : "Connect"}
+      </VielCommLoadingButton>
     </Stack>
   );
 }

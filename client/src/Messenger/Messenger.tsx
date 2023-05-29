@@ -38,7 +38,7 @@ export default function Messenger() {
         <Logs />
       </Grid>
       <Grid item xs={4}>
-        {initializing ? (
+        {!initializing ? (
           <Stack
             gap={1}
             display={"flex"}

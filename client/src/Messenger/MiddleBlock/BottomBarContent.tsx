@@ -1,8 +1,10 @@
 import { Box, Button, Stack, TextField, useTheme } from "@mui/material";
 import SendTwoToneIcon from "@mui/icons-material/SendTwoTone";
+import { useState } from "react";
 
-function BottomBarContent() {
+function BottomBarContent(props: { sendMessage: (text: string) => any }) {
   const theme = useTheme();
+  const [message, setMessage] = useState("");
 
   return (
     <Stack
@@ -21,6 +23,8 @@ function BottomBarContent() {
         <TextField
           variant="outlined"
           size="small"
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
           inputProps={{ style: { color: "white", fontSize: "1rem" } }}
           focused={true}
           placeholder="Write your message here"
@@ -29,7 +33,14 @@ function BottomBarContent() {
         />
       </Box>
       <Box>
-        <Button startIcon={<SendTwoToneIcon />} variant="contained">
+        <Button
+          startIcon={<SendTwoToneIcon />}
+          variant="contained"
+          onClick={() => {
+            props.sendMessage(message);
+            setMessage("");
+          }}
+        >
           {"Send"}
         </Button>
       </Box>
