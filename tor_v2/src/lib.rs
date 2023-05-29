@@ -25,7 +25,6 @@ use std::{
 };
 
 pub fn start_peer(socket_address: SocketAddrV4) -> (Sender<TorEvent>, Receiver<TorChange>) {
-    println!("Starting Peer...");
     let circuits = Circuits::new();
     let streams = Streams::new();
     let connections = Connections::new();

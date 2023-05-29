@@ -942,5 +942,20 @@ pub fn process_tor_event(
                 }
             }
         }
+        TorEvent::InitializePeer(side) => {
+            let node1;
+            let node2;
+            let node3;
+            if side {
+                node1 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8001);
+                node2 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8002);
+                node3 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8003);
+            } else {
+                node1 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8006);
+                node2 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8005);
+                node3 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8004);
+            }
+            create_circuit(0, tor_event_sender.clone(), node1, node2, node3);
+        }
     });
 }

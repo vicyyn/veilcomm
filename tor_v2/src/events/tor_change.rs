@@ -1,9 +1,8 @@
-use directory::{RelayDescriptor, UserDescriptor};
+use directory::RelayDescriptor;
 
 pub enum TorChange {
     ReceiveMessage((String, String)),
     SendMessage((String, String)),
     Logs(String),
     ReceiveRelays(Vec<RelayDescriptor>),
-    ReceiveUsers(Vec<UserDescriptor>),
 }

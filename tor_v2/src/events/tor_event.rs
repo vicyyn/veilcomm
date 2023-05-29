@@ -1,5 +1,3 @@
-use serde::Serialize;
-
 use crate::*;
 use std::net::{SocketAddrV4, TcpStream};
 
@@ -19,4 +17,5 @@ pub enum TorEvent {
 
     PublishUserDescriptor,
     FetchFromDirectory,
+    InitializePeer(bool),
 }

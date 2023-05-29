@@ -58,7 +58,6 @@ fn start_tor_change_listener(
                     .emit_all::<Vec<TorChangeFetchRelay>>("tor-change-fetch-relays", changes)
                     .unwrap();
             }
-            tor_change::TorChange::ReceiveUsers(_) => todo!(),
         }
     });
 }
@@ -70,14 +69,24 @@ fn main() {
             let mut rng = rand::thread_rng();
             let port: u16 = rng.gen_range(1024..=65535);
             let (tor_event_sender, tor_change_reader) =
-                start_peer(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port));
-
+                start_peer(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port));
             start_tor_change_listener(tor_change_reader, app.handle());
 
             app.listen_global("tor-event", move |event| match event.payload() {
                 Some(payload) => match &payload.to_lowercase() {
                     x if x.contains(&"fetch-relays") => {
                         tor_event_sender.send(TorEvent::FetchFromDirectory).unwrap();
+                    }
+                    x if x.contains(&"initialize") => {
+                        if x.contains(&"true") {
+                            tor_event_sender
+                                .send(TorEvent::InitializePeer(true))
+                                .unwrap();
+                        } else {
+                            tor_event_sender
+                                .send(TorEvent::InitializePeer(false))
+                                .unwrap();
+                        }
                     }
                     _ => {}
                 },
