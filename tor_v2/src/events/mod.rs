@@ -96,6 +96,7 @@ pub fn process_tor_event(
                 let connection = connections
                     .get(op_circuit.get_first().socket_address)
                     .unwrap();
+                let address = generate_random_address();
                 let establish_intro = EstablishIntroPayload::new(generate_random_address());
                 let relay_payload = RelayPayload::new_establish_intro_payload(establish_intro);
                 let cell = Cell::new_relay_cell(circ_id, relay_payload);
@@ -106,6 +107,7 @@ pub fn process_tor_event(
                     circ_id,
                     PendingResponse::IntroEstablished(
                         op_circuit.get_successors().last().unwrap().socket_address,
+                        address,
                     ),
                 );
             }
@@ -508,7 +510,7 @@ pub fn process_tor_event(
                                     )));
                                     let pending_response =
                                         pending_responses.pop(cell.circ_id).unwrap();
-                                    if let PendingResponse::IntroEstablished(intro_node) =
+                                    if let PendingResponse::IntroEstablished(intro_node, address) =
                                         pending_response
                                     {
                                         user_descriptor
@@ -517,6 +519,10 @@ pub fn process_tor_event(
                                             .introduction_points
                                             .push(intro_node);
                                         pending_responses.pop(cell.circ_id);
+
+                                        tor_change_sender
+                                            .send(TorChange::Initialized(hex::encode(&address)))
+                                            .unwrap();
                                     }
                                 }
                                 RelayCommand::EstablishRendPoint => {
@@ -903,6 +909,7 @@ pub fn process_tor_event(
                 node3 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8004);
             }
             create_circuit(0, tor_event_sender.clone(), node1, node2, node3);
+            tor_event_sender.send(TorEvent::EstablishIntro(0)).unwrap();
         }
     });
 }

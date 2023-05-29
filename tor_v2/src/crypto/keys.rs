@@ -12,8 +12,7 @@ pub fn generate_random_aes_key() -> [u8; 16] {
 pub fn generate_random_address() -> [u8; 32] {
     let mut address = [0u8; 32];
     rand_bytes(&mut address).unwrap();
-    address;
-    [0; 32]
+    address
 }
 
 pub struct Keys {

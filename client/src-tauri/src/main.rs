@@ -58,6 +58,11 @@ fn start_tor_change_listener(
                     .emit_all::<Vec<TorChangeFetchRelay>>("tor-change-fetch-relays", changes)
                     .unwrap();
             }
+            tor_change::TorChange::Initialized(address) => {
+                app_handle
+                    .emit_all::<String>("tor-change-initialized", address)
+                    .unwrap();
+            }
         }
     });
 }
