@@ -73,37 +73,39 @@ export default function Peers(props: { userKey: string | null }) {
 
       <Box p={2} height={"100vh"}>
         <Scrollbars>
-          <Typography variant="h3" my={1} color={"white"}>
-            Relays
-          </Typography>
-          <TableContainer>
-            <Table sx={{ border: "white solid 1px" }}>
-              <TableHead>
-                <TableRow>
-                  <TableCell>IP</TableCell>
-                  <TableCell>Port</TableCell>
-                  <TableCell>Id Key</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {peers.map((peer) => (
-                  <TableRow
-                    hover
-                    key={peer.id_key}
-                    sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-                  >
-                    <TableCell component="th" scope="row">
-                      {peer.ip}
-                    </TableCell>
-                    <TableCell>{peer.port}</TableCell>
-                    <TableCell>
-                      <Typography>{peer.id_key.slice(0, 32)}...</Typography>
-                    </TableCell>
+          <Stack>
+            <Typography variant="h3" my={1} color={"white"}>
+              Relays
+            </Typography>
+            <TableContainer>
+              <Table sx={{ border: "white solid 1px" }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>IP</TableCell>
+                    <TableCell>Port</TableCell>
+                    <TableCell>Id Key</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+                </TableHead>
+                <TableBody>
+                  {peers.map((peer) => (
+                    <TableRow
+                      hover
+                      key={peer.id_key}
+                      sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
+                    >
+                      <TableCell component="th" scope="row">
+                        {peer.ip}
+                      </TableCell>
+                      <TableCell>{peer.port}</TableCell>
+                      <TableCell>
+                        <Typography>{peer.id_key.slice(0, 32)}...</Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Stack>
         </Scrollbars>
       </Box>
     </>
