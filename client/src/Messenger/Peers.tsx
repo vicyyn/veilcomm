@@ -44,7 +44,7 @@ export default function Peers() {
   }, []);
 
   const fetchRelays = () => {
-    emit("tor-event", "fetch-relays");
+    emit("tor-event", { event: "fetch-relays" });
   };
 
   return (
@@ -68,8 +68,8 @@ export default function Peers() {
               </Typography>
             </Box>
           </Stack>
-          <Tooltip title="fetch relays" arrow onClick={fetchRelays}>
-            <Button variant="contained">
+          <Tooltip title="fetch relays" arrow>
+            <Button variant="contained" onClick={fetchRelays}>
               <RefreshIcon />
             </Button>
           </Tooltip>
