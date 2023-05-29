@@ -32,11 +32,7 @@ export default function Logs() {
       {logs.length > 0 && (
         <Box height={"100vh"}>
           <Scrollbars>
-            <Stack
-              display={"flex"}
-              justifyContent={"center"}
-              alignItems={"center"}
-            >
+            <Stack display={"flex"} justifyContent={"start"}>
               {logs.map((log) => (
                 <Typography key={Math.random()} m={0.3} variant="body1">
                   {log}

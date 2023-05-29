@@ -56,9 +56,13 @@ export default function Peers(props: { userKey: string | null }) {
           justifyContent={"space-between"}
         >
           <Stack direction={"row"} gap={1}>
-            <Typography>Key Id: </Typography>
+            <Typography>Address: </Typography>
             <Box display={"flex"} alignItems={"center"}>
-              <Typography variant="h5" noWrap>
+              <Typography
+                maxWidth={'400px'}
+                variant="body1"
+                style={{ overflowWrap: "break-word" }}
+              >
                 {props.userKey}
               </Typography>
             </Box>
