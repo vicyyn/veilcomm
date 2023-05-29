@@ -3,11 +3,12 @@
 
 use std::{
     net::{Ipv4Addr, SocketAddrV4},
+    sync::mpsc::Receiver,
     thread,
 };
 
 use rand::Rng;
-use tauri::Manager;
+use tauri::{AppHandle, Manager};
 use tor_v2::{start_peer, tor_change, TorEvent};
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
@@ -23,6 +24,24 @@ pub struct TorEventPayload {
     port: u16,
 }
 
+fn start_tor_change_listener(
+    tor_change_reader: Receiver<tor_change::TorChange>,
+    app_handle: AppHandle,
+) {
+    thread::spawn(move || loop {
+        let tor_change = tor_change_reader.recv().unwrap();
+        match tor_change {
+            tor_change::TorChange::ReceiveMessage(_) => todo!(),
+            tor_change::TorChange::SendMessage(_) => todo!(),
+            tor_change::TorChange::Logs(logs) => {
+                app_handle.emit_all::<String>("tor-change", logs).unwrap();
+            }
+            tor_change::TorChange::ReceiveRelays(_) => todo!(),
+            tor_change::TorChange::ReceiveUsers(_) => todo!(),
+        }
+    });
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -32,20 +51,12 @@ fn main() {
             let (tor_event_sender, tor_change_reader) =
                 start_peer(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), port));
 
+            start_tor_change_listener(tor_change_reader, app.handle());
+
             app.listen_global("tor-event", |event| {
                 println!("got tor-event with payload {:?}", event.payload());
             });
 
-            let tor_change = tor_change_reader.recv().unwrap();
-            match tor_change {
-                tor_change::TorChange::ReceiveMessage(_) => todo!(),
-                tor_change::TorChange::SendMessage(_) => todo!(),
-                tor_change::TorChange::Logs(logs) => {
-                    println!("{}", logs);
-                    app.emit_all::<String>("tor-change", logs).unwrap();
-                }
-                tor_change::TorChange::ReceiveRelays(_) => todo!(),
-            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![greet])

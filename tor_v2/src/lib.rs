@@ -21,6 +21,7 @@ use std::{
         mpsc::{channel, Receiver, Sender},
         Arc, RwLock,
     },
+    thread, time,
 };
 
 pub fn start_peer(socket_address: SocketAddrV4) -> (Sender<TorEvent>, Receiver<TorChange>) {
@@ -38,10 +39,6 @@ pub fn start_peer(socket_address: SocketAddrV4) -> (Sender<TorEvent>, Receiver<T
     let (tor_change_sender, tor_change_receiver) = channel();
     let circ_ids = CircIds::new();
     let users = Users::new();
-
-    tor_change_sender
-        .send(TorChange::Logs("Hello!".to_string()))
-        .unwrap();
 
     let relay = RelayDescriptor::new(
         "Joe".to_string(),

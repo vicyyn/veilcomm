@@ -8,6 +8,7 @@ export default function Logs() {
 
   useEffect(() => {
     listen<String>("tor-change", (event) => {
+      console.log(event);
       setLogs((prev) => [...prev, event.payload]);
     });
   }, []);
