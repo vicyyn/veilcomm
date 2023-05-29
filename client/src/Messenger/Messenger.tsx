@@ -19,7 +19,7 @@ export default function Messenger() {
   useEffect(() => {
     emit("tor-event", "initialize-true");
 
-    listen<string>("tor-change-initialize", (event) => {
+    listen<string>("tor-change-initialized", (event) => {
       setUserKey(event.payload);
       setInitializing(false);
     });
@@ -38,7 +38,7 @@ export default function Messenger() {
         <Logs />
       </Grid>
       <Grid item xs={4}>
-        {!initializing ? (
+        {initializing ? (
           <Stack
             gap={1}
             display={"flex"}
