@@ -75,11 +75,10 @@ fn main() {
             start_tor_change_listener(tor_change_reader, app.handle());
 
             app.listen_global("tor-event", move |event| match event.payload() {
-                Some(payload) => match payload {
-                    "fetch-relays" => {
+                Some(payload) => match &payload.to_lowercase() {
+                    x if x.contains(&"fetch-relays") => {
                         tor_event_sender.send(TorEvent::FetchFromDirectory).unwrap();
                     }
-                    "create-circuit" => {}
                     _ => {}
                 },
                 _ => {}
