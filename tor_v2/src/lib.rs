@@ -14,14 +14,12 @@ pub use routing::*;
 
 use directory::RelayDescriptor;
 use events::tor_change::TorChange;
-use log::info;
 use std::{
     net::SocketAddrV4,
     sync::{
         mpsc::{channel, Receiver, Sender},
         Arc, RwLock,
     },
-    thread, time,
 };
 
 pub fn start_peer(socket_address: SocketAddrV4) -> (Sender<TorEvent>, Receiver<TorChange>) {

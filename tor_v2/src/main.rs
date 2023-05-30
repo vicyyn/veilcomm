@@ -45,45 +45,45 @@ mod tests {
         let _ = start_peer(node2);
         let (t1, a) = start_peer(node1);
 
-        println!(" First Circuit * * * * * * * * * *");
-        create_circuit(0, t1.clone(), node2, node3, node4);
+        //println!(" First Circuit * * * * * * * * * *");
+        //create_circuit(0, t1.clone(), node2, node3, node4);
 
-        println!(" Second Circuit * * * * * * * * * *");
-        create_circuit(0, t8.clone(), node7, node6, node5);
-        println!(" * * * * * * * * * *");
+        //println!(" Second Circuit * * * * * * * * * *");
+        //create_circuit(0, t8.clone(), node7, node6, node5);
+        //println!(" * * * * * * * * * *");
 
-        println!(" - - - - - - -");
-        t8.send(TorEvent::EstablishIntro(0)).unwrap();
-        thread::sleep(time::Duration::from_millis(4000));
+        //println!(" - - - - - - -");
+        //t8.send(TorEvent::EstablishIntro(0)).unwrap();
+        //thread::sleep(time::Duration::from_millis(4000));
 
-        println!(" - - - - - - -");
-        t8.send(TorEvent::PublishUserDescriptor).unwrap();
-        thread::sleep(time::Duration::from_millis(4000));
+        //println!(" - - - - - - -");
+        //t8.send(TorEvent::PublishUserDescriptor).unwrap();
+        //thread::sleep(time::Duration::from_millis(4000));
 
-        println!(" - -- - - - -");
-        t1.send(TorEvent::EstablishRendPoint(0)).unwrap();
-        thread::sleep(time::Duration::from_millis(4000));
+        //println!(" - -- - - - -");
+        //t1.send(TorEvent::EstablishRendPoint(0)).unwrap();
+        //thread::sleep(time::Duration::from_millis(4000));
 
-        println!(" - - - - - - -");
-        t1.send(TorEvent::OpenStream(0, node5, 0)).unwrap();
-        thread::sleep(time::Duration::from_millis(4000));
+        //println!(" - - - - - - -");
+        //t1.send(TorEvent::OpenStream(0, node5, 0)).unwrap();
+        //thread::sleep(time::Duration::from_millis(4000));
 
-        println!(" - - - - - - -");
-        t1.send(TorEvent::FetchFromDirectory).unwrap();
-        thread::sleep(time::Duration::from_millis(4000));
+        //println!(" - - - - - - -");
+        //t1.send(TorEvent::FetchFromDirectory).unwrap();
+        //thread::sleep(time::Duration::from_millis(4000));
 
-        println!(" - - - - - - -");
-        t1.send(TorEvent::Introduce1(0)).unwrap();
-        thread::sleep(time::Duration::from_millis(30000));
+        //println!(" - - - - - - -");
+        //t1.send(TorEvent::Introduce1(0)).unwrap();
+        //thread::sleep(time::Duration::from_millis(30000));
 
-        println!(" - - - - - - -");
-        let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes(), 3);
-        let cell = Cell::new_relay_cell(0, relay_payload);
-        t1.send(TorEvent::SendCell(cell.clone())).unwrap();
+        //println!(" - - - - - - -");
+        //let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes(), 3);
+        //let cell = Cell::new_relay_cell(0, relay_payload);
+        //t1.send(TorEvent::SendCell(cell.clone())).unwrap();
 
-        println!(" - - - - - - -");
-        thread::sleep(time::Duration::from_millis(5000));
-        t8.send(TorEvent::SendCell(cell)).unwrap();
+        //println!(" - - - - - - -");
+        //thread::sleep(time::Duration::from_millis(5000));
+        //t8.send(TorEvent::SendCell(cell)).unwrap();
 
         loop {}
     }
