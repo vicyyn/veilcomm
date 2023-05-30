@@ -9,7 +9,7 @@ use std::{
 
 use rand::Rng;
 use tauri::{AppHandle, Manager};
-use tor_v2::{start_peer, tor_change, TorEvent};
+use tor_v2::{start_peer, tor_change, Cell, RelayPayload, TorEvent};
 
 // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
 #[tauri::command]
@@ -101,7 +101,11 @@ fn main() {
                             .send(TorEvent::InitializePeer(x.contains(&"true")))
                             .unwrap();
                     }
-                    x if x.contains(&"send-message") => {}
+                    x if x.contains(&"send-message") => {
+                        let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes(), 3);
+                        let cell = Cell::new_relay_cell(0, relay_payload);
+                        tor_event_sender.send(TorEvent::SendCell(cell)).unwrap();
+                    }
                     _ => {}
                 },
                 _ => {}
