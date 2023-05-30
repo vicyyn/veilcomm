@@ -13,9 +13,7 @@ import { useEffect, useState } from "react";
 import { listen, emit } from "@tauri-apps/api/event";
 
 export default function Messenger() {
-  const [initializing, setInitializing] = useState(true);
-  const [clientType, setClientType] = useState(false);
-  const [initialized, setInitialized] = useState(false);
+  const [initializing, setInitializing] = useState(false);
   const [userKey, setUserKey] = useState<string | null>(null);
   const theme = useTheme();
 
@@ -25,11 +23,6 @@ export default function Messenger() {
       setInitializing(false);
     });
   }, []);
-
-  const init = () => {
-    emit("tor-event", "initialize-" + clientType.toString());
-    setInitialized(true);
-  };
 
   return (
     <Grid container sx={{ background: theme.colors.alpha.black[50] }}>
@@ -44,35 +37,7 @@ export default function Messenger() {
         <Logs />
       </Grid>
       <Grid item xs={4}>
-        {!initialized ? (
-          <Stack
-            gap={3}
-            display={"flex"}
-            justifyContent={"center"}
-            alignItems={"center"}
-            height={"100vh"}
-          >
-            <Stack
-              direction={"row"}
-              display={"flex"}
-              justifyContent={"center"}
-              alignItems={"center"}
-              gap={2}
-            >
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  onChange={() => setClientType((prev) => !prev)}
-                />
-                <span className="slider"></span>
-              </label>
-              <Typography mt={2.5}>{clientType ? "user1" : "user2"}</Typography>
-            </Stack>
-            <Button variant="contained" onClick={init}>
-              Initialize
-            </Button>
-          </Stack>
-        ) : initializing ? (
+        {initializing ? (
           <Stack
             gap={1}
             display={"flex"}
@@ -84,7 +49,7 @@ export default function Messenger() {
             <Typography>Initializing...</Typography>
           </Stack>
         ) : (
-          <MiddleBlock />
+          <MiddleBlock setInitializing={setInitializing} userKey={userKey}/>
         )}
         {}
       </Grid>
