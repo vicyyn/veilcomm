@@ -8,7 +8,6 @@ import {
   CircularProgress,
 } from "@mui/material";
 import TopBarContent from "./TopBarContent";
-import ChatContent from "./ChatContent";
 import BottomBarContent from "./BottomBarContent";
 import { ReactNode, useEffect, useState } from "react";
 import { listen, emit } from "@tauri-apps/api/event";
@@ -47,7 +46,7 @@ export default function MiddleBlock() {
   const [conversation, setConversation] = useState<ReactNode[]>([]);
 
   useEffect(() => {
-    listen<string>("tor-event-receive-message", (event) =>
+    listen<string>("tor-change-receive-message", (event) =>
       receiveMessage(event.payload)
     );
   }, []);
@@ -70,6 +69,8 @@ export default function MiddleBlock() {
 
   const sendMessage = (text: string) => {
     setConversation((prev) => [...prev, renderRight(text)]);
+    emit("tor-event-send-message", text);
+
   };
 
   const receiveMessage = (text: string) => {
