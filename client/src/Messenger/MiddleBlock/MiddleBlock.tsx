@@ -6,6 +6,9 @@ import {
   TextField,
   useTheme,
   CircularProgress,
+  Divider,
+  Button,
+  Typography,
 } from "@mui/material";
 import TopBarContent from "./TopBarContent";
 import BottomBarContent from "./BottomBarContent";
@@ -38,18 +41,37 @@ const CardWrapperSecondary = styled(Card)(
 `
 );
 
-export default function MiddleBlock() {
+export default function MiddleBlock(props: {
+  setInitializing: (...args: any) => any;
+  userKey: string | null;
+}) {
   const theme = useTheme();
   const [connected, setConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [clientId, setClientId] = useState("");
   const [conversation, setConversation] = useState<ReactNode[]>([]);
+  const [clientType, setClientType] = useState(false);
 
   useEffect(() => {
     listen<string>("tor-change-receive-message", (event) =>
       receiveMessage(event.payload)
     );
   }, []);
+
+  const generate = (n: number): string => {
+    var add = 1,
+      max = 12 - add;
+
+    if (n > max) {
+      return generate(max) + generate(n - max);
+    }
+
+    max = Math.pow(10, n + add);
+    var min = max / 10;
+    var number = Math.floor(Math.random() * (max - min + 1)) + min;
+
+    return ("" + number).substring(add);
+  };
 
   const VielCommLoadingButton = styled(LoadingButton)(({ theme }) => ({
     "&.Mui-disabled": {
@@ -59,7 +81,7 @@ export default function MiddleBlock() {
 
   const connect = () => {
     setIsLoading(true);
-    emit("tor-event-connect", clientId);
+    emit("tor-event", "connect-" + clientType.toString());
 
     listen("tor-change-connected", () => {
       setIsLoading(false);
@@ -69,8 +91,7 @@ export default function MiddleBlock() {
 
   const sendMessage = (text: string) => {
     setConversation((prev) => [...prev, renderRight(text)]);
-    emit("tor-event-send-message", text);
-
+    emit("tor-event", "send-message");
   };
 
   const receiveMessage = (text: string) => {
@@ -105,6 +126,11 @@ export default function MiddleBlock() {
     setConversation([]);
     setClientId("");
     setConnected(false);
+  };
+
+  const init = () => {
+    emit("tor-event", "initialize-" + clientType.toString());
+    props.setInitializing(true);
   };
 
   if (connected) {
@@ -148,11 +174,27 @@ export default function MiddleBlock() {
     );
   }
 
+  if (props.userKey && !connected) {
+    return (
+      <Stack
+        m={1}
+        gap={2}
+        sx={{
+          display: "flex",
+          height: "100vh",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        Waiting for users to connect to you
+      </Stack>
+    );
+  }
+
   return (
     <Stack
       m={1}
       gap={2}
-      direction={"row"}
       sx={{
         display: "flex",
         height: "100vh",
@@ -160,25 +202,49 @@ export default function MiddleBlock() {
         alignItems: "center",
       }}
     >
-      <TextField
-        variant="outlined"
-        size="small"
-        value={clientId}
-        onChange={(e) => setClientId(e.target.value)}
-        inputProps={{ style: { color: "white", fontSize: "1rem" } }}
-        focused={true}
-        placeholder="Write your destination key here"
-        fullWidth
-      />
-      <VielCommLoadingButton
-        variant="contained"
-        loading={isLoading}
-        onClick={connect}
-        disabled={!clientId.length}
-        loadingIndicator={<CircularProgress color="info" />}
-      >
-        {isLoading ? "" : "Connect"}
-      </VielCommLoadingButton>
+      <Stack gap={3} mt={-8}>
+        <Stack
+          direction={"row"}
+          display={"flex"}
+          justifyContent={"center"}
+          alignItems={"center"}
+          gap={2}
+        >
+          <label className="switch">
+            <input
+              type="checkbox"
+              onChange={() => setClientType((prev) => !prev)}
+            />
+            <span className="slider"></span>
+          </label>
+          <Typography mt={2.5}>{clientType ? "user1" : "user2"}</Typography>
+        </Stack>
+        <Button variant="contained" onClick={init}>
+          Initialize
+        </Button>
+      </Stack>
+      OR
+      <Stack direction={"row"} width={"80%"} ml={8}>
+        <TextField
+          variant="outlined"
+          size="small"
+          value={clientId}
+          onChange={(e) => setClientId(e.target.value)}
+          inputProps={{ style: { color: "white", fontSize: "1rem" } }}
+          focused={true}
+          placeholder="Write your destination key here"
+          fullWidth
+        />
+        <VielCommLoadingButton
+          variant="contained"
+          loading={isLoading}
+          onClick={connect}
+          disabled={!clientId.length}
+          loadingIndicator={<CircularProgress color="info" />}
+        >
+          {isLoading ? "" : "Connect"}
+        </VielCommLoadingButton>
+      </Stack>
     </Stack>
   );
 }
