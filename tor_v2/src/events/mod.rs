@@ -916,6 +916,9 @@ pub fn process_tor_event(
             }
             create_circuit(0, tor_event_sender.clone(), node1, node2, node3);
             tor_event_sender.send(TorEvent::EstablishIntro(0)).unwrap();
+            tor_event_sender
+                .send(TorEvent::PublishUserDescriptor)
+                .unwrap();
         }
         TorEvent::ConnectToPeer(side) => {
             let node1 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8001);
