@@ -38,7 +38,11 @@ fn start_tor_change_listener(
     thread::spawn(move || loop {
         let tor_change = tor_change_reader.recv().unwrap();
         match tor_change {
-            tor_change::TorChange::ReceiveMessage(_) => todo!(),
+            tor_change::TorChange::ReceiveMessage(message) => {
+                app_handle
+                    .emit_all::<String>("tor-change-receive-message", message)
+                    .unwrap();
+            }
             tor_change::TorChange::SendMessage(_) => todo!(),
             tor_change::TorChange::Logs(logs) => {
                 app_handle
@@ -97,6 +101,7 @@ fn main() {
                             .send(TorEvent::InitializePeer(x.contains(&"true")))
                             .unwrap();
                     }
+                    x if x.contains(&"send-message") => {}
                     _ => {}
                 },
                 _ => {}

@@ -1,7 +1,7 @@
 use directory::RelayDescriptor;
 
 pub enum TorChange {
-    ReceiveMessage((String, String)),
+    ReceiveMessage(String),
     SendMessage((String, String)),
     Logs(String),
     ReceiveRelays(Vec<RelayDescriptor>),

@@ -765,6 +765,7 @@ pub fn process_tor_event(
                                         cell.circ_id,
                                         relay_payload.stream_id,
                                     );
+                                    tor_change_sender.send(TorChange::Connected).unwrap();
                                 }
                                 RelayCommand::Rendezvous1 => {
                                     println!("Received Rendezvous1 Cell");
@@ -830,7 +831,8 @@ pub fn process_tor_event(
                                         aes_key,
                                         cell.circ_id,
                                         relay_payload.stream_id,
-                                    )
+                                    );
+                                    tor_change_sender.send(TorChange::Connected).unwrap();
                                 }
                                 RelayCommand::Data => {
                                     println!("Received Data Cell");
@@ -849,12 +851,16 @@ pub fn process_tor_event(
                                         if let Ok(message) = String::from_utf8(user_decrypted_data)
                                         {
                                             println!(
-                                "[INFO] tor::process_connection_event --> Received Message : {message}",
-                            );
+                                                "[INFO] tor::process_connection_event --> Received Message : {message}",
+                                            );
                                             tor_change_sender
                                             .send(TorChange::Logs(format!(
                                                 "[INFO] tor::process_connection_event --> Received Message : {message}",
                                             )));
+
+                                            tor_change_sender.send(TorChange::ReceiveMessage(
+                                                message.to_string(),
+                                            ));
                                         }
                                     }
 
@@ -941,8 +947,10 @@ pub fn process_tor_event(
                 thread::sleep(time::Duration::from_millis(4000));
             }
 
+            tor_event_sender.send(TorEvent::FetchFromDirectory).unwrap();
+            thread::sleep(time::Duration::from_millis(4000));
+
             tor_event_sender.send(TorEvent::Introduce1(0)).unwrap();
-            tor_change_sender.send(TorChange::Connected).unwrap();
         }
     });
 }
