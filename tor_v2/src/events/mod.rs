@@ -911,5 +911,38 @@ pub fn process_tor_event(
             create_circuit(0, tor_event_sender.clone(), node1, node2, node3);
             tor_event_sender.send(TorEvent::EstablishIntro(0)).unwrap();
         }
+        TorEvent::ConnectToPeer(side) => {
+            let node1 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8001);
+            let node2 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8002);
+            let node3 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8003);
+            let node4 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8004);
+            let node5 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8005);
+            let node6 = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8006);
+            if side {
+                create_circuit(0, tor_event_sender.clone(), node1, node2, node3);
+            } else {
+                create_circuit(0, tor_event_sender.clone(), node6, node5, node4);
+            }
+
+            tor_event_sender
+                .send(TorEvent::EstablishRendPoint(0))
+                .unwrap();
+            thread::sleep(time::Duration::from_millis(4000));
+
+            if side {
+                tor_event_sender
+                    .send(TorEvent::OpenStream(0, node4, 0))
+                    .unwrap();
+                thread::sleep(time::Duration::from_millis(4000));
+            } else {
+                tor_event_sender
+                    .send(TorEvent::OpenStream(0, node3, 0))
+                    .unwrap();
+                thread::sleep(time::Duration::from_millis(4000));
+            }
+
+            tor_event_sender.send(TorEvent::Introduce1(0)).unwrap();
+            tor_change_sender.send(TorChange::Connected).unwrap();
+        }
     });
 }

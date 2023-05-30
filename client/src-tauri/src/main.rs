@@ -63,6 +63,11 @@ fn start_tor_change_listener(
                     .emit_all::<String>("tor-change-initialized", address)
                     .unwrap();
             }
+            tor_change::TorChange::Connected => {
+                app_handle
+                    .emit_all::<String>("tor-change-connected", "connected".to_string())
+                    .unwrap();
+            }
         }
     });
 }
@@ -82,16 +87,15 @@ fn main() {
                     x if x.contains(&"fetch-relays") => {
                         tor_event_sender.send(TorEvent::FetchFromDirectory).unwrap();
                     }
+                    x if x.contains(&"connect") => {
+                        tor_event_sender
+                            .send(TorEvent::ConnectToPeer(x.contains(&"true")))
+                            .unwrap();
+                    }
                     x if x.contains(&"initialize") => {
-                        if x.contains(&"true") {
-                            tor_event_sender
-                                .send(TorEvent::InitializePeer(true))
-                                .unwrap();
-                        } else {
-                            tor_event_sender
-                                .send(TorEvent::InitializePeer(false))
-                                .unwrap();
-                        }
+                        tor_event_sender
+                            .send(TorEvent::InitializePeer(x.contains(&"true")))
+                            .unwrap();
                     }
                     _ => {}
                 },

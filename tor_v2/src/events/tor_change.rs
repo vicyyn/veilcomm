@@ -6,4 +6,5 @@ pub enum TorChange {
     Logs(String),
     ReceiveRelays(Vec<RelayDescriptor>),
     Initialized(String),
+    Connected,
 }

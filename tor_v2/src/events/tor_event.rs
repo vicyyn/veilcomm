@@ -18,4 +18,5 @@ pub enum TorEvent {
     PublishUserDescriptor,
     FetchFromDirectory,
     InitializePeer(bool),
+    ConnectToPeer(bool),
 }
