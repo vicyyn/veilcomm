@@ -5,22 +5,12 @@ use std::{
 
 use crate::Node;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Streams(Arc<RwLock<HashMap<u16, Node>>>);
-
-impl Default for Streams {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl Streams {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    pub fn clone(&self) -> Self {
-        Self(Arc::clone(&self.0))
     }
 
     pub fn get(&self, id: u16) -> Option<Node> {

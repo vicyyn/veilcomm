@@ -5,21 +5,12 @@ use std::{
 
 use crate::{Connection, Node};
 
+#[derive(Clone, Default)]
 pub struct Connections(Arc<RwLock<HashMap<Node, Connection>>>);
-
-impl Default for Connections {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl Connections {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    pub fn clone(&self) -> Self {
-        Self(Arc::clone(&self.0))
     }
 
     pub fn get(&self, node: Node) -> Option<Connection> {

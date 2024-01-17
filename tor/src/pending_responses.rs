@@ -5,22 +5,12 @@ use std::{
 
 use crate::PendingResponse;
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct PendingResponses(Arc<RwLock<HashMap<u16, PendingResponse>>>);
-
-impl Default for PendingResponses {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl PendingResponses {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    pub fn clone(&self) -> Self {
-        Self(Arc::clone(&self.0))
     }
 
     pub fn get(&self, circ_id: u16) -> Option<PendingResponse> {

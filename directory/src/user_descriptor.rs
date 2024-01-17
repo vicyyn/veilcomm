@@ -26,6 +26,6 @@ impl UserDescriptor {
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec()).unwrap()
+        bincode::deserialize(buffer).unwrap()
     }
 }

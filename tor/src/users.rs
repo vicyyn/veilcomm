@@ -5,21 +5,13 @@ use std::{
 
 use crate::AESKey;
 
+#[allow(clippy::type_complexity)]
+#[derive(Default, Clone)]
 pub struct Users(Arc<RwLock<HashMap<[u8; 32], (AESKey, u16, u16)>>>);
-
-impl Default for Users {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl Users {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    pub fn clone(&self) -> Self {
-        Self(Arc::clone(&self.0))
     }
 
     pub fn get(&self, address: [u8; 32]) -> Option<(AESKey, u16, u16)> {

@@ -3,22 +3,12 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct IntroductionPoints(Arc<RwLock<HashMap<[u8; 32], u16>>>);
-
-impl Default for IntroductionPoints {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl IntroductionPoints {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    pub fn clone(&self) -> Self {
-        Self(Arc::clone(&self.0))
     }
 
     pub fn get(&self, address: [u8; 32]) -> Option<u16> {

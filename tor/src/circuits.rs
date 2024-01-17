@@ -5,14 +5,8 @@ use std::{
 
 use crate::{Circuit, CircuitNode};
 
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct Circuits(Arc<RwLock<HashMap<u16, Circuit>>>);
-
-impl Default for Circuits {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl Circuits {
     pub fn new() -> Self {
@@ -23,10 +17,6 @@ impl Circuits {
         (0..=std::u16::MAX)
             .find(|&x| !self.0.read().unwrap().contains_key(&x))
             .unwrap()
-    }
-
-    pub fn clone(&self) -> Self {
-        Self(Arc::clone(&self.0))
     }
 
     pub fn get(&self, circ_id: u16) -> Option<Circuit> {

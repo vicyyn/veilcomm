@@ -15,7 +15,7 @@ pub async fn publish_user(
 ) {
     info!(
         "Publish User Called, {:?}",
-        hex::encode(&publish_user_input.user_descriptor.address)
+        hex::encode(publish_user_input.user_descriptor.address)
     );
     user_descriptors
         .write()

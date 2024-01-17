@@ -1,6 +1,6 @@
 use tor::*;
 
-use std::{env, net::Ipv4Addr};
+use std::{env, net::Ipv4Addr, thread::sleep, time::Duration};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -8,13 +8,16 @@ fn main() {
         Ipv4Addr::new(127, 0, 0, 1),
         args[1].parse().unwrap(),
     ));
-    loop {}
+    sleep(Duration::MAX);
 }
 
 #[cfg(test)]
 mod tests {
     use core::time;
-    use std::thread;
+    use std::{
+        thread::{self, sleep},
+        time::Duration,
+    };
 
     use super::*;
     use directory::{new_socket_addr, start_directory};
@@ -86,7 +89,6 @@ mod tests {
         let relay_payload = RelayPayload::new_data_payload("Hello!".as_bytes(), 3);
         let cell = Cell::new_relay_cell(0, relay_payload);
         t1.send(ConnectionEvent::SendCell(cell)).unwrap();
-
-        loop {}
+        sleep(Duration::MAX);
     }
 }

@@ -19,7 +19,7 @@ impl Streams {
     }
 
     pub fn insert(&self, id: u16, socket_address: SocketAddrV4) {
-        self.0.write().unwrap().insert(id, socket_address);
+        self.0.write_all().unwrap().insert(id, socket_address);
     }
 }
 

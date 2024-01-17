@@ -178,6 +178,7 @@ fn connect_to_peer(node: Node, sender: Sender<ConnectionEvent>) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn process_connection_event(
     connection_event: ConnectionEvent,
     connections: Connections,
@@ -467,8 +468,8 @@ fn process_connection_event(
                             }
                         }
 
-                        match RelayCommand::try_from(relay_payload.command) {
-                            Ok(command) => match command {
+                        if let Ok(command) = RelayCommand::try_from(relay_payload.command) {
+                            match command {
                                 RelayCommand::Extend => {
                                     println!("Received Extend Cell");
                                     let extend_payload: ExtendPayload = relay_payload.into_extend();
@@ -641,16 +642,11 @@ fn process_connection_event(
                                     let connected_payload: ConnectedPayload =
                                         relay_payload.into_connected();
                                     let stream_node = connected_payload.get_node();
-                                    if let Some(pending_response) =
+                                    if let Some(PendingResponse::Connected(stream_id)) =
                                         pending_responses.pop(cell.circ_id)
                                     {
-                                        if let PendingResponse::Connected(stream_id) =
-                                            pending_response
-                                        {
-                                            if stream_id == relay_payload.stream_id {
-                                                streams
-                                                    .insert(relay_payload.stream_id, stream_node);
-                                            }
+                                        if stream_id == relay_payload.stream_id {
+                                            streams.insert(relay_payload.stream_id, stream_node);
                                         }
                                     };
                                     pending_responses.pop(cell.circ_id);
@@ -850,24 +846,23 @@ fn process_connection_event(
                                         let cell =
                                             Cell::new_relay_cell(cell.circ_id, relay_payload);
                                         connection.write(cell);
-                                    } else if let Some(circuit) = circuits.get(cell.circ_id) {
-                                        if let Circuit::OrCircuit(or_circuit) = circuit {
-                                            let encrypted_payload = or_circuit
-                                                .get_predecessor()
-                                                .encrypt_payload(relay_payload.into());
-                                            let cell = Cell::new_relay_cell(
-                                                cell.circ_id,
-                                                encrypted_payload.into(),
-                                            );
-                                            let node = or_circuit.get_predecessor().node;
-                                            let connection = connections.get(node).unwrap();
-                                            connection.write(cell);
-                                        }
+                                    } else if let Some(Circuit::OrCircuit(or_circuit)) =
+                                        circuits.get(cell.circ_id)
+                                    {
+                                        let encrypted_payload = or_circuit
+                                            .get_predecessor()
+                                            .encrypt_payload(relay_payload.into());
+                                        let cell = Cell::new_relay_cell(
+                                            cell.circ_id,
+                                            encrypted_payload.into(),
+                                        );
+                                        let node = or_circuit.get_predecessor().node;
+                                        let connection = connections.get(node).unwrap();
+                                        connection.write(cell);
                                     }
                                 }
                                 _ => {}
-                            },
-                            Err(_) => {}
+                            }
                         }
                     }
                     _ => println!("Other"),

@@ -2,14 +2,8 @@ use crate::*;
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct _UserDescriptors(Vec<UserDescriptor>);
-
-impl Default for _UserDescriptors {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl _UserDescriptors {
     pub fn new() -> Self {
@@ -18,6 +12,10 @@ impl _UserDescriptors {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.len() == 0
     }
 
     pub fn get_user_descriptors(&self) -> Vec<UserDescriptor> {
@@ -50,25 +48,20 @@ impl _UserDescriptors {
     }
 }
 
+#[derive(Clone, Default)]
 pub struct UserDescriptors(Arc<RwLock<_UserDescriptors>>);
-
-impl Default for UserDescriptors {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl UserDescriptors {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(_UserDescriptors::new())))
     }
 
-    pub fn clone(&self) -> Self {
-        Self(Arc::clone(&self.0))
-    }
-
     pub fn len(&self) -> usize {
         self.0.read().unwrap().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.read().unwrap().len() == 0
     }
 
     pub fn get_user_descriptor(&self, address: [u8; 32]) -> Option<UserDescriptor> {

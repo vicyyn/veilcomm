@@ -25,7 +25,7 @@ impl Users {
 
     pub fn insert(&self, address: [u8; 32], aes_key: AesKey, circ_id: u16, stream_id: u16) {
         self.0
-            .write()
+            .write_all()
             .unwrap()
             .insert(address, (aes_key, circ_id, stream_id));
     }

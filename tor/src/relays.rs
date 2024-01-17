@@ -23,6 +23,10 @@ impl _Relays {
         self.0.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.len() == 0
+    }
+
     pub fn get_relay(&self, address: SocketAddr) -> Option<Relay> {
         self.0.clone().into_iter().find(|x| x.address.eq(&address))
     }
@@ -48,21 +52,12 @@ impl _Relays {
     }
 }
 
+#[derive(Clone, Default)]
 pub struct Relays(Arc<RwLock<_Relays>>);
-
-impl Default for Relays {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl Relays {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(_Relays::new())))
-    }
-
-    pub fn clone(&self) -> Self {
-        Self(Arc::clone(&self.0))
     }
 
     pub fn get_relay(&self, address: SocketAddr) -> Option<Relay> {
@@ -79,6 +74,10 @@ impl Relays {
 
     pub fn len(&self) -> usize {
         self.0.read().unwrap().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.read().unwrap().len() == 0
     }
 
     pub fn serialize(&self) -> Vec<u8> {

@@ -9,6 +9,17 @@ pub struct RelayDescriptor {
     pub contact_information: String,
 }
 
+impl Default for RelayDescriptor {
+    fn default() -> Self {
+        Self::new(
+            "john".to_string(),
+            vec![],
+            SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8000),
+            "john".to_string(),
+        )
+    }
+}
+
 impl RelayDescriptor {
     pub fn new(
         nickname: String,
@@ -29,15 +40,6 @@ impl RelayDescriptor {
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec()).unwrap()
-    }
-
-    pub fn default() -> Self {
-        Self {
-            nickname: "John".to_string(),
-            identity_key: vec![],
-            socket_address: SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 8000),
-            contact_information: "".to_string(),
-        }
+        bincode::deserialize(buffer).unwrap()
     }
 }

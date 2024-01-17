@@ -84,7 +84,7 @@ impl UserDescriptors {
     }
 
     pub fn add_user_descriptor(&self, user_descriptor: UserDescriptor) {
-        self.0.write().unwrap().0.push(user_descriptor);
+        self.0.write_all().unwrap().0.push(user_descriptor);
     }
 
     pub fn serialize(&self) -> Vec<u8> {
@@ -97,7 +97,7 @@ impl UserDescriptors {
 
     pub fn set(&self, user_descriptors: Self) {
         self.0
-            .write()
+            .write_all()
             .unwrap()
             .set(user_descriptors.get_user_descriptors());
     }

@@ -29,7 +29,7 @@ impl Connection {
             let cell = write_receiver
                 .recv()
                 .expect("[FAILED] Connection::open_write --> Error reading from socket");
-            stream.write(&cell.serialize()).unwrap();
+            stream.write_all(&cell.serialize()).unwrap();
             println!(
                 "[SUCCESS] Connection::open_write --> Sent cell ({:?}) to {:?}",
                 cell.command,

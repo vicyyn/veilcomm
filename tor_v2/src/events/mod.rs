@@ -64,7 +64,7 @@ pub fn process_tor_event(
                     .get(op_circuit.get_first().socket_address)
                     .unwrap();
 
-                connection.write(encrypted_cell);
+                connection.write_all(encrypted_cell);
                 pending_responses.insert(circ_id, PendingResponse::IntroduceAck(rendezvous_point));
             }
         }
@@ -102,7 +102,7 @@ pub fn process_tor_event(
                 let cell = Cell::new_relay_cell(circ_id, relay_payload);
 
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
-                connection.write(encrypted_cell);
+                connection.write_all(encrypted_cell);
                 pending_responses.insert(
                     circ_id,
                     PendingResponse::IntroEstablished(
@@ -131,7 +131,7 @@ pub fn process_tor_event(
                 let cell = Cell::new_relay_cell(circ_id, relay_payload);
 
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
-                connection.write(encrypted_cell);
+                connection.write_all(encrypted_cell);
                 pending_responses.insert(
                     circ_id,
                     PendingResponse::RendPointEstablished(
@@ -157,7 +157,7 @@ pub fn process_tor_event(
                 let cell = Cell::new_relay_cell(circ_id, relay_payload);
 
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
-                connection.write(encrypted_cell);
+                connection.write_all(encrypted_cell);
                 pending_responses.insert(circ_id, PendingResponse::Connected(0));
             }
         }
@@ -191,7 +191,7 @@ pub fn process_tor_event(
                     .unwrap();
 
                 let encrypted_cell = op_circuit.encrypt_cell(new_cell);
-                connection.write(encrypted_cell);
+                connection.write_all(encrypted_cell);
             }
         }
         TorEvent::SendExtend(circ_id, next_node) => {
@@ -218,7 +218,7 @@ pub fn process_tor_event(
                 let cell = Cell::new_relay_cell(circ_id, relay_payload);
 
                 let encrypted_cell = op_circuit.encrypt_cell(cell);
-                connection.write(encrypted_cell);
+                connection.write_all(encrypted_cell);
                 pending_responses.insert(circ_id, PendingResponse::Extended(next_node));
             }
         }
@@ -242,7 +242,7 @@ pub fn process_tor_event(
             let cell = Cell::new_create_cell(circ_id, control_payload);
 
             pending_responses.insert(circ_id, PendingResponse::Created(None));
-            connection.write(cell);
+            connection.write_all(cell);
         }
         TorEvent::PublishUserDescriptor => {
             println!("[INFO] tor::process_connection_event --> Publish user descriptor event");
@@ -310,7 +310,7 @@ pub fn process_tor_event(
                         let cell = Cell::new_created_cell(cell.circ_id, control_payload);
 
                         let connection = connections.get(node).unwrap();
-                        connection.write(cell);
+                        connection.write_all(cell);
                     }
                     CellCommand::Created => {
                         println!("Received Created");
@@ -338,7 +338,7 @@ pub fn process_tor_event(
                                 );
 
                                 let connection = connections.get(return_node).unwrap();
-                                connection.write(extended_cell);
+                                connection.write_all(extended_cell);
                             } else {
                                 let aes_key = keys
                                     .read()
@@ -391,7 +391,7 @@ pub fn process_tor_event(
                                 let destination = circuit.get_cell_destination(node).unwrap();
                                 let connection =
                                     connections.get(destination.socket_address).unwrap();
-                                connection.write(new_cell);
+                                connection.write_all(new_cell);
                                 return;
                             }
                         }
@@ -429,7 +429,7 @@ pub fn process_tor_event(
                                                 cell.circ_id,
                                                 control_payload,
                                             );
-                                            connection.unwrap().write(cell);
+                                            connection.unwrap().write_all(cell);
                                             break;
                                         }
                                         println!("[WARNING] tor::process_connection_event --> (Extend) Error getting connection (retrying in 1000ms...)");
@@ -501,7 +501,7 @@ pub fn process_tor_event(
                                         .into();
                                     let cell =
                                         Cell::new_relay_cell(cell.circ_id, encrypted_relay_payload);
-                                    connection.write(cell);
+                                    connection.write_all(cell);
                                 }
                                 RelayCommand::IntroEstablished => {
                                     println!("Received Intro Established Cell");
@@ -514,7 +514,7 @@ pub fn process_tor_event(
                                         pending_response
                                     {
                                         user_descriptor
-                                            .write()
+                                            .write_all()
                                             .unwrap()
                                             .introduction_points
                                             .push(intro_node);
@@ -560,7 +560,7 @@ pub fn process_tor_event(
                                         .into();
                                     let cell =
                                         Cell::new_relay_cell(cell.circ_id, encrypted_relay_payload);
-                                    connection.write(cell);
+                                    connection.write_all(cell);
                                 }
 
                                 RelayCommand::RendPointEstablished => {
@@ -605,7 +605,7 @@ pub fn process_tor_event(
                                         .into();
                                     let cell =
                                         Cell::new_relay_cell(cell.circ_id, encrypted_relay_payload);
-                                    connection.write(cell);
+                                    connection.write_all(cell);
                                 }
                                 RelayCommand::Connected => {
                                     println!("Received Connected Cell");
@@ -648,12 +648,12 @@ pub fn process_tor_event(
                                             Cell::new_relay_cell(circ_id, introduce_ack.into());
                                         let new_cell = circuit.handle_cell(node, new_cell);
                                         let connection = connections.get(node).unwrap();
-                                        connection.write(new_cell);
+                                        connection.write_all(new_cell);
 
                                         let connection = connections.get(stream_node).unwrap();
                                         let cell =
                                             Cell::new_relay_cell(circ_id, relay_payload).into();
-                                        connection.write(cell);
+                                        connection.write_all(cell);
                                     } else {
                                         let circ_id = introduction_points
                                             .get(introduce1_payload.address)
@@ -673,7 +673,7 @@ pub fn process_tor_event(
                                         let node =
                                             circuit.get_predecessor().unwrap().socket_address;
                                         let connection = connections.get(node).unwrap();
-                                        connection.write(cell);
+                                        connection.write_all(cell);
                                     }
                                 }
                                 RelayCommand::IntroduceAck => {
@@ -780,7 +780,7 @@ pub fn process_tor_event(
                                         let connection = connections.get(stream_node).unwrap();
                                         let cell =
                                             Cell::new_relay_cell(circ_id, relay_payload).into();
-                                        connection.write(cell);
+                                        connection.write_all(cell);
                                     } else {
                                         if let Some(circ_id) =
                                             cookies.get(rendezvous1_payload.cookie.into())
@@ -803,7 +803,7 @@ pub fn process_tor_event(
                                             let node =
                                                 circuit.get_predecessor().unwrap().socket_address;
                                             let connection = connections.get(node).unwrap();
-                                            connection.write(cell);
+                                            connection.write_all(cell);
                                         }
                                         streams.insert(3, node);
                                     }
@@ -870,7 +870,7 @@ pub fn process_tor_event(
                                         let cell =
                                             Cell::new_relay_cell(cell.circ_id, relay_payload)
                                                 .into();
-                                        connection.write(cell);
+                                        connection.write_all(cell);
                                     } else {
                                         if let Some(circuit) = circuits.get(cell.circ_id) {
                                             if let Circuit::OrCircuit(or_circuit) = circuit {
@@ -884,7 +884,7 @@ pub fn process_tor_event(
                                                 let node =
                                                     or_circuit.get_predecessor().socket_address;
                                                 let connection = connections.get(node).unwrap();
-                                                connection.write(cell);
+                                                connection.write_all(cell);
                                             }
                                         }
                                     }

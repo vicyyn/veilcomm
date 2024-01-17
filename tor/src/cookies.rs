@@ -12,22 +12,12 @@ impl From<[u8; 20]> for Cookie {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 pub struct Cookies(Arc<RwLock<HashMap<Cookie, u16>>>);
-
-impl Default for Cookies {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl Cookies {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    pub fn clone(&self) -> Self {
-        Self(Arc::clone(&self.0))
     }
 
     pub fn get(&self, cookie: Cookie) -> Option<u16> {

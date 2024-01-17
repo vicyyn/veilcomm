@@ -8,8 +8,6 @@ pub use relay_descriptor::*;
 pub use routers::*;
 pub use user_descriptor::*;
 
-pub const DIRECTORY_ADDRESS: &'static str = "127.0.0.1:8100";
+pub const DIRECTORY_ADDRESS: &str = "127.0.0.1:8100";
 
-pub fn start_directory() {
-
-}
+pub fn start_directory() {}

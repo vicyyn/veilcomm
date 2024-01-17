@@ -25,10 +25,13 @@ impl PendingResponses {
     }
 
     pub fn insert(&self, circ_id: u16, pending_response: PendingResponse) {
-        self.0.write().unwrap().insert(circ_id, pending_response);
+        self.0
+            .write_all()
+            .unwrap()
+            .insert(circ_id, pending_response);
     }
 
     pub fn pop(&self, circ_id: u16) -> Option<PendingResponse> {
-        self.0.write().unwrap().remove(&circ_id)
+        self.0.write_all().unwrap().remove(&circ_id)
     }
 }

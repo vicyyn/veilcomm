@@ -66,7 +66,7 @@ impl RelayDescriptors {
     }
 
     pub fn add_relay(&self, relay: RelayDescriptor) {
-        self.0.write().unwrap().add_relay(relay);
+        self.0.write_all().unwrap().add_relay(relay);
     }
 
     pub fn get_relays(&self) -> Vec<RelayDescriptor> {
@@ -88,6 +88,6 @@ impl RelayDescriptors {
     }
 
     pub fn set(&self, relays: Self) {
-        self.0.write().unwrap().set(relays.get_relays());
+        self.0.write_all().unwrap().set(relays.get_relays());
     }
 }

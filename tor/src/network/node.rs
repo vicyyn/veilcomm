@@ -18,6 +18,12 @@ impl From<SocketAddr> for Node {
     }
 }
 
+impl Default for Node {
+    fn default() -> Self {
+        Self::new(Ipv4Addr::new(127, 0, 0, 1), 8000)
+    }
+}
+
 impl Node {
     pub fn new(ip: Ipv4Addr, port: u16) -> Self {
         Self { ip, port }
@@ -29,9 +35,5 @@ impl Node {
 
     pub fn get_addr(&self) -> SocketAddr {
         SocketAddr::new(std::net::IpAddr::V4(self.ip), self.port)
-    }
-
-    pub fn default() -> Self {
-        Self::new(Ipv4Addr::new(127, 0, 0, 1), 8000)
     }
 }

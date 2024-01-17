@@ -32,7 +32,7 @@ impl Circuits {
 
     pub fn add_successor(&self, circ_id: u16, successor: CircuitNode) {
         self.0
-            .write()
+            .write_all()
             .unwrap()
             .get_mut(&circ_id)
             .unwrap()
@@ -41,7 +41,7 @@ impl Circuits {
 
     pub fn set_successor(&self, circ_id: u16, successor: Option<CircuitNode>) {
         self.0
-            .write()
+            .write_all()
             .unwrap()
             .get_mut(&circ_id)
             .unwrap()
@@ -49,6 +49,6 @@ impl Circuits {
     }
 
     pub fn insert(&self, circ_id: u16, circuit: Circuit) {
-        self.0.write().unwrap().insert(circ_id, circuit);
+        self.0.write_all().unwrap().insert(circ_id, circuit);
     }
 }

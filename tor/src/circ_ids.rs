@@ -3,21 +3,12 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+#[derive(Clone, Debug, Default)]
 pub struct CircIds(Arc<RwLock<HashMap<u16, u16>>>);
-
-impl Default for CircIds {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl CircIds {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    pub fn clone(&self) -> Self {
-        Self(Arc::clone(&self.0))
     }
 
     pub fn get(&self, circ_id: u16) -> Option<u16> {
