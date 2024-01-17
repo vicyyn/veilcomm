@@ -7,6 +7,12 @@ use crate::{Connection, Node};
 
 pub struct Connections(Arc<RwLock<HashMap<Node, Connection>>>);
 
+impl Default for Connections {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Connections {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
@@ -17,10 +23,7 @@ impl Connections {
     }
 
     pub fn get(&self, node: Node) -> Option<Connection> {
-        match self.0.read().unwrap().get(&node) {
-            Some(v) => Some(v.clone()),
-            None => None,
-        }
+        self.0.read().unwrap().get(&node).cloned()
     }
 
     pub fn insert(&self, node: Node, connection: Connection) {

@@ -19,7 +19,7 @@ impl Rendezvous1Payload {
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec())
+        bincode::deserialize(buffer)
             .expect("[FAILED] Rendezvous1::deserialize --> Unable to deserialize payload")
     }
 }

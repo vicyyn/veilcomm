@@ -15,11 +15,11 @@ impl CircuitNode {
     pub fn encrypt_payload(&self, payload: Payload) -> Payload {
         match payload {
             Payload::RelayPayload(relay_payload) => {
-                return Payload::new_relay_payload(RelayPayload::new(
+                Payload::new_relay_payload(RelayPayload::new(
                     self.encrypt_data(relay_payload.serialize())
                         .try_into()
                         .unwrap(),
-                ));
+                ))
             }
             Payload::ControlPayload(control_payload) => {
                 Payload::new_control_payload(ControlPayload::new(

@@ -184,7 +184,7 @@ impl RelayPayload {
 
     pub fn new_data_payload(data: &[u8], stream_id: u16) -> Self {
         let mut buffer = [0; PAYLOAD_LEN - 11];
-        buffer[..data.len()].copy_from_slice(&data);
+        buffer[..data.len()].copy_from_slice(data);
         Self {
             command: 2,
             recognized: 0,
@@ -322,7 +322,7 @@ impl RelayPayload {
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec())
+        bincode::deserialize(buffer)
             .expect("[FAILED] Rpc::open, serde_json --> Unable to decode string payload")
     }
 }

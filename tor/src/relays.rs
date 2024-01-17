@@ -8,6 +8,12 @@ use std::{
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct _Relays(Vec<Relay>);
 
+impl Default for _Relays {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl _Relays {
     pub fn new() -> Self {
         Self(vec![])
@@ -30,7 +36,7 @@ impl _Relays {
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec())
+        bincode::deserialize(buffer)
             .expect("[FAILED] Relays::deserialize --> Unable to deserialize")
     }
 
@@ -43,6 +49,12 @@ impl _Relays {
 }
 
 pub struct Relays(Arc<RwLock<_Relays>>);
+
+impl Default for Relays {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Relays {
     pub fn new() -> Self {

@@ -27,7 +27,7 @@ impl ExtendedPayload {
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec())
+        bincode::deserialize(buffer)
             .expect("[FAILED] ExtendedPayload::deserialize --> Unable to deserialize payload")
     }
 }

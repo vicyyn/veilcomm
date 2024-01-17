@@ -3,6 +3,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EstablishedRendPointPayload {}
 
+impl Default for EstablishedRendPointPayload {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EstablishedRendPointPayload {
     pub fn new() -> Self {
         Self {}

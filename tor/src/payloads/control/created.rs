@@ -19,7 +19,7 @@ impl From<ControlPayload> for CreatedPayload {
 impl CreatedPayload {
     pub fn new(dh_key: &[u8]) -> Self {
         let mut buffer = [0; 256];
-        buffer[..dh_key.len()].copy_from_slice(&dh_key);
+        buffer[..dh_key.len()].copy_from_slice(dh_key);
         Self { dh_key: buffer }
     }
 
@@ -28,7 +28,7 @@ impl CreatedPayload {
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec())
+        bincode::deserialize(buffer)
             .expect("[FAILED] Rpc::open, serde_json --> Unable to decode string payload")
     }
 }

@@ -127,7 +127,7 @@ pub fn start_peer(main_node: Node) -> Sender<ConnectionEvent> {
         }
     });
 
-    return connection_events_sender.clone();
+    connection_events_sender.clone()
 }
 
 fn listen_for_connections(node: Node, sender: Sender<ConnectionEvent>) {
@@ -192,7 +192,7 @@ fn process_connection_event(
     user_descriptor: Arc<RwLock<UserDescriptor>>,
     cookies: Cookies,
     introduction_points: IntroductionPoints,
-    circ_ids: CircIds,
+    _circ_ids: CircIds,
     users: Users,
 ) {
     std::thread::spawn(move || match connection_event {
@@ -667,15 +667,13 @@ fn process_connection_event(
                                         let introduce_ack = RelayPayload::new_introduce_ack_payload(
                                             IntroduceAckPayload::new(0),
                                         );
-                                        let new_cell =
-                                            Cell::new_relay_cell(circ_id, introduce_ack.into());
+                                        let new_cell = Cell::new_relay_cell(circ_id, introduce_ack);
                                         let new_cell = circuit.handle_cell(node, new_cell);
                                         let connection = connections.get(node).unwrap();
                                         connection.write(new_cell);
 
                                         let connection = connections.get(stream_node).unwrap();
-                                        let cell =
-                                            Cell::new_relay_cell(circ_id, relay_payload).into();
+                                        let cell = Cell::new_relay_cell(circ_id, relay_payload);
                                         connection.write(cell);
                                     } else {
                                         let circ_id = introduction_points
@@ -780,8 +778,7 @@ fn process_connection_event(
                                     {
                                         let circ_id = cell.circ_id;
                                         let connection = connections.get(stream_node).unwrap();
-                                        let cell =
-                                            Cell::new_relay_cell(circ_id, relay_payload).into();
+                                        let cell = Cell::new_relay_cell(circ_id, relay_payload);
                                         connection.write(cell);
                                     } else {
                                         if let Some(circ_id) =
@@ -851,23 +848,20 @@ fn process_connection_event(
                                     {
                                         let connection = connections.get(stream_node).unwrap();
                                         let cell =
-                                            Cell::new_relay_cell(cell.circ_id, relay_payload)
-                                                .into();
+                                            Cell::new_relay_cell(cell.circ_id, relay_payload);
                                         connection.write(cell);
-                                    } else {
-                                        if let Some(circuit) = circuits.get(cell.circ_id) {
-                                            if let Circuit::OrCircuit(or_circuit) = circuit {
-                                                let encrypted_payload = or_circuit
-                                                    .get_predecessor()
-                                                    .encrypt_payload(relay_payload.into());
-                                                let cell = Cell::new_relay_cell(
-                                                    cell.circ_id,
-                                                    encrypted_payload.into(),
-                                                );
-                                                let node = or_circuit.get_predecessor().node;
-                                                let connection = connections.get(node).unwrap();
-                                                connection.write(cell);
-                                            }
+                                    } else if let Some(circuit) = circuits.get(cell.circ_id) {
+                                        if let Circuit::OrCircuit(or_circuit) = circuit {
+                                            let encrypted_payload = or_circuit
+                                                .get_predecessor()
+                                                .encrypt_payload(relay_payload.into());
+                                            let cell = Cell::new_relay_cell(
+                                                cell.circ_id,
+                                                encrypted_payload.into(),
+                                            );
+                                            let node = or_circuit.get_predecessor().node;
+                                            let connection = connections.get(node).unwrap();
+                                            connection.write(cell);
                                         }
                                     }
                                 }

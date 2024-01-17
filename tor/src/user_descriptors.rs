@@ -5,6 +5,12 @@ use std::sync::{Arc, RwLock};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct _UserDescriptors(Vec<UserDescriptor>);
 
+impl Default for _UserDescriptors {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl _UserDescriptors {
     pub fn new() -> Self {
         Self(vec![])
@@ -32,7 +38,7 @@ impl _UserDescriptors {
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec())
+        bincode::deserialize(buffer)
             .expect("[FAILED] UserDescriptors::deserialize --> Unable to deserialize")
     }
 
@@ -45,6 +51,12 @@ impl _UserDescriptors {
 }
 
 pub struct UserDescriptors(Arc<RwLock<_UserDescriptors>>);
+
+impl Default for UserDescriptors {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl UserDescriptors {
     pub fn new() -> Self {

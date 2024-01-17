@@ -15,6 +15,12 @@ impl From<[u8; 20]> for Cookie {
 #[derive(Debug)]
 pub struct Cookies(Arc<RwLock<HashMap<Cookie, u16>>>);
 
+impl Default for Cookies {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Cookies {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
@@ -25,10 +31,7 @@ impl Cookies {
     }
 
     pub fn get(&self, cookie: Cookie) -> Option<u16> {
-        match self.0.read().unwrap().get(&cookie) {
-            Some(v) => Some(*v),
-            None => None,
-        }
+        self.0.read().unwrap().get(&cookie).copied()
     }
 
     pub fn insert(&self, cookie: Cookie, circuit_id: u16) {

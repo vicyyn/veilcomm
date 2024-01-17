@@ -5,6 +5,12 @@ use std::{
 
 pub struct CircIds(Arc<RwLock<HashMap<u16, u16>>>);
 
+impl Default for CircIds {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CircIds {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
@@ -15,10 +21,7 @@ impl CircIds {
     }
 
     pub fn get(&self, circ_id: u16) -> Option<u16> {
-        match self.0.read().unwrap().get(&circ_id) {
-            Some(v) => Some(*v),
-            None => None,
-        }
+        self.0.read().unwrap().get(&circ_id).copied()
     }
 
     pub fn insert(&self, circ_id: u16, circ_id_2: u16) {

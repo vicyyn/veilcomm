@@ -7,6 +7,12 @@ use crate::AESKey;
 
 pub struct Users(Arc<RwLock<HashMap<[u8; 32], (AESKey, u16, u16)>>>);
 
+impl Default for Users {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Users {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
@@ -17,10 +23,7 @@ impl Users {
     }
 
     pub fn get(&self, address: [u8; 32]) -> Option<(AESKey, u16, u16)> {
-        match self.0.read().unwrap().get(&address) {
-            Some(v) => Some(*v),
-            None => None,
-        }
+        self.0.read().unwrap().get(&address).copied()
     }
 
     pub fn insert(&self, address: [u8; 32], aes_key: AESKey, circ_id: u16, stream_id: u16) {

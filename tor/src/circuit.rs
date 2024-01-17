@@ -17,6 +17,12 @@ pub struct OrCircuit {
     successor: Option<CircuitNode>,
 }
 
+impl Default for OpCircuit {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OpCircuit {
     pub fn new() -> Self {
         Self { successors: vec![] }
@@ -39,7 +45,7 @@ impl OpCircuit {
         for circuit_node in self.get_successors().iter().rev() {
             new_cell.payload = circuit_node.encrypt_payload(new_cell.payload.clone());
         }
-        return new_cell;
+        new_cell
     }
 
     pub fn decrypt_cell(&self, cell: Cell) -> Cell {
@@ -47,7 +53,7 @@ impl OpCircuit {
         for circuit_node in self.get_successors() {
             new_cell.payload = circuit_node.decrypt_payload(new_cell.payload.clone());
         }
-        return new_cell;
+        new_cell
     }
 }
 
@@ -60,11 +66,11 @@ impl OrCircuit {
     }
 
     pub fn get_successor(&self) -> Option<CircuitNode> {
-        return self.successor.clone();
+        self.successor.clone()
     }
 
     pub fn get_predecessor(&self) -> CircuitNode {
-        return self.predecessor.clone();
+        self.predecessor.clone()
     }
 
     pub fn set_successor(&mut self, successor: Option<CircuitNode>) {
@@ -74,7 +80,7 @@ impl OrCircuit {
     pub fn decrypt_cell(&self, cell: Cell) -> Cell {
         let mut new_cell = cell.clone();
         new_cell.payload = self.predecessor.decrypt_payload(cell.payload.clone());
-        return new_cell;
+        new_cell
     }
 
     pub fn encrypt_cell(&self, cell: Cell) -> Cell {
@@ -83,18 +89,18 @@ impl OrCircuit {
             .predecessor
             .clone()
             .encrypt_payload(cell.payload.clone());
-        return new_cell;
+        new_cell
     }
 
     pub fn is_forward(&self, source: Node) -> bool {
         if self.predecessor.node.eq(&source) {
             return true;
         }
-        return false;
+        false
     }
 
     pub fn is_backward(&self, source: Node) -> bool {
-        return !self.is_forward(source);
+        !self.is_forward(source)
     }
 
     pub fn handle_cell(&self, source: Node, cell: Cell) -> Cell {
@@ -119,14 +125,14 @@ impl Circuit {
         if let Self::OpCircuit(_) = self {
             return true;
         }
-        return false;
+        false
     }
 
     pub fn is_or_circuit(&self) -> bool {
         if let Self::OrCircuit(_) = self {
             return true;
         }
-        return false;
+        false
     }
 
     pub fn add_successor(&mut self, successor: CircuitNode) {
@@ -145,21 +151,21 @@ impl Circuit {
         if let Self::OpCircuit(op_circuit) = self {
             return Some(op_circuit.get_successors());
         }
-        return None;
+        None
     }
 
     pub fn get_successor(&self) -> Option<CircuitNode> {
         if let Self::OrCircuit(or_circuit) = self {
             return or_circuit.get_successor();
         }
-        return None;
+        None
     }
 
     pub fn get_predecessor(&self) -> Option<CircuitNode> {
         if let Self::OrCircuit(or_circuit) = self {
             return Some(or_circuit.get_predecessor());
         }
-        return None;
+        None
     }
 
     pub fn handle_cell(&self, source: Node, cell: Cell) -> Cell {

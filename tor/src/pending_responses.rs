@@ -8,6 +8,12 @@ use crate::PendingResponse;
 #[derive(Debug)]
 pub struct PendingResponses(Arc<RwLock<HashMap<u16, PendingResponse>>>);
 
+impl Default for PendingResponses {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PendingResponses {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
@@ -18,10 +24,7 @@ impl PendingResponses {
     }
 
     pub fn get(&self, circ_id: u16) -> Option<PendingResponse> {
-        match self.0.read().unwrap().get(&circ_id) {
-            Some(v) => Some(v.clone()),
-            None => None,
-        }
+        self.0.read().unwrap().get(&circ_id).cloned()
     }
 
     pub fn insert(&self, circ_id: u16, pending_response: PendingResponse) {

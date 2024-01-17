@@ -44,7 +44,7 @@ impl OnionSkin {
         )
         .unwrap();
 
-        return dh.try_into().unwrap();
+        dh.try_into().unwrap()
     }
 
     pub fn serialize(&self) -> Vec<u8> {
@@ -53,7 +53,7 @@ impl OnionSkin {
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec())
+        bincode::deserialize(buffer)
             .expect("[FAILED] CreatePayload::deserialize --> Unable to deserialize payload")
     }
 }

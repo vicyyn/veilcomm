@@ -36,7 +36,7 @@ impl Connection {
                 stream.peer_addr().unwrap()
             );
         });
-        return write_sender;
+        write_sender
     }
 
     fn open_read(stream: TcpStream, events_sender: Sender<ConnectionEvent>) {

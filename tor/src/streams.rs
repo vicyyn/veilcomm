@@ -8,6 +8,12 @@ use crate::Node;
 #[derive(Debug, Clone)]
 pub struct Streams(Arc<RwLock<HashMap<u16, Node>>>);
 
+impl Default for Streams {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Streams {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
@@ -19,7 +25,7 @@ impl Streams {
 
     pub fn get(&self, id: u16) -> Option<Node> {
         if let Some(node) = self.0.read().unwrap().get(&id) {
-            return Some(node.clone());
+            return Some(*node);
         }
         None
     }

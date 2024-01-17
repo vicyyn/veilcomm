@@ -29,7 +29,7 @@ impl Relay {
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec())
+        bincode::deserialize(buffer)
             .expect("[FAILED] Relay::deserialize --> Unable to deserialize")
     }
 }

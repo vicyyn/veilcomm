@@ -25,7 +25,7 @@ impl Cell {
         serialized.extend(self.circ_id.to_le_bytes());
         serialized.push(self.command);
         serialized.extend(self.payload.serialize());
-        return serialized;
+        serialized
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
@@ -36,7 +36,7 @@ impl Cell {
         } else {
             ControlPayload::deserialize(&buffer[3..]).into()
         };
-        return Cell::new(circ_id, command, payload);
+        Cell::new(circ_id, command, payload)
     }
 
     pub fn new_create_cell(circ_id: u16, control_payload: ControlPayload) -> Self {

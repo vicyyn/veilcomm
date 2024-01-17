@@ -11,7 +11,6 @@ pub fn generate_random_aes_key() -> [u8; 16] {
 pub fn generate_random_address() -> [u8; 32] {
     let mut address = [0u8; 32];
     rand_bytes(&mut address).unwrap();
-    address;
     [0; 32]
 }
 
@@ -20,6 +19,12 @@ pub struct Keys {
     pub address: [u8; 32],
     pub user_private: Rsa<Private>,
     pub dh: Dh<Private>,
+}
+
+impl Default for Keys {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Keys {
@@ -44,7 +49,7 @@ impl Keys {
 
     pub fn compute_aes_key(&self, half_dh: &[u8]) -> AESKey {
         let dh = self.compute_dh(half_dh);
-        dh[0..16].try_into().unwrap()
+        dh[0..16].into()
     }
 
     pub fn get_user_descriptor(&self) -> UserDescriptor {

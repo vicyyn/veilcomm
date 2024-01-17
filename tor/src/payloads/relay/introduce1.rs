@@ -27,7 +27,7 @@ impl Introduce1Payload {
         serialized.extend(self.port.to_le_bytes());
         serialized.extend(self.cookie);
         serialized.extend(self.onion_skin.serialize());
-        return serialized;
+        serialized
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {

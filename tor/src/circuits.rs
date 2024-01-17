@@ -8,6 +8,12 @@ use crate::{Circuit, CircuitNode};
 #[derive(Debug)]
 pub struct Circuits(Arc<RwLock<HashMap<u16, Circuit>>>);
 
+impl Default for Circuits {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Circuits {
     pub fn new() -> Self {
         Self(Arc::new(RwLock::new(HashMap::new())))
@@ -24,10 +30,7 @@ impl Circuits {
     }
 
     pub fn get(&self, circ_id: u16) -> Option<Circuit> {
-        match self.0.read().unwrap().get(&circ_id) {
-            Some(v) => Some(v.clone()),
-            None => None,
-        }
+        self.0.read().unwrap().get(&circ_id).cloned()
     }
 
     pub fn add_successor(&self, circ_id: u16, successor: CircuitNode) {

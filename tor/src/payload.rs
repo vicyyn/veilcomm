@@ -34,14 +34,14 @@ impl Payload {
         if let Self::RelayPayload(_) = self {
             return true;
         }
-        return false;
+        false
     }
 
     pub fn is_control_payload(&self) -> bool {
         if let Self::ControlPayload(_) = self {
             return true;
         }
-        return false;
+        false
     }
 
     pub fn serialize(&self) -> Vec<u8> {

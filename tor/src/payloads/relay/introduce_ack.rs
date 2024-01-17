@@ -16,7 +16,7 @@ impl IntroduceAckPayload {
     }
 
     pub fn deserialize(buffer: &[u8]) -> Self {
-        bincode::deserialize(&buffer.to_vec())
+        bincode::deserialize(buffer)
             .expect("[FAILED] IntroduceAck::deserialize --> Unable to deserialize payload")
     }
 }
