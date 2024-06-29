@@ -1,6 +1,8 @@
 use crate::{
-    payloads::{self, CreatePayload, Payload},
+    decrypt_buffer_with_aes, encrypt_buffer_with_aes,
+    payloads::{self, CreatePayload},
     utils::Connections,
+    Payload, RelayCell,
 };
 use anyhow::{Context, Result};
 use log::{error, info, warn};
@@ -38,12 +40,18 @@ pub struct RelayKeys {
 pub struct Relay {
     relay_descriptor: RelayDescriptor,
     connections: Connections,
-    handshakes: Arc<Mutex<HashMap<SocketAddr, Vec<u8>>>>,
+    handshakes: Arc<Mutex<HashMap<Uuid, Vec<u8>>>>,
     keys: Arc<RelayKeys>,
-    circuits: Arc<Mutex<HashMap<Uuid, (SocketAddr, Option<SocketAddr>)>>>,
+    circuits_sockets: Arc<Mutex<HashMap<Uuid, SocketAddr>>>,
+    // bool is direction, if true then we have to decrypt, if false then we have to encrypt
+    circuits_map: Arc<Mutex<HashMap<Uuid, (Uuid, bool)>>>,
 }
 
 impl Relay {
+    pub fn get_relay_descriptor(&self) -> RelayDescriptor {
+        self.relay_descriptor.clone()
+    }
+
     pub fn new(address: SocketAddr, nickname: String) -> Self {
         info!(
             "Creating new relay with nickname: {} at address: {}",
@@ -65,7 +73,8 @@ impl Relay {
                     .unwrap(),
             }),
             handshakes: Arc::new(Mutex::new(HashMap::new())),
-            circuits: Arc::new(Mutex::new(HashMap::new())),
+            circuits_sockets: Arc::new(Mutex::new(HashMap::new())),
+            circuits_map: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -99,18 +108,13 @@ impl Relay {
         let listener = TcpListener::bind(self.relay_descriptor.address).await?;
         info!("TCP server listening on {}", self.relay_descriptor.address);
 
-        let nickname = self.relay_descriptor.nickname.clone();
-        let connections = self.connections.clone();
-        let keys = self.keys.clone();
-        let handshakes = self.handshakes.clone();
-        let circuits = self.circuits.clone();
-
         loop {
-            let keys = keys.clone();
-            let handshakes = handshakes.clone();
-            let connections = connections.clone();
-            let nickname = nickname.clone();
-            let circuits = circuits.clone();
+            let keys = self.keys.clone();
+            let handshakes = self.handshakes.clone();
+            let connections = self.connections.clone();
+            let nickname = self.relay_descriptor.nickname.clone();
+            let circuits_sockets = self.circuits_sockets.clone();
+            let circuits_map = self.circuits_map.clone();
 
             let (stream, addr) = listener.accept().await?;
             info!("Accepted connection from {}", addr);
@@ -124,7 +128,8 @@ impl Relay {
                 connections,
                 keys,
                 handshakes,
-                circuits,
+                circuits_sockets,
+                circuits_map,
                 nickname,
             );
         }
@@ -136,8 +141,9 @@ impl Relay {
         addr: SocketAddr,
         connections: Connections,
         keys: Arc<RelayKeys>,
-        handshakes: Arc<Mutex<HashMap<SocketAddr, Vec<u8>>>>,
-        circuits: Arc<Mutex<HashMap<Uuid, (SocketAddr, Option<SocketAddr>)>>>,
+        handshakes: Arc<Mutex<HashMap<Uuid, Vec<u8>>>>,
+        circuits_sockets: Arc<Mutex<HashMap<Uuid, SocketAddr>>>,
+        circuits_map: Arc<Mutex<HashMap<Uuid, (Uuid, bool)>>>,
         nickname: String,
     ) {
         tokio::spawn(async move {
@@ -147,30 +153,122 @@ impl Relay {
                     Ok(0) => {}
                     Ok(n) => {
                         info!("{} Read {} bytes", nickname.clone(), n);
-                        // try to deserialize, if it fails, then decrypt and try again
-                        let payload = if let Ok(payload) =
-                            serde_json::from_str::<Payload>(&String::from_utf8_lossy(&buffer[..n]))
+                        // deserialize relay cell
+                        let relay_cell = if let Ok(relay_cell) =
+                            serde_json::from_slice::<RelayCell>(&buffer[0..n])
                         {
-                            payload
+                            relay_cell
                         } else {
-                            warn!("Failed to deserialize payload, attempting to decrypt");
-                            let handshakes_lock = handshakes.lock().await;
-                            let handshake = handshakes_lock.get(&addr).unwrap();
-                            let deserialized_payload = decrypt(
-                                Cipher::aes_256_ctr(),
-                                &handshake[0..32],
-                                None,
-                                &buffer[..n],
-                            )
-                            .unwrap();
-                            serde_json::from_slice::<Payload>(&deserialized_payload).unwrap()
+                            error!("Failed to deserialize relay cell coming from {}", addr);
+                            continue;
+                        };
+                        info!("{} Received relay cell", nickname.clone());
+
+                        // check if there's a next relay
+                        let mut circuits_map_lock = circuits_map.lock().await;
+                        let mut handshakes_lock = handshakes.lock().await;
+                        let mut circuits_sockets_lock = circuits_sockets.lock().await;
+                        let mut connections_lock = connections.lock().await;
+
+                        if let Some((next_circuit_id, direction)) =
+                            circuits_map_lock.get(&relay_cell.circuit_id)
+                        {
+                            if *direction {
+                                // decrypt with handshake then forward to next relay
+                                let handshake =
+                                    handshakes_lock.get(&relay_cell.circuit_id).unwrap();
+                                let decrypted_payload =
+                                    decrypt_buffer_with_aes(&handshake[0..32], &relay_cell.payload)
+                                        .unwrap();
+                                let relay_cell = RelayCell {
+                                    circuit_id: *next_circuit_id,
+                                    payload: decrypted_payload,
+                                };
+                                let next_socket =
+                                    circuits_sockets_lock.get(next_circuit_id).unwrap();
+                                let connection = connections_lock.get(next_socket).unwrap();
+                                info!("{} forwarding relay cell to next relay", nickname.clone());
+                                connection
+                                    .lock()
+                                    .await
+                                    .write_all(&serde_json::to_vec(&relay_cell).unwrap())
+                                    .await
+                                    .unwrap();
+                                continue;
+                            }
+                        };
+
+                        // get the payload
+                        let payload = if let Some(handshake) =
+                            handshakes_lock.get(&relay_cell.circuit_id)
+                        {
+                            let decrypted_payload =
+                                decrypt_buffer_with_aes(&handshake[0..32], &relay_cell.payload)
+                                    .unwrap();
+                            info!(
+                                "Decrypted payload with handshake for circuit {}",
+                                relay_cell.circuit_id
+                            );
+                            serde_json::from_slice::<Payload>(&decrypted_payload).unwrap()
+                        } else {
+                            info!("No handshake found for circuit {}", relay_cell.circuit_id);
+                            if let Ok(payload) =
+                                serde_json::from_slice::<Payload>(&relay_cell.payload)
+                            {
+                                payload
+                            } else {
+                                if let Some((next_circuit_id, direction)) =
+                                    circuits_map_lock.get(&relay_cell.circuit_id)
+                                {
+                                    if !*direction {
+                                        let socket =
+                                            circuits_sockets_lock.get(next_circuit_id).unwrap();
+                                        let sender = connections_lock.get_mut(&socket).unwrap();
+                                        info!(
+                                            "Forwarding extended payload back to circuit {}",
+                                            next_circuit_id
+                                        );
+                                        let handshake =
+                                            handshakes_lock.get(&next_circuit_id).unwrap();
+                                        let encrypted_payload = encrypt_buffer_with_aes(
+                                            &handshake,
+                                            &relay_cell.payload,
+                                        )
+                                        .unwrap();
+                                        let relay_cell = RelayCell {
+                                            circuit_id: *next_circuit_id,
+                                            payload: encrypted_payload,
+                                        };
+                                        sender
+                                            .lock()
+                                            .await
+                                            .write_all(&serde_json::to_vec(&relay_cell).unwrap())
+                                            .await
+                                            .unwrap();
+                                        info!("Forwarded extended payload to previous relay");
+                                    } else {
+                                        error!("direction is wrong, expected false, got true for circuit {} coming from {}",
+                                            relay_cell.circuit_id,
+                                            addr
+                                        );
+                                    }
+                                    continue;
+                                } else {
+                                    error!(
+                                        "no circuit found for circuit {} coming from {}",
+                                        relay_cell.circuit_id, addr
+                                    );
+                                    continue;
+                                }
+                            }
                         };
 
                         info!(
-                            "Relay {} received payload: {:?}",
-                            nickname,
+                            "{} Received payload: {:?}",
+                            nickname.clone(),
                             payload.get_type()
                         );
+
                         match payload {
                             Payload::Create(create_payload) => {
                                 let onion_skin = create_payload.onion_skin;
@@ -196,121 +294,126 @@ impl Relay {
                                     .compute_key(&BigNum::from_slice(&dh).unwrap())
                                     .unwrap();
 
-                                info!("Handshake Successful: {}", hex::encode(&handshake[0..16]));
+                                info!("Handshake Successful: {}", hex::encode(&handshake[0..32]));
 
-                                let mut handshakes_lock = handshakes.lock().await;
-                                handshakes_lock.insert(addr, handshake);
+                                handshakes_lock.insert(relay_cell.circuit_id.clone(), handshake);
                                 drop(handshakes_lock);
 
                                 info!(
                                     "Adding a new circuit with ID: {}",
-                                    create_payload.circuit_id
+                                    relay_cell.circuit_id.clone()
                                 );
 
-                                let val = circuits
-                                    .lock()
-                                    .await
-                                    .insert(create_payload.circuit_id, (addr, None));
-
-                                if val.is_some() {
+                                if circuits_sockets_lock
+                                    .insert(relay_cell.circuit_id, addr)
+                                    .is_some()
+                                {
                                     error!("Circuit ID already exists");
                                     continue;
                                 }
 
                                 info!("Sending created payload");
                                 let created_payload = Payload::Created(payloads::CreatedPayload {
-                                    circuit_id: create_payload.circuit_id,
                                     dh_key: keys.dh.public_key().to_vec(),
                                 });
+                                let relay_cell = RelayCell {
+                                    circuit_id: relay_cell.circuit_id,
+                                    payload: serde_json::to_vec(&created_payload).unwrap(),
+                                };
 
                                 write
                                     .lock()
                                     .await
                                     .write_all(
-                                        serde_json::to_string(&created_payload)
-                                            .expect("Failed to serialize JSON")
-                                            .as_bytes(),
+                                        &serde_json::to_vec(&relay_cell)
+                                            .expect("Failed to serialize JSON"),
                                     )
                                     .await
                                     .unwrap();
                                 info!("Sent created payload");
                             }
                             Payload::Created(created_payload) => {
-                                let circuits_lock = circuits.lock().await;
-                                let (prev_relay, next_relay) =
-                                    circuits_lock.get(&created_payload.circuit_id).unwrap();
-                                if let Some(next_relay) = next_relay {
-                                    if next_relay != &addr {
-                                        error!("Next relay does not match");
-                                        continue;
+                                if let Some((next_circuit_id, direction)) =
+                                    circuits_map_lock.get(&relay_cell.circuit_id)
+                                {
+                                    if !*direction {
+                                        let socket =
+                                            circuits_sockets_lock.get(next_circuit_id).unwrap();
+                                        let sender = connections_lock.get_mut(&socket).unwrap();
+                                        info!(
+                                            "Forwarding extended payload back to circuit {}",
+                                            next_circuit_id
+                                        );
+                                        let extended_payload =
+                                            Payload::Extended(payloads::ExtendedPayload {
+                                                address: addr,
+                                                dh_key: created_payload.dh_key,
+                                            });
+                                        let handshake =
+                                            handshakes_lock.get(&next_circuit_id).unwrap();
+                                        let encrypted_payload = encrypt_buffer_with_aes(
+                                            &handshake[0..32],
+                                            &serde_json::to_vec(&extended_payload).unwrap(),
+                                        )
+                                        .unwrap();
+                                        let relay_cell = RelayCell {
+                                            circuit_id: *next_circuit_id,
+                                            payload: encrypted_payload,
+                                        };
+                                        sender
+                                            .lock()
+                                            .await
+                                            .write_all(&serde_json::to_vec(&relay_cell).unwrap())
+                                            .await
+                                            .unwrap();
+                                        info!("Forwarded extended payload to previous relay");
+                                    } else {
+                                        error!("direction is wrong, expected false, got true for circuit {} coming from {}",
+                                            relay_cell.circuit_id,
+                                            addr
+                                        );
                                     }
                                 }
-                                let mut connections_lock = connections.lock().await;
-                                let sender = connections_lock.get_mut(&prev_relay).unwrap();
-                                info!("Forwarding extended payload to previous relay");
-                                let extended_payload =
-                                    Payload::Extended(payloads::ExtendedPayload {
-                                        circuit_id: created_payload.circuit_id,
-                                        dh_key: created_payload.dh_key,
-                                    });
-                                sender
-                                    .lock()
-                                    .await
-                                    .write_all(
-                                        serde_json::to_string(&extended_payload)
-                                            .expect("Failed to serialize JSON")
-                                            .as_bytes(),
-                                    )
-                                    .await
-                                    .unwrap();
-                                info!("Forwarded extended payload to previous relay");
                             }
                             Payload::Extend(extend_payload) => {
-                                // forward the extend payload to the next relay
                                 let next_relay = extend_payload.address;
-                                let mut connections_lock = connections.lock().await;
-
-                                if let Some((prev_relay, mut next_relay)) =
-                                    circuits.lock().await.get(&extend_payload.circuit_id)
-                                {
-                                    if next_relay.is_some() {
-                                        error!("Circuit already extended");
-                                        continue;
-                                    }
-                                    info!(
-                                        "Updating circuit {} with next relay at address {}",
-                                        extend_payload.circuit_id, extend_payload.address
-                                    );
-                                    next_relay = Some(extend_payload.address);
-                                } else {
-                                    error!("Circuit ID does not exist");
+                                // Check if the circuit is already extended
+                                if let Some(_) = circuits_map_lock.get(&relay_cell.circuit_id) {
+                                    error!("Circuit already extended");
                                     continue;
+                                }
+                                info!("Extending circuit with ID: {}", relay_cell.circuit_id);
+                                let new_circuit_id = Uuid::new_v4();
+                                circuits_map_lock
+                                    .insert(relay_cell.circuit_id, (new_circuit_id, true));
+                                circuits_map_lock
+                                    .insert(new_circuit_id, (relay_cell.circuit_id, false));
+                                circuits_sockets_lock.insert(new_circuit_id, next_relay);
+
+                                // forward the extend payload to the next relay as create payload
+                                let create_payload = Payload::Create(CreatePayload {
+                                    onion_skin: extend_payload.onion_skin,
+                                });
+                                let relay_cell = RelayCell {
+                                    circuit_id: new_circuit_id,
+                                    payload: serde_json::to_vec(&create_payload)
+                                        .expect("Failed to serialize JSON"),
                                 };
 
-                                // if the next relay is not connected, then try to connect
+                                // connect to the next relay
                                 if let Some(next_relay_stream) =
                                     connections_lock.get_mut(&next_relay)
                                 {
-                                    info!(
-                                      "Forwarding create payload to next relay for extension at address {}",
-                                      next_relay
-                                    );
-
-                                    let create_payload = Payload::Create(CreatePayload {
-                                        circuit_id: extend_payload.circuit_id,
-                                        onion_skin: extend_payload.onion_skin,
-                                    });
                                     next_relay_stream
                                         .lock()
                                         .await
                                         .write_all(
-                                            serde_json::to_string(&create_payload)
-                                                .unwrap()
-                                                .as_bytes(),
+                                            serde_json::to_vec(&relay_cell)
+                                                .expect("Failed to serialize JSON")
+                                                .as_slice(),
                                         )
                                         .await
                                         .unwrap();
-                                    info!("Forwarded create payload to next relay");
                                 } else {
                                     warn!("Next relay not connected, attempting to connect");
                                     match tokio::net::TcpStream::connect(next_relay).await {
@@ -330,35 +433,30 @@ impl Relay {
                                                 connections.clone(),
                                                 keys.clone(),
                                                 handshakes.clone(),
-                                                circuits.clone(),
+                                                circuits_sockets.clone(),
+                                                circuits_map.clone(),
                                                 nickname.clone(),
                                             );
                                             connections_lock.insert(next_relay, next_write.clone());
-                                            info!(
-                                                    "Forwarding create payload to next relay for extension at address {}",
-                                                    next_relay
-                                                );
-                                            let create_payload = Payload::Create(CreatePayload {
-                                                circuit_id: extend_payload.circuit_id,
-                                                onion_skin: extend_payload.onion_skin,
-                                            });
                                             next_write
                                                 .lock()
                                                 .await
                                                 .write_all(
-                                                    serde_json::to_string(&create_payload)
-                                                        .unwrap()
-                                                        .as_bytes(),
+                                                    &serde_json::to_vec(&relay_cell).unwrap(),
                                                 )
                                                 .await
                                                 .unwrap();
                                             info!("Forwarded create payload to next relay");
                                         }
-                                        Err(e) => {
-                                            error!("Failed to connect to next relay: {}", e);
+                                        _ => {
+                                            error!(
+                                                "Failed to connect to next relay {}",
+                                                next_relay
+                                            );
+                                            continue;
                                         }
                                     }
-                                }
+                                };
                             }
                             _ => {}
                         }

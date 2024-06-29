@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct CreatedPayload {
-    pub circuit_id: Uuid,
     pub dh_key: Vec<u8>,
 }

@@ -4,9 +4,8 @@ use openssl::{
     symm::{encrypt, Cipher},
 };
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct OnionSkin {
     pub rsa_encrypted_aes_key: Vec<u8>,
     pub aes_encrypted_dh_key: Vec<u8>,
@@ -27,8 +26,7 @@ impl OnionSkin {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct CreatePayload {
-    pub circuit_id: Uuid,
     pub onion_skin: OnionSkin,
 }

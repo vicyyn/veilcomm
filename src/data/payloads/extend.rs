@@ -4,9 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use super::OnionSkin;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct ExtendPayload {
-    pub circuit_id: uuid::Uuid,
     pub address: SocketAddr,
     pub onion_skin: OnionSkin,
 }
