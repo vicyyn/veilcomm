@@ -10,7 +10,7 @@ use relay::Relay;
 use user::User;
 
 use simple_logger::SimpleLogger;
-use std::{net::SocketAddr, str::FromStr};
+use std::{net::SocketAddr, str::FromStr, thread::sleep, time::Duration};
 use uuid::Uuid;
 
 #[tokio::main]
@@ -25,7 +25,6 @@ async fn main() {
 
     let relay_address = SocketAddr::from_str("127.0.0.1:3031").unwrap();
     let relay = Relay::new(relay_address, "Relay1".to_string());
-    let relay_descriptor = relay.get_relay_descriptor();
 
     tokio::spawn(async move {
         relay.start(directory_address).await.unwrap();
@@ -40,35 +39,132 @@ async fn main() {
 
     let relay_address_3 = SocketAddr::from_str("127.0.0.1:3033").unwrap();
     let relay_3 = Relay::new(relay_address_3, "Relay3".to_string());
+    let relay_descriptor_3 = relay_3.get_relay_descriptor();
 
     tokio::spawn(async move {
         relay_3.start(directory_address).await.unwrap();
     });
 
-    let user = User::new("User".to_string(), vec![7, 8, 9]);
+    let relay_address_4 = SocketAddr::from_str("127.0.0.1:3034").unwrap();
+    let relay_4 = Relay::new(relay_address_4, "Relay4".to_string());
+
+    tokio::spawn(async move {
+        relay_4.start(directory_address).await.unwrap();
+    });
+
+    let relay_address_5 = SocketAddr::from_str("127.0.0.1:3035").unwrap();
+    let relay_5 = Relay::new(relay_address_5, "Relay5".to_string());
+
+    tokio::spawn(async move {
+        relay_5.start(directory_address).await.unwrap();
+    });
+
+    let relay_address_6 = SocketAddr::from_str("127.0.0.1:3036").unwrap();
+    let relay_6 = Relay::new(relay_address_6, "Relay6".to_string());
+    let rendezvous_point_descriptor = relay_6.get_relay_descriptor();
+
+    tokio::spawn(async move {
+        relay_6.start(directory_address).await.unwrap();
+    });
+
+    let mut user = User::new("User".to_string());
+    let user_2 = User::new("User2".to_string());
+    let introduction_id = Uuid::new_v4();
+    let rendezvous_cookie = Uuid::new_v4();
+    let stream_id = Uuid::new_v4();
+    let introduction_rsa_public = user.get_user_descriptor().rsa_public;
 
     tokio::spawn(async move {
         user.start(directory_address).await.unwrap();
         user.fetch_relays(directory_address).await.unwrap();
-        user.connect_to_relay(relay_descriptor).await.unwrap();
         let circuit_id = Uuid::new_v4();
-        user.send_create_to_relay(relay_address, circuit_id)
+        user.establish_circuit(circuit_id, relay_address, relay_address_2, relay_address_3)
             .await
             .unwrap();
-        user.listen_for_event(Event(PayloadType::Created, relay_address))
+        user.send_establish_introduction_to_relay(relay_address, introduction_id, circuit_id)
             .await
             .unwrap();
-        user.send_extend_to_relay(relay_address, relay_address_2, circuit_id)
+        user.listen_for_event(Event(PayloadType::EstablishedIntroduction, relay_address))
             .await
             .unwrap();
-        user.listen_for_event(Event(PayloadType::Extended, relay_address))
+        user.add_introduction_point(introduction_id, relay_address_3);
+        user.update_introduction_points(directory_address)
             .await
             .unwrap();
-        user.send_extend_to_relay(relay_address, relay_address_3, circuit_id)
+        user.listen_for_event(Event(PayloadType::Introduce2, relay_address))
             .await
             .unwrap();
-        user.listen_for_event(Event(PayloadType::Extended, relay_address))
+        let new_circuit_id = user.get_circuit_id_for_rendezvous(rendezvous_cookie).await;
+        user.establish_circuit(
+            new_circuit_id,
+            relay_address_3,
+            relay_address_2,
+            relay_address_6,
+        )
+        .await
+        .unwrap();
+        user.send_rendezvous1_to_relay(relay_address_3, rendezvous_cookie, new_circuit_id)
             .await
+            .unwrap();
+    });
+
+    sleep(Duration::from_secs(2));
+    println!(" * . * . * . *");
+
+    tokio::spawn(async move {
+        user_2.start(directory_address).await.unwrap();
+        user_2.fetch_relays(directory_address).await.unwrap();
+        let circuit_id = Uuid::new_v4();
+        user_2
+            .establish_circuit(
+                circuit_id,
+                relay_address_4,
+                relay_address_5,
+                relay_address_6,
+            )
+            .await
+            .unwrap();
+        user_2
+            .send_establish_rendezvous_to_relay(relay_address_4, rendezvous_cookie, circuit_id)
+            .await
+            .unwrap();
+        user_2
+            .listen_for_event(Event(PayloadType::EstablishedRendezvous, relay_address_4))
+            .await
+            .unwrap();
+        user_2
+            .send_begin_to_relay(relay_address_4, circuit_id, stream_id, relay_descriptor_3)
+            .await
+            .unwrap();
+        user_2
+            .listen_for_event(Event(PayloadType::Connected, relay_address_4))
+            .await
+            .unwrap();
+        user_2
+            .send_introduce1_to_relay(
+                relay_address_4,
+                introduction_id,
+                stream_id,
+                rendezvous_point_descriptor,
+                rendezvous_cookie,
+                introduction_rsa_public,
+                circuit_id,
+            )
+            .await
+            .unwrap();
+        user_2
+            .listen_for_event(Event(PayloadType::IntroduceAck, relay_address_4))
+            .await
+            .unwrap();
+        user_2
+            .listen_for_event(Event(PayloadType::Rendezvous2, relay_address_4))
+            .await
+            .unwrap();
+        let data = "Hello, world!".as_bytes().to_vec();
+        user_2
+            .send_data_to_relay(relay_address_4, rendezvous_cookie, circuit_id, data)
+            .await
+            .unwrap();
     });
 
     loop {}

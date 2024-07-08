@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct EstablishIntroPayload {
-    pub introduction_id: uuid::Uuid,
+pub struct Rendezvous2Payload {
+    pub rendezvous_cookie: uuid::Uuid,
+    pub dh_key: Vec<u8>,
 }

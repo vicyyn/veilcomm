@@ -3,6 +3,7 @@ use log::{error, info};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use uuid::Uuid;
 
 use crate::relay::RelayDescriptor;
 use crate::user::UserDescriptor;
@@ -36,6 +37,7 @@ impl Directory {
                     .service(publish_relay)
                     .service(get_users)
                     .service(publish_user)
+                    .service(update_user_introduction_points)
             })
             .disable_signals()
             .bind(address)
@@ -70,6 +72,23 @@ async fn get_users(data: web::Data<Arc<Mutex<Vec<UserDescriptor>>>>) -> impl Res
     info!("Fetching all users");
     let users = data.lock().await;
     HttpResponse::Ok().json(&*users)
+}
+
+#[post("/users/{user_id}/introduction_points")]
+async fn update_user_introduction_points(
+    user_id: web::Path<Uuid>,
+    introduction_points: web::Json<Vec<(Uuid, SocketAddr)>>,
+    data: web::Data<Arc<Mutex<Vec<UserDescriptor>>>>,
+) -> impl Responder {
+    info!("Updating introduction points for user {}", user_id);
+    let mut users = data.lock().await;
+    for user in users.iter_mut() {
+        if user.id == *user_id {
+            user.introduction_points = introduction_points.into_inner();
+            return HttpResponse::Ok().finish();
+        }
+    }
+    HttpResponse::NotFound().finish()
 }
 
 #[post("/users")]
