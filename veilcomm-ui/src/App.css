@@ -1,0 +1,40 @@
+.App {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.graph-container {
+  flex: 1;
+  border: 1px solid #ccc;
+  margin-bottom: 20px;
+}
+
+.controls-container {
+  display: flex;
+  justify-content: space-around;
+  padding: 20px;
+}
+
+.start-section,
+.operations-section {
+  width: 45%;
+}
+
+input,
+select,
+button {
+  margin: 5px 0;
+  padding: 5px;
+}
+
+button {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #45a049;
+}

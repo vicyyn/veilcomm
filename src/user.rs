@@ -3,9 +3,9 @@ use crate::relay::RelayDescriptor;
 use crate::relay_cell::RelayCell;
 use crate::utils::{generate_random_aes_key, get_handshake_from_onion_skin, Connections};
 use crate::{
-    decrypt_buffer_with_aes, deserialize_payload_with_aes_keys, encrypt_buffer_with_aes,
-    serialize_payload_with_aes_keys, EstablishIntroductionPayload, EstablishRendezvousPayload,
-    Event, Introduce1Payload, Payload, PayloadType,
+    decrypt_buffer_with_aes, deserialize_payload_with_aes_keys, directory_address,
+    encrypt_buffer_with_aes, serialize_payload_with_aes_keys, EstablishIntroductionPayload,
+    EstablishRendezvousPayload, Event, Introduce1Payload, Payload, PayloadType,
 };
 use anyhow::Result;
 use log::{error, info};
@@ -42,7 +42,7 @@ pub struct ConnectedUser {
 }
 
 pub struct User {
-    user_descriptor: UserDescriptor,
+    pub user_descriptor: UserDescriptor,
     fetched_relays: Mutex<Vec<RelayDescriptor>>,
     connections: Connections,
     keys: Arc<UserKeys>,
@@ -58,10 +58,12 @@ impl User {
         info!("Creating new user: {:?}", nickname);
         let (events_sender, events_receiver) = tokio::sync::mpsc::channel(100);
         let rsa = Rsa::generate(2048).unwrap();
+        let id = Uuid::new_v4();
+        info!("User ID: {:?}", id);
         Self {
             user_descriptor: UserDescriptor {
                 nickname,
-                id: Uuid::new_v4(),
+                id,
                 rsa_public: rsa.public_key_to_pem().unwrap(),
                 introduction_points: Vec::new(),
             },
@@ -89,12 +91,12 @@ impl User {
         self.user_descriptor.clone()
     }
 
-    pub async fn start(&self, directory_address: SocketAddr) -> Result<()> {
+    pub async fn start(&self) -> Result<()> {
         let client = reqwest::Client::new();
         let url = format!(
             "http://{}:{}/users",
-            directory_address.ip(),
-            directory_address.port()
+            directory_address().ip(),
+            directory_address().port()
         );
         info!(
             "{} Registering user with directory server at URL: {}",
@@ -121,12 +123,12 @@ impl User {
     }
 
     /// Fetch all relays from the directory server
-    pub async fn fetch_relays(&self, directory_address: SocketAddr) -> Result<()> {
+    pub async fn fetch_relays(&self) -> Result<()> {
         let client = reqwest::Client::new();
         let url = format!(
             "http://{}:{}/relays",
-            directory_address.ip(),
-            directory_address.port()
+            directory_address().ip(),
+            directory_address().port()
         );
         info!(
             "{} fetching relays from directory server at URL: {}",
@@ -357,6 +359,30 @@ impl User {
             payload: serde_json::to_vec(&create_payload)?,
         };
         let mut connections_lock = self.connections.lock().await;
+        if let None = connections_lock.get_mut(&relay_address) {
+            info!(
+                "{} connecting to relay {}",
+                self.user_descriptor.nickname, relay_descriptor.nickname
+            );
+            let stream = TcpStream::connect(relay_descriptor.address).await?;
+            info!(
+                "{} connected to relay {}",
+                self.user_descriptor.nickname, relay_descriptor.nickname
+            );
+            let (read, write) = stream.into_split();
+            let write = Arc::new(Mutex::new(write));
+            connections_lock.insert(relay_address, write);
+            Self::handle_read(
+                read,
+                self.keys.clone(),
+                self.events_sender.clone(),
+                self.circuits.clone(),
+                self.handshakes.clone(),
+                self.connected_users.clone(),
+                self.user_descriptor.nickname.clone(),
+                relay_descriptor.nickname.clone(),
+            );
+        };
         let stream = connections_lock.get_mut(&relay_address).unwrap();
         stream
             .lock()
@@ -618,12 +644,12 @@ impl User {
         Ok(())
     }
 
-    pub async fn update_introduction_points(&self, directory_address: SocketAddr) -> Result<()> {
+    pub async fn update_introduction_points(&self) -> Result<()> {
         let client = reqwest::Client::new();
         let url = format!(
             "http://{}:{}/users/{}/introduction_points",
-            directory_address.ip(),
-            directory_address.port(),
+            directory_address().ip(),
+            directory_address().port(),
             self.user_descriptor.id
         );
         info!(

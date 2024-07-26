@@ -1,5 +1,5 @@
 use crate::{
-    decrypt_buffer_with_aes, encrypt_buffer_with_aes,
+    decrypt_buffer_with_aes, directory_address, encrypt_buffer_with_aes,
     payloads::{self, CreatePayload},
     utils::{get_handshake_from_onion_skin, Connections},
     ConnectedPayload, Payload, PayloadType, RelayCell,
@@ -79,7 +79,7 @@ impl Relay {
     }
 
     /// Start the relay server
-    pub async fn start(&self, directory_address: SocketAddr) -> Result<()> {
+    pub async fn start(&self) -> Result<()> {
         info!(
             "Starting the relay server at {}",
             self.relay_descriptor.address
@@ -89,8 +89,8 @@ impl Relay {
         let client = reqwest::Client::new();
         let url = format!(
             "http://{}:{}/relays",
-            directory_address.ip(),
-            directory_address.port()
+            directory_address().ip(),
+            directory_address().port()
         );
 
         info!("Registering relay with directory server at {}", url);
@@ -108,37 +108,49 @@ impl Relay {
         let listener = TcpListener::bind(self.relay_descriptor.address).await?;
         info!("TCP server listening on {}", self.relay_descriptor.address);
 
-        loop {
-            let keys = self.keys.clone();
-            let handshakes = self.handshakes.clone();
-            let connections = self.connections.clone();
-            let nickname = self.relay_descriptor.nickname.clone();
-            let circuits_sockets = self.circuits_sockets.clone();
-            let circuits_map = self.circuits_map.clone();
-            let rendezvous_points = self.rendezvous_points.clone();
-            let introduction_points = self.introduction_points.clone();
-            let streams = self.streams.clone();
+        let keys = self.keys.clone();
+        let handshakes = self.handshakes.clone();
+        let connections = self.connections.clone();
+        let nickname = self.relay_descriptor.nickname.clone();
+        let circuits_sockets = self.circuits_sockets.clone();
+        let circuits_map = self.circuits_map.clone();
+        let rendezvous_points = self.rendezvous_points.clone();
+        let introduction_points = self.introduction_points.clone();
+        let streams = self.streams.clone();
 
-            let (stream, addr) = listener.accept().await?;
-            info!("Accepted connection from {}", addr);
-            let (read, write) = stream.into_split();
-            let write = Arc::new(Mutex::new(write));
-            connections.lock().await.insert(addr, write.clone());
-            Self::handle_read(
-                read,
-                write,
-                addr,
-                connections,
-                keys,
-                handshakes,
-                circuits_sockets,
-                circuits_map,
-                rendezvous_points,
-                introduction_points,
-                streams,
-                nickname,
-            );
-        }
+        tokio::spawn(async move {
+            loop {
+                let keys = keys.clone();
+                let handshakes = handshakes.clone();
+                let connections = connections.clone();
+                let circuits_sockets = circuits_sockets.clone();
+                let circuits_map = circuits_map.clone();
+                let rendezvous_points = rendezvous_points.clone();
+                let introduction_points = introduction_points.clone();
+                let streams = streams.clone();
+                let (stream, addr) = listener.accept().await.unwrap();
+                info!("Accepted connection from {}", addr);
+                let (read, write) = stream.into_split();
+                let write = Arc::new(Mutex::new(write));
+                connections.lock().await.insert(addr, write.clone());
+                Self::handle_read(
+                    read,
+                    write,
+                    addr,
+                    connections,
+                    keys,
+                    handshakes,
+                    circuits_sockets,
+                    circuits_map,
+                    rendezvous_points,
+                    introduction_points,
+                    streams,
+                    nickname.clone(),
+                );
+            }
+        });
+
+        Ok(())
     }
 
     pub fn handle_read(
