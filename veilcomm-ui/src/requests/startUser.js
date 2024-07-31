@@ -1,6 +1,8 @@
+import { toast } from "react-toastify";
+
 async function startUser(userNickname) {
   if (!userNickname) {
-    alert('Please enter a nickname for the new user');
+    toast.error('Please enter a nickname for the new user');
     return;
   }
   try {
@@ -12,13 +14,13 @@ async function startUser(userNickname) {
       body: JSON.stringify({ nickname: userNickname }),
     });
     if (response.ok) {
-      alert('User started successfully');
+      toast.success('User started successfully');
     } else {
-      alert('Failed to start user');
+      toast.error('Failed to start user');
     }
   } catch (error) {
     console.error('Error:', error);
-    alert('An error occurred while starting the user');
+    toast.error('An error occurred while starting the user');
   }
 };
 

@@ -1,6 +1,7 @@
+import { toast } from "react-toastify";
 async function startRelay(relayNickname) {
-  if (relayNickname) {
-    alert('Please enter both nickname and address for the new relay');
+  if (!relayNickname) {
+    toast.error('Please enter nickname for the new relay');
     return;
   }
   try {
@@ -14,13 +15,13 @@ async function startRelay(relayNickname) {
       }),
     });
     if (response.ok) {
-      alert('Relay started successfully');
+      toast.success('Relay started successfully');
     } else {
-      alert('Failed to start relay');
+      toast.error('Failed to start relay');
     }
   } catch (error) {
     console.error('Error:', error);
-    alert('An error occurred while starting the relay');
+    toast.error('An error occurred while starting the relay');
   }
 };
 

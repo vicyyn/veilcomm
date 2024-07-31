@@ -1,23 +1,30 @@
-async function sendExtend(user, relay, extendRelay) {
+import { toast } from "react-toastify";
+
+async function sendExtend(user, relay, extendRelay, circuit_id) {
+  if (!user || !relay || !extendRelay || !circuit_id) {
+    toast.error('Please select a user, relay, extend relay, and circuit to send extend');
+    return;
+  }
   try {
-    const response = await fetch(`http://127.0.0.1:8081/users/${user.id}/send_extend_to_relay/`, {
+    const response = await fetch(`http://127.0.0.1:8081/users/${user.id}/send_extend_to_relay`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         relay_socket: relay.address,
-        extend_to: extendRelay.address
+        extend_to: extendRelay.address,
+        circuit_id: circuit_id
       }),
     });
     if (response.ok) {
-      alert('Extend sent successfully');
+      toast.success('Extend sent successfully');
     } else {
-      alert('Failed to send extend');
+      toast.error('Failed to send extend');
     }
   } catch (error) {
     console.error('Error:', error);
-    alert('An error occurred while sending extend');
+    toast.error('An error occurred while sending extend');
   }
 };
 

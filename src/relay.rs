@@ -33,6 +33,7 @@ pub struct RelayKeys {
 
 pub struct Relay {
     relay_descriptor: RelayDescriptor,
+    logs: Arc<Mutex<Vec<String>>>,
     connections: Connections,
     handshakes: Arc<Mutex<HashMap<Uuid, Vec<u8>>>>,
     keys: Arc<RelayKeys>,
@@ -49,6 +50,10 @@ impl Relay {
         self.relay_descriptor.clone()
     }
 
+    pub async fn get_logs(&self) -> Vec<String> {
+        self.logs.lock().await.clone()
+    }
+
     pub fn new(address: SocketAddr, nickname: String) -> Self {
         info!(
             "Creating new relay with nickname: {} at address: {}",
@@ -58,9 +63,10 @@ impl Relay {
         Self {
             relay_descriptor: RelayDescriptor {
                 address,
-                nickname,
+                nickname: nickname.clone(),
                 rsa_public: rsa.public_key_to_pem().unwrap(),
             },
+            logs: Arc::new(Mutex::new(Vec::new())),
             connections: Arc::new(Mutex::new(HashMap::new())),
             keys: Arc::new(RelayKeys {
                 rsa_private: rsa,
@@ -84,6 +90,10 @@ impl Relay {
             "Starting the relay server at {}",
             self.relay_descriptor.address
         );
+        self.logs
+            .lock()
+            .await
+            .push("Starting relay server".to_string());
 
         // Register with the directory server
         let client = reqwest::Client::new();
@@ -94,6 +104,10 @@ impl Relay {
         );
 
         info!("Registering relay with directory server at {}", url);
+        self.logs.lock().await.push(format!(
+            "Registering relay with directory server at {}",
+            url
+        ));
         let response = client
             .post(&url)
             .json(&self.relay_descriptor)
@@ -104,9 +118,17 @@ impl Relay {
             .context("Registration request returned error")?;
 
         info!("Registration successful with status: {}", response.status());
+        self.logs.lock().await.push(format!(
+            "Registration successful with status: {}",
+            response.status()
+        ));
 
         let listener = TcpListener::bind(self.relay_descriptor.address).await?;
         info!("TCP server listening on {}", self.relay_descriptor.address);
+        self.logs.lock().await.push(format!(
+            "TCP server listening on {}",
+            self.relay_descriptor.address
+        ));
 
         let keys = self.keys.clone();
         let handshakes = self.handshakes.clone();
@@ -117,6 +139,7 @@ impl Relay {
         let rendezvous_points = self.rendezvous_points.clone();
         let introduction_points = self.introduction_points.clone();
         let streams = self.streams.clone();
+        let logs = self.logs.clone();
 
         tokio::spawn(async move {
             loop {
@@ -130,6 +153,10 @@ impl Relay {
                 let streams = streams.clone();
                 let (stream, addr) = listener.accept().await.unwrap();
                 info!("Accepted connection from {}", addr);
+                logs.lock()
+                    .await
+                    .push(format!("Accepted connection from {}", addr));
+
                 let (read, write) = stream.into_split();
                 let write = Arc::new(Mutex::new(write));
                 connections.lock().await.insert(addr, write.clone());
@@ -146,6 +173,7 @@ impl Relay {
                     introduction_points,
                     streams,
                     nickname.clone(),
+                    logs.clone(),
                 );
             }
         });
@@ -166,6 +194,7 @@ impl Relay {
         introduction_points: Arc<Mutex<HashMap<Uuid, Uuid>>>,
         streams: Arc<Mutex<HashMap<Uuid, SocketAddr>>>,
         nickname: String,
+        logs: Arc<Mutex<Vec<String>>>,
     ) {
         tokio::spawn(async move {
             loop {
@@ -174,6 +203,9 @@ impl Relay {
                     Ok(0) => {}
                     Ok(n) => {
                         info!("{} Read {} bytes", nickname.clone(), n);
+                        logs.lock()
+                            .await
+                            .push(format!("{} Read {} bytes", nickname.clone(), n));
                         // deserialize relay cell
                         let relay_cell = if let Ok(relay_cell) =
                             serde_json::from_slice::<RelayCell>(&buffer[0..n])
@@ -181,9 +213,16 @@ impl Relay {
                             relay_cell
                         } else {
                             error!("Failed to deserialize relay cell coming from {}", addr);
+                            logs.lock().await.push(format!(
+                                "Failed to deserialize relay cell coming from {}",
+                                addr
+                            ));
                             continue;
                         };
                         info!("{} Received relay cell", nickname.clone());
+                        logs.lock()
+                            .await
+                            .push(format!("{} Received relay cell", nickname.clone()));
 
                         // check if there's a next relay
                         let mut circuits_map_lock = circuits_map.lock().await;
@@ -209,6 +248,10 @@ impl Relay {
                                 {
                                     if payload.get_type() == PayloadType::Data {
                                         info!("{} forwarding data payload", nickname.clone());
+                                        logs.lock().await.push(format!(
+                                            "{} forwarding data payload",
+                                            nickname.clone()
+                                        ));
                                         let socket =
                                             circuits_sockets_lock.get(next_circuit_id).unwrap();
                                         let sender = connections_lock.get_mut(&socket).unwrap();
@@ -229,12 +272,21 @@ impl Relay {
                                             .await
                                             .unwrap();
                                         info!("{} forwarded data payload", nickname.clone());
+                                        logs.lock().await.push(format!(
+                                            "{} forwarded data payload",
+                                            nickname.clone()
+                                        ));
                                     } else {
                                         error!(
                                             "{} expected data payload, got {:?} payload",
                                             nickname.clone(),
                                             payload.get_type()
                                         );
+                                        logs.lock().await.push(format!(
+                                            "{} expected data payload, got {:?} payload",
+                                            nickname.clone(),
+                                            payload.get_type()
+                                        ));
                                     }
                                 } else {
                                     let relay_cell = RelayCell {
@@ -248,6 +300,10 @@ impl Relay {
                                         "{} forwarding relay cell to next relay",
                                         nickname.clone()
                                     );
+                                    logs.lock().await.push(format!(
+                                        "{} forwarding relay cell to next relay",
+                                        nickname.clone()
+                                    ));
                                     connection
                                         .lock()
                                         .await
@@ -270,9 +326,17 @@ impl Relay {
                                 "Decrypted payload with handshake for circuit {}",
                                 relay_cell.circuit_id
                             );
+                            logs.lock().await.push(format!(
+                                "Decrypted payload with handshake for circuit {}",
+                                relay_cell.circuit_id
+                            ));
                             serde_json::from_slice::<Payload>(&decrypted_payload).unwrap()
                         } else {
                             info!("No handshake found for circuit {}", relay_cell.circuit_id);
+                            logs.lock().await.push(format!(
+                                "No handshake found for circuit {}",
+                                relay_cell.circuit_id
+                            ));
                             if let Ok(payload) =
                                 serde_json::from_slice::<Payload>(&relay_cell.payload)
                             {
@@ -289,6 +353,10 @@ impl Relay {
                                             "Forwarding payload back to circuit {}",
                                             next_circuit_id
                                         );
+                                        logs.lock().await.push(format!(
+                                            "Forwarding payload back to circuit {}",
+                                            next_circuit_id
+                                        ));
                                         let handshake =
                                             handshakes_lock.get(&next_circuit_id).unwrap();
                                         let encrypted_payload = encrypt_buffer_with_aes(
@@ -307,11 +375,18 @@ impl Relay {
                                             .await
                                             .unwrap();
                                         info!("Forwarded payload to previous relay");
+                                        logs.lock().await.push(
+                                            "Forwarded payload to previous relay".to_string(),
+                                        );
                                     } else {
                                         error!("direction is wrong, expected false, got true for circuit {} coming from {}",
                                             relay_cell.circuit_id,
                                             addr
                                         );
+                                        logs.lock().await.push(format!("direction is wrong, expected false, got true for circuit {} coming from {}",
+                                            relay_cell.circuit_id,
+                                            addr
+                                        ));
                                     }
                                     continue;
                                 } else {
@@ -319,6 +394,10 @@ impl Relay {
                                         "no circuit found for circuit {} coming from {}",
                                         relay_cell.circuit_id, addr
                                     );
+                                    logs.lock().await.push(format!(
+                                        "no circuit found for circuit {} coming from {}",
+                                        relay_cell.circuit_id, addr
+                                    ));
                                     continue;
                                 }
                             }
@@ -329,6 +408,11 @@ impl Relay {
                             nickname.clone(),
                             payload.get_type()
                         );
+                        logs.lock().await.push(format!(
+                            "{} Received payload: {:?}",
+                            nickname.clone(),
+                            payload.get_type()
+                        ));
 
                         match payload {
                             Payload::Create(create_payload) => {
@@ -344,16 +428,26 @@ impl Relay {
                                     "Adding a new circuit with ID: {}",
                                     relay_cell.circuit_id.clone()
                                 );
+                                logs.lock().await.push(format!(
+                                    "Adding a new circuit with ID: {}",
+                                    relay_cell.circuit_id.clone()
+                                ));
 
                                 if circuits_sockets_lock
                                     .insert(relay_cell.circuit_id, addr)
                                     .is_some()
                                 {
                                     error!("Circuit ID already exists");
+                                    logs.lock()
+                                        .await
+                                        .push("Circuit ID already exists".to_string());
                                     continue;
                                 }
 
                                 info!("Sending created payload");
+                                logs.lock()
+                                    .await
+                                    .push("Sending created payload".to_string());
                                 let created_payload = Payload::Created(payloads::CreatedPayload {
                                     dh_key: keys.dh.public_key().to_vec(),
                                 });
@@ -372,6 +466,7 @@ impl Relay {
                                     .await
                                     .unwrap();
                                 info!("Sent created payload");
+                                logs.lock().await.push("Sent created payload".to_string());
                             }
                             Payload::Created(created_payload) => {
                                 if let Some((next_circuit_id, direction)) =
@@ -385,6 +480,10 @@ impl Relay {
                                             "Forwarding extended payload back to circuit {}",
                                             next_circuit_id
                                         );
+                                        logs.lock().await.push(format!(
+                                            "Forwarding extended payload back to circuit {}",
+                                            next_circuit_id
+                                        ));
                                         let extended_payload =
                                             Payload::Extended(payloads::ExtendedPayload {
                                                 address: addr,
@@ -408,11 +507,18 @@ impl Relay {
                                             .await
                                             .unwrap();
                                         info!("Forwarded payload to previous relay");
+                                        logs.lock().await.push(
+                                            "Forwarded payload to previous relay".to_string(),
+                                        );
                                     } else {
                                         error!("direction is wrong, expected false, got true for circuit {} coming from {}",
                                             relay_cell.circuit_id,
                                             addr
                                         );
+                                        logs.lock().await.push(format!("direction is wrong, expected false, got true for circuit {} coming from {}",
+                                            relay_cell.circuit_id,
+                                            addr
+                                        ));
                                     }
                                 }
                             }
@@ -421,9 +527,16 @@ impl Relay {
                                 // Check if the circuit is already extended
                                 if let Some(_) = circuits_map_lock.get(&relay_cell.circuit_id) {
                                     error!("Circuit already extended");
+                                    logs.lock()
+                                        .await
+                                        .push("Circuit already extended".to_string());
                                     continue;
                                 }
                                 info!("Extending circuit with ID: {}", relay_cell.circuit_id);
+                                logs.lock().await.push(format!(
+                                    "Extending circuit with ID: {}",
+                                    relay_cell.circuit_id
+                                ));
                                 let new_circuit_id = Uuid::new_v4();
                                 circuits_map_lock
                                     .insert(relay_cell.circuit_id, (new_circuit_id, true));
@@ -457,12 +570,20 @@ impl Relay {
                                         .unwrap();
                                 } else {
                                     warn!("Next relay not connected, attempting to connect");
+                                    logs.lock().await.push(
+                                        "Next relay not connected, attempting to connect"
+                                            .to_string(),
+                                    );
                                     match tokio::net::TcpStream::connect(next_relay).await {
                                         Ok(next_relay_stream) => {
                                             info!(
                                                 "Connected to next relay at address {}",
                                                 next_relay
                                             );
+                                            logs.lock().await.push(format!(
+                                                "Connected to next relay at address {}",
+                                                next_relay
+                                            ));
                                             let new_addr = next_relay_stream.local_addr().unwrap();
                                             let (next_read, next_write) =
                                                 next_relay_stream.into_split();
@@ -480,6 +601,7 @@ impl Relay {
                                                 introduction_points.clone(),
                                                 streams.clone(),
                                                 nickname.clone(),
+                                                logs.clone(),
                                             );
                                             connections_lock.insert(next_relay, next_write.clone());
                                             next_write
@@ -491,12 +613,20 @@ impl Relay {
                                                 .await
                                                 .unwrap();
                                             info!("Forwarded create payload to next relay");
+                                            logs.lock().await.push(
+                                                "Forwarded create payload to next relay"
+                                                    .to_string(),
+                                            );
                                         }
                                         _ => {
                                             error!(
                                                 "Failed to connect to next relay {}",
                                                 next_relay
                                             );
+                                            logs.lock().await.push(format!(
+                                                "Failed to connect to next relay {}",
+                                                next_relay
+                                            ));
                                             continue;
                                         }
                                     }
@@ -531,6 +661,11 @@ impl Relay {
                                     )
                                     .await
                                     .unwrap();
+                                info!("Established rendezvous, cookie: {}", rendezvous_cookie);
+                                logs.lock().await.push(format!(
+                                    "Established rendezvous, cookie: {}",
+                                    rendezvous_cookie
+                                ));
                             }
                             Payload::EstablishIntroduction(establish_introduction) => {
                                 let introduction_id = establish_introduction.introduction_id;
@@ -591,12 +726,20 @@ impl Relay {
                                         .unwrap();
                                 } else {
                                     warn!("Begin relay not connected, attempting to connect");
+                                    logs.lock().await.push(
+                                        "Begin relay not connected, attempting to connect"
+                                            .to_string(),
+                                    );
                                     match tokio::net::TcpStream::connect(begin_relay).await {
                                         Ok(next_relay_stream) => {
                                             warn!(
                                                 "Connected to begin relay at address {}",
                                                 begin_relay
                                             );
+                                            logs.lock().await.push(format!(
+                                                "Connected to begin relay at address {}",
+                                                begin_relay
+                                            ));
                                             streams_lock
                                                 .insert(begin_payload.stream_id, begin_relay);
                                             let new_addr = next_relay_stream.local_addr().unwrap();
@@ -616,6 +759,7 @@ impl Relay {
                                                 introduction_points.clone(),
                                                 streams.clone(),
                                                 nickname.clone(),
+                                                logs.clone(),
                                             );
                                             connections_lock.insert(begin_relay, next_write);
                                             write
@@ -632,6 +776,10 @@ impl Relay {
                                                 "Failed to connect to begin relay {}",
                                                 begin_relay
                                             );
+                                            logs.lock().await.push(format!(
+                                                "Failed to connect to begin relay {}",
+                                                begin_relay
+                                            ));
                                             continue;
                                         }
                                     }
@@ -644,6 +792,9 @@ impl Relay {
 
                                 if let Some(socket) = streams_lock.get(&stream_id) {
                                     info!("{} Stream found", nickname.clone());
+                                    logs.lock()
+                                        .await
+                                        .push(format!("{} Stream found", nickname.clone()));
                                     let connection = connections_lock.get_mut(socket).unwrap();
                                     let introduce1_payload =
                                         Payload::Introduce1(payloads::Introduce1Payload {
@@ -670,8 +821,17 @@ impl Relay {
                                         nickname.clone(),
                                         stream_id
                                     );
+                                    logs.lock().await.push(format!(
+                                        "{} Sent introduce1 payload to stream {}",
+                                        nickname.clone(),
+                                        stream_id
+                                    ));
 
                                     info!("{} Sending introduce ack payload", nickname.clone());
+                                    logs.lock().await.push(format!(
+                                        "{} Sending introduce ack payload",
+                                        nickname.clone()
+                                    ));
 
                                     let introduce_ack_payload =
                                         Payload::IntroduceAck(payloads::IntroduceAckPayload {});
@@ -697,12 +857,20 @@ impl Relay {
                                         .unwrap();
 
                                     info!("{} Sent introduce ack payload", nickname.clone());
+                                    logs.lock().await.push(format!(
+                                        "{} Sent introduce ack payload",
+                                        nickname.clone()
+                                    ));
                                 } else {
                                     warn!("Stream not found");
+                                    logs.lock().await.push("Stream not found".to_string());
                                     if let Some(introduction_circuit_id) =
                                         introduction_points_lock.get(&introduction_id)
                                     {
                                         info!("{} Introduction point found", nickname.clone());
+                                        logs.lock()
+                                            .await
+                                            .push("Introduction point found".to_string());
                                         let introduction_socket = circuits_sockets_lock
                                             .get(introduction_circuit_id)
                                             .expect("Introduction point not found");
@@ -711,6 +879,11 @@ impl Relay {
                                             nickname.clone(),
                                             introduction_socket
                                         );
+                                        logs.lock().await.push(format!(
+                                            "{} Sending introduce2 payload to introduction socket {}",
+                                            nickname.clone(),
+                                            introduction_socket
+                                        ));
                                         let introduce2_payload =
                                             Payload::Introduce2(payloads::Introduce2Payload {
                                                 rendezvous_point_descriptor: introduce1_payload
@@ -741,6 +914,9 @@ impl Relay {
                                             .unwrap();
                                     } else {
                                         error!("{} Introduction point not found", nickname.clone());
+                                        logs.lock()
+                                            .await
+                                            .push("Introduction point not found".to_string());
                                         continue;
                                     }
                                 }
@@ -788,17 +964,24 @@ impl Relay {
                                         .unwrap();
                                 } else {
                                     error!("Rendezvous point not found");
+                                    logs.lock()
+                                        .await
+                                        .push("Rendezvous point not found".to_string());
                                     continue;
                                 }
                             }
                             Payload::Data(_) => {}
                             _ => {
                                 error!("Unhandled payload type");
+                                logs.lock().await.push("Unhandled payload type".to_string());
                             }
                         }
                     }
                     Err(e) => {
                         error!("Failed to read from socket: {}", e);
+                        logs.lock()
+                            .await
+                            .push(format!("Failed to read from socket: {}", e));
                         break;
                     }
                 }

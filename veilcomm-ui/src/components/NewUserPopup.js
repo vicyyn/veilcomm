@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { generateRandomString } from '../utils';
 
 const NewUserPopup = ({ isOpen, onClose, onSubmit, setUpdate }) => {
   const [nickname, setNickname] = useState('');
@@ -9,7 +10,7 @@ const NewUserPopup = ({ isOpen, onClose, onSubmit, setUpdate }) => {
     onSubmit(nickname);
     setNickname('');
     onClose();
-    setUpdate(false);
+    setUpdate(generateRandomString());
   };
 
   if (!isOpen) return null;

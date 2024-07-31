@@ -1,6 +1,14 @@
+import { toast } from "react-toastify";
+
 async function sendCreate(user, relay) {
+  if (!user || !relay) {
+    toast.error('Please select a user and relay to send create');
+    return;
+  }
+
+  console.log(user, relay)
   try {
-    const response = await fetch(`http://127.0.0.1:8081/users/${user.id}/send_create_to_relay/`, {
+    const response = await fetch(`http://127.0.0.1:8081/users/${user.id}/send_create_to_relay`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -10,13 +18,14 @@ async function sendCreate(user, relay) {
       }),
     });
     if (response.ok) {
-      alert('Create sent successfully');
+      toast.success('Create sent successfully');
+      return response.json();
     } else {
-      alert('Failed to send create');
+      toast.error('Failed to send create');
     }
   } catch (error) {
     console.error('Error:', error);
-    alert('An error occurred while sending create');
+    toast.error('An error occurred while sending create');
   }
 };
 

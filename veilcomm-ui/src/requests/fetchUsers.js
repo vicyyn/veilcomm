@@ -7,7 +7,6 @@ async function fetchUsers() {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const data = await response.json();
-    console.log(data)
     const usersWithPositions = data.map(user => ({
       ...user,
       position: generateRandomPosition()

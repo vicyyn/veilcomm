@@ -43,6 +43,7 @@ pub struct ConnectedUser {
 
 pub struct User {
     pub user_descriptor: UserDescriptor,
+    pub logs: Arc<Mutex<Vec<String>>>,
     fetched_relays: Mutex<Vec<RelayDescriptor>>,
     connections: Connections,
     keys: Arc<UserKeys>,
@@ -55,6 +56,7 @@ pub struct User {
 
 impl User {
     pub fn new(nickname: String) -> Self {
+        let logs = Arc::new(Mutex::new(Vec::new()));
         info!("Creating new user: {:?}", nickname);
         let (events_sender, events_receiver) = tokio::sync::mpsc::channel(100);
         let rsa = Rsa::generate(2048).unwrap();
@@ -67,6 +69,7 @@ impl User {
                 rsa_public: rsa.public_key_to_pem().unwrap(),
                 introduction_points: Vec::new(),
             },
+            logs,
             connections: Arc::new(Mutex::new(HashMap::new())),
             fetched_relays: Mutex::new(Vec::new()),
             keys: Arc::new(UserKeys {
@@ -79,6 +82,10 @@ impl User {
             circuits: Arc::new(Mutex::new(HashMap::new())),
             connected_users: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+
+    pub async fn get_logs(&self) -> Vec<String> {
+        self.logs.lock().await.clone()
     }
 
     pub fn add_introduction_point(&mut self, introduction_id: Uuid, address: SocketAddr) {
@@ -102,6 +109,10 @@ impl User {
             "{} Registering user with directory server at URL: {}",
             self.user_descriptor.nickname, url
         );
+        self.logs.lock().await.push(format!(
+            "Registering user with directory server at URL: {}",
+            url
+        ));
         match client.post(&url).json(&self.user_descriptor).send().await {
             Ok(response) => {
                 response.error_for_status_ref()?;
@@ -110,12 +121,20 @@ impl User {
                     self.user_descriptor.nickname,
                     response.status()
                 );
+                self.logs.lock().await.push(format!(
+                    "Registered successfully with status: {}",
+                    response.status()
+                ));
             }
             Err(e) => {
                 error!(
                     "Failed to register user {}: {}",
                     self.user_descriptor.nickname, e
                 );
+                self.logs
+                    .lock()
+                    .await
+                    .push(format!("Failed to register user: {}", e));
                 return Err(e.into());
             }
         }
@@ -153,11 +172,19 @@ impl User {
             "{} connecting to relay {}",
             self.user_descriptor.nickname, relay_discriptor.nickname
         );
+        self.logs
+            .lock()
+            .await
+            .push(format!("Connecting to relay {}", relay_discriptor.nickname));
         let stream = TcpStream::connect(relay_discriptor.address).await?;
         info!(
             "{} connected to relay {}",
             self.user_descriptor.nickname, relay_discriptor.nickname
         );
+        self.logs
+            .lock()
+            .await
+            .push(format!("Connected to relay {}", relay_discriptor.nickname));
         let (read, write) = stream.into_split();
         let write = Arc::new(Mutex::new(write));
         self.connections
@@ -173,6 +200,7 @@ impl User {
             self.connected_users.clone(),
             self.user_descriptor.nickname.clone(),
             relay_discriptor.nickname.clone(),
+            self.logs.clone(),
         );
         Ok(())
     }
@@ -186,6 +214,7 @@ impl User {
         connected_users: Arc<Mutex<Vec<ConnectedUser>>>,
         nickname: String,
         relay_nickname: String,
+        logs: Arc<Mutex<Vec<String>>>,
     ) {
         let relay_address = read.peer_addr().unwrap();
         tokio::spawn(async move {
@@ -200,6 +229,10 @@ impl User {
                             "{} received a relay cell from {:?} for circuit id {}",
                             nickname, relay_nickname, relay_cell.circuit_id
                         );
+                        logs.lock().await.push(format!(
+                            "Received a relay cell from {:?} for circuit id {}",
+                            relay_nickname, relay_cell.circuit_id
+                        ));
                         let mut circuits_lock = circuits.lock().await;
                         let mut handshakes_lock = handshakes.lock().await;
                         let mut connected_users = connected_users.lock().await;
@@ -216,6 +249,9 @@ impl User {
                             serde_json::from_slice(&relay_cell.payload).unwrap()
                         };
                         info!("{} received payload: {:?}", nickname, payload.get_type());
+                        logs.lock()
+                            .await
+                            .push(format!("Received payload: {:?}", payload.get_type()));
                         let payload_type = payload.get_type();
                         match payload {
                             Payload::Created(created_payload) => {
@@ -226,12 +262,20 @@ impl User {
                                     )
                                     .unwrap();
                                 info!("Handshake Successful: {}", hex::encode(&handshake[0..32]));
+                                logs.lock().await.push(format!(
+                                    "Handshake Successful: {}",
+                                    hex::encode(&handshake[0..32])
+                                ));
                                 handshakes_lock.insert(relay_address, handshake);
                                 circuits_lock.insert(relay_cell.circuit_id, vec![relay_address]);
                                 info!(
                                     "{} added a new circuit with ID: {}",
                                     nickname, relay_cell.circuit_id
                                 );
+                                logs.lock().await.push(format!(
+                                    "Added a new circuit with ID: {}",
+                                    relay_cell.circuit_id
+                                ));
                             }
                             Payload::Extended(extended_payload) => {
                                 let handshake = keys
@@ -241,6 +285,10 @@ impl User {
                                     )
                                     .unwrap();
                                 info!("Handshake Successful: {}", hex::encode(&handshake[0..32]));
+                                logs.lock().await.push(format!(
+                                    "Handshake Successful: {}",
+                                    hex::encode(&handshake[0..32])
+                                ));
                                 handshakes_lock.insert(extended_payload.address, handshake);
                                 circuits_lock
                                     .get_mut(&relay_cell.circuit_id)
@@ -250,6 +298,10 @@ impl User {
                                     "{} extended circuit with ID: {} to relay at address: {}",
                                     nickname, relay_cell.circuit_id, extended_payload.address
                                 );
+                                logs.lock().await.push(format!(
+                                    "Extended circuit with ID: {} to relay at address: {}",
+                                    relay_cell.circuit_id, extended_payload.address
+                                ));
                             }
                             Payload::Introduce2(introduce2_payload) => {
                                 let handshake = get_handshake_from_onion_skin(
@@ -262,6 +314,10 @@ impl User {
                                     "Circuit id {} is used for the circuit to the rendezvous point {}",
                                     circuit_id, introduce2_payload.rendezvous_point_descriptor.nickname
                                 );
+                                logs.lock().await.push(format!(
+                                    "Circuit id {} is used for the circuit to the rendezvous point {}",
+                                    circuit_id, introduce2_payload.rendezvous_point_descriptor.nickname
+                                ));
                                 let connected_user = ConnectedUser {
                                     rendezvous_cookie: introduce2_payload.rendezvous_cookie,
                                     circuit_id,
@@ -277,6 +333,10 @@ impl User {
                                     )
                                     .unwrap();
                                 info!("Handshake Successful: {}", hex::encode(&handshake[0..32]));
+                                logs.lock().await.push(format!(
+                                    "Handshake Successful: {}",
+                                    hex::encode(&handshake[0..32])
+                                ));
                                 let connected_user = ConnectedUser {
                                     rendezvous_cookie: rendezvous2_payload.rendezvous_cookie,
                                     circuit_id: relay_cell.circuit_id,
@@ -289,6 +349,10 @@ impl User {
                                     "{} received data from relay at address: {}",
                                     nickname, relay_address
                                 );
+                                logs.lock().await.push(format!(
+                                    "Received data from relay at address: {}",
+                                    relay_address
+                                ));
                                 let connected_user = connected_users
                                     .iter()
                                     .find(|u| u.circuit_id == relay_cell.circuit_id)
@@ -301,23 +365,41 @@ impl User {
                                 info!(
                                     "Received String from user with rendezvous cookie {}: {:?}",
                                     connected_user.rendezvous_cookie,
-                                    String::from_utf8(decrypted_data).unwrap()
+                                    String::from_utf8(decrypted_data.clone()).unwrap()
                                 );
+                                logs.lock().await.push(format!(
+                                    "Received String from user with rendezvous cookie {}: {:?}",
+                                    connected_user.rendezvous_cookie,
+                                    String::from_utf8(decrypted_data).unwrap()
+                                ));
                             }
                             Payload::EstablishedIntroduction(_) => {
                                 info!("{} established an introduction point", nickname);
+                                logs.lock()
+                                    .await
+                                    .push(format!("Established an introduction point"));
                             }
                             Payload::EstablishedRendezvous(_) => {
                                 info!("{} established a rendezvous point", nickname);
+                                logs.lock()
+                                    .await
+                                    .push(format!("Established a rendezvous point"));
                             }
                             Payload::Connected(_) => {
                                 info!("{} connected to a relay", nickname);
+                                logs.lock().await.push(format!("Connected to a relay"));
                             }
                             Payload::IntroduceAck(_) => {
                                 info!("{} received an introduction ack", nickname);
+                                logs.lock()
+                                    .await
+                                    .push(format!("Received an introduction ack"));
                             }
                             _ => {
-                                error!("{} received an unexpected payload", nickname)
+                                error!("{} received an unexpected payload", nickname);
+                                logs.lock()
+                                    .await
+                                    .push(format!("Received an unexpected payload"));
                             }
                         }
                         let _ = events_sender
@@ -349,6 +431,10 @@ impl User {
             "{} sending CREATE payload to: {}",
             self.user_descriptor.nickname, relay_descriptor.nickname
         );
+        self.logs.lock().await.push(format!(
+            "Sending CREATE payload to: {}",
+            relay_descriptor.nickname
+        ));
         let rsa_public = Rsa::public_key_from_pem(&relay_descriptor.rsa_public).unwrap();
         let half_dh_bytes: Vec<u8> = self.keys.dh.public_key().to_vec();
         let aes = generate_random_aes_key();
@@ -364,11 +450,19 @@ impl User {
                 "{} connecting to relay {}",
                 self.user_descriptor.nickname, relay_descriptor.nickname
             );
+            self.logs
+                .lock()
+                .await
+                .push(format!("Connecting to relay {}", relay_descriptor.nickname));
             let stream = TcpStream::connect(relay_descriptor.address).await?;
             info!(
                 "{} connected to relay {}",
                 self.user_descriptor.nickname, relay_descriptor.nickname
             );
+            self.logs
+                .lock()
+                .await
+                .push(format!("Connected to relay {}", relay_descriptor.nickname));
             let (read, write) = stream.into_split();
             let write = Arc::new(Mutex::new(write));
             connections_lock.insert(relay_address, write);
@@ -381,6 +475,7 @@ impl User {
                 self.connected_users.clone(),
                 self.user_descriptor.nickname.clone(),
                 relay_descriptor.nickname.clone(),
+                self.logs.clone(),
             );
         };
         let stream = connections_lock.get_mut(&relay_address).unwrap();
@@ -393,6 +488,10 @@ impl User {
             "{} sent CREATE payload to: {}",
             self.user_descriptor.nickname, relay_descriptor.nickname
         );
+        self.logs.lock().await.push(format!(
+            "Sent CREATE payload to: {}",
+            relay_descriptor.nickname
+        ));
         Ok(())
     }
 
@@ -406,6 +505,10 @@ impl User {
             "Extending circuit from relay at address: {} to relay at address: {}",
             relay_address, relay_address_2
         );
+        self.logs.lock().await.push(format!(
+            "Extending circuit from relay at address: {} to relay at address: {}",
+            relay_address, relay_address_2
+        ));
         let fetched_relays_lock = self.fetched_relays.lock().await;
         let relay_descriptor = fetched_relays_lock
             .iter()
@@ -440,6 +543,10 @@ impl User {
             "Sending EXTEND payload to relay {}",
             relay_descriptor.nickname
         );
+        self.logs.lock().await.push(format!(
+            "Sending EXTEND payload to relay {}",
+            relay_descriptor.nickname
+        ));
         let mut connections_lock = self.connections.lock().await;
         let stream = connections_lock.get_mut(&relay_address).unwrap();
         stream
@@ -448,6 +555,10 @@ impl User {
             .write_all(&serde_json::to_vec(&relay_cell).unwrap())
             .await?;
         info!("Sent EXTEND payload to relay {}", relay_descriptor.nickname);
+        self.logs.lock().await.push(format!(
+            "Sent EXTEND payload to relay {}",
+            relay_descriptor.nickname
+        ));
         Ok(())
     }
 
@@ -461,6 +572,10 @@ impl User {
             "Sending ESTABLISH_INTRO to relay at address: {}",
             relay_address
         );
+        self.logs.lock().await.push(format!(
+            "Sending ESTABLISH_INTRO to relay at address: {}",
+            relay_address
+        ));
         let establish_intro_payload =
             Payload::EstablishRendezvous(EstablishRendezvousPayload { rendezvous_cookie });
         let circuits_lock = self.circuits.lock().await;
@@ -489,6 +604,10 @@ impl User {
             "Sent ESTABLISH_INTRO payload to relay at address: {}",
             relay_address
         );
+        self.logs.lock().await.push(format!(
+            "Sent ESTABLISH_INTRO payload to relay at address: {}",
+            relay_address
+        ));
         Ok(())
     }
 
@@ -502,6 +621,10 @@ impl User {
             "{} Sending ESTABLISH_INTRO to relay at address: {}",
             self.user_descriptor.nickname, relay_address
         );
+        self.logs.lock().await.push(format!(
+            "Sending ESTABLISH_INTRO to relay at address: {}",
+            relay_address
+        ));
         let establish_intro_payload =
             Payload::EstablishIntroduction(EstablishIntroductionPayload {
                 introduction_id,
@@ -533,6 +656,10 @@ impl User {
             "{} Sent ESTABLISH_INTRO payload to relay at address: {}",
             self.user_descriptor.nickname, relay_address
         );
+        self.logs.lock().await.push(format!(
+            "Sent ESTABLISH_INTRO payload to relay at address: {}",
+            relay_address
+        ));
         Ok(())
     }
 
@@ -556,6 +683,10 @@ impl User {
             "{} Sending BEGIN to relay at address: {}",
             self.user_descriptor.nickname, relay_address
         );
+        self.logs.lock().await.push(format!(
+            "Sending BEGIN to relay at address: {}",
+            relay_address
+        ));
         let begin_payload = Payload::Begin(crate::BeginPayload {
             stream_id,
             relay_descriptor,
@@ -586,6 +717,10 @@ impl User {
             "{} Sent BEGIN payload to relay at address: {}",
             self.user_descriptor.nickname, relay_address
         );
+        self.logs.lock().await.push(format!(
+            "Sent BEGIN payload to relay at address: {}",
+            relay_address
+        ));
         Ok(())
     }
 
@@ -603,6 +738,10 @@ impl User {
             "{} Sending INTRODUCE1 to relay at address: {}",
             self.user_descriptor.nickname, relay_address
         );
+        self.logs.lock().await.push(format!(
+            "Sending INTRODUCE1 to relay at address: {}",
+            relay_address
+        ));
         let rsa_public = Rsa::public_key_from_pem(&introduction_rsa_public).unwrap();
         let half_dh_bytes: Vec<u8> = self.keys.dh.public_key().to_vec();
         let aes = generate_random_aes_key();
@@ -641,6 +780,10 @@ impl User {
             "{} Sent INTRODUCE1 payload to relay at address: {}",
             self.user_descriptor.nickname, relay_address
         );
+        self.logs.lock().await.push(format!(
+            "Sent INTRODUCE1 payload to relay at address: {}",
+            relay_address
+        ));
         Ok(())
     }
 
@@ -656,7 +799,10 @@ impl User {
             "{} updating introduction points",
             self.user_descriptor.nickname
         );
-
+        self.logs
+            .lock()
+            .await
+            .push(format!("Updating introduction points"));
         let introduction_points = self.user_descriptor.introduction_points.clone();
         match client.post(&url).json(&introduction_points).send().await {
             Ok(response) => {
@@ -665,12 +811,20 @@ impl User {
                     "{} updated introduction points successfully",
                     self.user_descriptor.nickname,
                 );
+                self.logs
+                    .lock()
+                    .await
+                    .push(format!("Updated introduction points successfully"));
             }
             Err(e) => {
                 error!(
                     "Failed to update introduction points for user {}: {}",
                     self.user_descriptor.nickname, e
                 );
+                self.logs.lock().await.push(format!(
+                    "Failed to update introduction points for user: {}",
+                    e
+                ));
                 return Err(e.into());
             }
         }
@@ -714,6 +868,10 @@ impl User {
             "{} established a circuit with 3 relays, {} {} {}",
             self.user_descriptor.nickname, relay_address_1, relay_address_2, relay_address_3
         );
+        self.logs.lock().await.push(format!(
+            "Established a circuit with 3 relays, {} {} {}",
+            relay_address_1, relay_address_2, relay_address_3
+        ));
         Ok(())
     }
 
@@ -727,6 +885,10 @@ impl User {
             "{} Sending RENDEZVOUS1 to relay at address: {}",
             self.user_descriptor.nickname, relay_address
         );
+        self.logs.lock().await.push(format!(
+            "Sending RENDEZVOUS1 to relay at address: {}",
+            relay_address
+        ));
         let rendezvous1_payload = Payload::Rendezvous1(crate::Rendezvous1Payload {
             rendezvous_cookie,
             dh_key: self.keys.dh.public_key().to_vec(),
@@ -757,6 +919,10 @@ impl User {
             "{} Sent RENDEZVOUS1 payload to relay at address: {}",
             self.user_descriptor.nickname, relay_address
         );
+        self.logs.lock().await.push(format!(
+            "Sent RENDEZVOUS1 payload to relay at address: {}",
+            relay_address
+        ));
         Ok(())
     }
 
@@ -771,6 +937,10 @@ impl User {
             "{} Sending DATA to relay at address: {}",
             self.user_descriptor.nickname, relay_address
         );
+        self.logs.lock().await.push(format!(
+            "Sending DATA to relay at address: {}",
+            relay_address
+        ));
         let user_handshake = self
             .connected_users
             .lock()
@@ -809,6 +979,10 @@ impl User {
             "{} Sent DATA payload to relay at address: {}",
             self.user_descriptor.nickname, relay_address
         );
+        self.logs.lock().await.push(format!(
+            "Sent DATA payload to relay at address: {}",
+            relay_address
+        ));
         Ok(())
     }
 

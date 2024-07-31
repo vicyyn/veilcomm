@@ -27,7 +27,7 @@ async fn main() {
 
     let directory = Directory::new(directory_address());
     directory.start();
-    let api = Api::new(api_address());
+    let api = Api::new();
     api.start();
 
     loop {}

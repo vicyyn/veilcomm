@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { fetchRelays, fetchUsers, startRelay, startUser, sendCreate, sendExtend } from './requests';
-import { RelayCard, UserCard, NewRelayPopup, NewUserPopup } from './components';
+import React, { useState, useEffect, useCallback } from 'react';
+import { fetchRelays, fetchUsers, startRelay, startUser, sendCreate, sendExtend, fetchUserRelays, getUserLogs, getRelayLogs, sendEstablishRendezvous, sendEstablishIntroduction } from './requests';
+import { RelayCard, UserCard, NewRelayPopup, NewUserPopup, DataPopup } from './components';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import Draggable from 'react-draggable';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import './App.css';
+import { FiRefreshCw, FiInfo, FiGithub } from 'react-icons/fi';
+import { generateRandomString } from './utils';
 
 const Dashboard = styled(motion.div)`
   width: 100%;
@@ -17,13 +21,69 @@ const Dashboard = styled(motion.div)`
 `;
 
 const ControlPanel = styled.div`
+  width: 300px;
   position: fixed;
   top: 0;
   right: 0;
   height: 100vh;
   padding: 20px;
   overflow-y: auto;
-  z-index: 900;
+  z-index: 40;
+`;
+
+const Section = styled.div`
+  background-color: white;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+`;
+
+const SectionTitle = styled.h3`
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 18px;
+`;
+
+const ControlPanelContent = styled.div`
+  margin-top: 10px;
+`;
+
+const Button = styled.button`
+  font-size: 18px;
+  margin: 10px 0;
+  padding: 10px;
+  width: 100%;
+`;
+
+const Select = styled.select`
+  font-size: 16px;
+  margin: 10px 0;
+  padding: 5px;
+  width: 100%;
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+`;
+
+const TopButton = styled.button`
+  font-size: 26px;
+  background-color: #FFA500;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  transition: background-color 0.3s, transform 0.3s;
+
+  &:hover {
+    background-color: #FF8C00;
+    transform: scale(1.1);
+  }
 `;
 
 const AppContainer = styled.div`
@@ -32,75 +92,119 @@ const AppContainer = styled.div`
 function App() {
   const [users, setUsers] = useState([]);
   const [relays, setRelays] = useState([]);
-  const [userNickname, setUserNickname] = useState('');
-  const [relayNickname, setRelayNickname] = useState('');
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRelay, setSelectedRelay] = useState(null);
+
+  const [selectedCircuit, setSelectedCircuit] = useState(null);
+  const [selectedSendUser, setSelectedSendUser] = useState(null);
+  const [selectedReceiveRelay, setSelectedReceiveRelay] = useState(null);
+  const [selectedExtendToRelay, setSelectedExtendToRelay] = useState(null);
+  const [selectedCookie, setSelectedCookie] = useState(null);
+  const [selectedIntroduction, setSelectedIntroduction] = useState(null);
+
   const [isNewUserPopupOpen, setIsNewUserPopupOpen] = useState(false);
   const [isNewRelayPopupOpen, setIsNewRelayPopupOpen] = useState(false);
-  const [update, setUpdate] = useState(false);
+  const [selectedData, setSelectedData] = useState(null);
+  const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
+  const [circuits, setCircuits] = useState([]);
+  const [cookies, setCookies] = useState([]);
+  const [introductions, setIntroductions] = useState([]);
+  const [update, setUpdate] = useState("");
+  const [relaysLogs, setRelaysLogs] = useState([]);
+  const [usersLogs, setUsersLogs] = useState([]);
 
   useEffect(() => {
     async function fetchData() {
       let users = await fetchUsers();
-      console.log('users:', users);
       setUsers(users);
+      console.log(users)
       let relays = await fetchRelays();
       setRelays(relays);
+      fetchUserRelays(users)
+      let userLogs = await getUserLogs();
+      setUsersLogs(userLogs);
+      let relayLogs = await getRelayLogs();
+      setRelaysLogs(relayLogs);
     }
     fetchData();
   }, [update]);
 
-  const fetchUserRelays = async (userId) => {
-    if (!userId) {
-      alert('Please select a user first');
+  const handleCardClick = useCallback((data, event) => {
+    event.stopPropagation(); // Prevent the click from immediately closing the popup
+    setSelectedData(data);
+    setPopupPosition({ x: event.clientX, y: event.clientY });
+  }, []);
+
+  const getLogsForSelectedData = () => {
+    if (selectedData.hasOwnProperty('id')) {
+      return usersLogs.filter(log => log.nickname === selectedData.nickname)[0].logs;
+    } else {
+      return relaysLogs.filter(log => log.nickname === selectedData.nickname)[0].logs;
+    }
+  }
+
+  const handleClosePopup = useCallback(() => {
+    setSelectedData(null);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (selectedData) {
+        handleClosePopup();
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [selectedData, handleClosePopup]);
+
+  const handleSendCreate = () => {
+    if (!selectedSendUser || !selectedReceiveRelay) {
+      toast.error('Please select a user and a relay');
       return;
     }
-
-    try {
-      const response = await fetch(`http://127.0.0.1:8081/users/${userId}/fetch_relays`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      alert('User relays fetched successfully');
-    } catch (error) {
-      console.error('Error fetching user relays:', error);
-      alert('Failed to fetch user relays');
-    }
+    sendCreate(selectedSendUser, selectedReceiveRelay).then((circuit_id) => {
+      setCircuits([...circuits, circuit_id]);
+      setUpdate(generateRandomString());
+    });
   };
 
-  const handleSend = async (operation) => {
-    if (!selectedUser) {
-      alert('Please select a user first');
+  const handleSendExtend = () => {
+    if (!selectedSendUser || !selectedReceiveRelay || !selectedExtendToRelay || !selectedCircuit) {
+      toast.error('Please select a user and both relays for extend. Also select a circuit');
       return;
     }
-
-    try {
-      const response = await fetch(`http://localhost:8081/users/${selectedUser.id}/${operation}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({}), // Add necessary payload
-      });
-      if (response.ok) {
-        alert(`${operation} successful`);
-      } else {
-        alert(`${operation} failed`);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      alert('An error occurred');
-    }
+    sendExtend(selectedSendUser, selectedReceiveRelay, selectedExtendToRelay, selectedCircuit);
+    setUpdate(generateRandomString());
   };
+
+  const handleSendEstablishRendezvous = () => {
+    if (!selectedSendUser || !selectedReceiveRelay || !selectedCircuit) {
+      toast.error('Please select a user and a relay');
+      return;
+    }
+    sendEstablishRendezvous(selectedSendUser, selectedReceiveRelay, selectedCircuit).then((cookie) => {
+      setUpdate(generateRandomString());
+      setCookies([...cookies, cookie]);
+    });
+  }
+
+  const handleSendEstablishIntroduction = () => {
+    if (!selectedSendUser || !selectedReceiveRelay || !selectedCircuit) {
+      toast.error('Please select a user and a relay');
+      return;
+    }
+    sendEstablishIntroduction(selectedSendUser, selectedReceiveRelay, selectedCircuit).then((introduction_id) => {
+      setIntroductions([...introductions, introduction_id]);
+      setUpdate(generateRandomString);
+    });
+  }
 
   return (
     <AppContainer>
+      <ToastContainer autoClose={3000} />
       <Dashboard>
         <AnimatePresence>
           {users.map(user => (
@@ -109,24 +213,38 @@ function App() {
                 <UserCard
                   user={user}
                   isSelected={selectedUser && selectedUser.id === user.id}
-                  onClick={() => setSelectedUser(user)}
+                  onClick={(event) => {
+                    setSelectedUser(user);
+                    handleCardClick(user, event);
+                  }}
                 />
               </div>
             </Draggable>
           ))}
           {relays.map(relay => (
-            <Draggable key={relay.id} bounds="parent" defaultPosition={relay.position}>
+            <Draggable key={relay.nickname} bounds="parent" defaultPosition={relay.position}>
               <div style={{ position: 'absolute' }}>
                 <RelayCard
                   relay={relay}
                   isSelected={selectedRelay && selectedRelay.id === relay.id}
-                  onClick={() => setSelectedRelay(relay)}
+                  onClick={(event) => {
+                    setSelectedRelay(relay);
+                    handleCardClick(relay, event);
+                  }}
                 />
               </div>
             </Draggable>
           ))}
         </AnimatePresence>
       </Dashboard>
+
+      {selectedData && (
+        <DataPopup
+          data={selectedData}
+          position={popupPosition}
+          getLogs={getLogsForSelectedData}
+        />
+      )}
 
       <NewUserPopup
         isOpen={isNewUserPopupOpen}
@@ -142,8 +260,102 @@ function App() {
       />
 
       <ControlPanel>
-        <div><button style={{ fontSize: 24, minWidth: 200 }} onClick={() => setIsNewUserPopupOpen(true)}>New User</button></div>
-        <div><button style={{ fontSize: 24, minWidth: 200 }} onClick={() => setIsNewRelayPopupOpen(true)}>New Relay</button></div>
+        <ControlPanelContent>
+          <ButtonGroup>
+            <TopButton onClick={() => setUpdate(generateRandomString())} title="Restart">
+              <FiRefreshCw />
+            </TopButton>
+            <TopButton onClick={() => { }} title="Info">
+              <FiInfo />
+            </TopButton>
+            <TopButton onClick={() => { }} title="GitHub">
+              <FiGithub />
+            </TopButton>
+          </ButtonGroup>
+          <Section>
+            <SectionTitle>New Entities</SectionTitle>
+            <Button onClick={() => setIsNewUserPopupOpen(true)}>New User</Button>
+            <Button onClick={() => setIsNewRelayPopupOpen(true)}>New Relay</Button>
+          </Section>
+
+          <Section>
+            <SectionTitle>Common Selection</SectionTitle>
+            <Select
+              value={selectedSendUser ? selectedSendUser.id : ''}
+              onChange={(e) => setSelectedSendUser(users.find(u => u.id === e.target.value))}
+            >
+              <option value="">Select User to Send</option>
+              {users.map(user => (
+                <option key={user.id} value={user.id}>{user.nickname}</option>
+              ))}
+            </Select>
+            <Select
+              value={selectedReceiveRelay ? selectedReceiveRelay.nickname : ''}
+              onChange={(e) => setSelectedReceiveRelay(relays.find(r => r.nickname === e.target.value))}
+            >
+              <option value="">Select Relay to Receive</option>
+              {relays.map(relay => (
+                <option key={relay.nickname} value={relay.nickname}>{relay.nickname}</option>
+              ))}
+            </Select>
+            <Select
+              value={selectedCircuit ? selectedCircuit : ''}
+              onChange={(e) => setSelectedCircuit(e.target.value)}
+            >
+              <option value="">Select Circuit</option>
+              {circuits.map(circuit => (
+                <option key={circuit} value={circuit}>{circuit}</option>
+              ))}
+            </Select>
+            <Select
+              value={selectedCookie ? selectedCookie : ''}
+              onChange={(e) => setSelectedCookie(e.target.value)}
+            >
+              <option value="">Select Rendezvous Cookie</option>
+              {cookies.map(cookie => (
+                <option key={cookie} value={cookie}>{cookie}</option>
+              ))}
+            </Select>
+            <Select
+              value={selectedIntroduction ? selectedIntroduction : ''}
+              onChange={(e) => setSelectedIntroduction(e.target.value)}
+            >
+              <option value="">Select Introduction Id</option>
+              {introductions.map(introduction => (
+                <option key={introduction} value={introduction}>{introduction}</option>
+              ))}
+            </Select>
+          </Section>
+
+          <Section>
+            <SectionTitle>Send Create</SectionTitle>
+            <Button onClick={handleSendCreate}>Send Create</Button>
+          </Section>
+
+          <Section>
+            <SectionTitle>Send Extend</SectionTitle>
+            <Select
+              value={selectedExtendToRelay ? selectedExtendToRelay.nickname : ''}
+              onChange={(e) => setSelectedExtendToRelay(relays.find(r => r.nickname === e.target.value))}
+            >
+              <option value="">Select Relay to Extend To</option>
+              {relays.map(relay => (
+                <option key={relay.nickname} value={relay.nickname}>{relay.nickname}</option>
+              ))}
+            </Select>
+            <Button onClick={handleSendExtend}>Send Extend</Button>
+          </Section>
+
+          <Section>
+            <SectionTitle>Establish Rendezvous Point</SectionTitle>
+            <Button onClick={handleSendEstablishRendezvous}>Establish Rendezvous</Button>
+          </Section>
+
+          <Section>
+            <SectionTitle>Establish Introduction Point</SectionTitle>
+            <Button onClick={handleSendEstablishIntroduction}>Establish Introduction</Button>
+          </Section>
+        </ControlPanelContent>
       </ControlPanel>
     </AppContainer>
   );

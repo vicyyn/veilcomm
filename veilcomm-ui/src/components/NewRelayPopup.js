@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import { generateRandomString } from '../utils';
 
 const NewRelayPopup = ({ isOpen, onClose, onSubmit, setUpdate }) => {
   const [nickname, setNickname] = useState('');
-  const [address, setAddress] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(nickname, address);
+    onSubmit(nickname);
     setNickname('');
-    setAddress('');
     onClose();
-    setUpdate(false);
+    setUpdate(generateRandomString());
   };
 
   if (!isOpen) return null;
@@ -39,14 +38,6 @@ const NewRelayPopup = ({ isOpen, onClose, onSubmit, setUpdate }) => {
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               placeholder="Enter nickname"
-              required
-              className="w-full p-2 border border-gray-300 rounded"
-            />
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Enter IP address"
               required
               className="w-full p-2 border border-gray-300 rounded"
             />

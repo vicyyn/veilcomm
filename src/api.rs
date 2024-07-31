@@ -1,9 +1,8 @@
 use actix_cors::Cors;
-use actix_web::middleware::Logger;
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use log::{error, info};
 use rand::Rng;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -19,7 +18,7 @@ pub struct Api {
 }
 
 impl Api {
-    pub fn new(address: SocketAddr) -> Self {
+    pub fn new() -> Self {
         Self {
             relays: Arc::new(Mutex::new(Vec::new())),
             users: Arc::new(Mutex::new(Vec::new())),
@@ -61,6 +60,8 @@ impl Api {
                     .service(send_rendezvous1_to_relay)
                     .service(get_relays)
                     .service(get_users)
+                    .service(get_relay_logs)
+                    .service(get_user_logs)
             })
             .disable_signals()
             .bind(address)
@@ -75,7 +76,6 @@ impl Api {
 #[derive(Deserialize)]
 pub struct StartRelayBody {
     pub nickname: String,
-    pub address: SocketAddr,
 }
 
 #[post("/start_relay")]
@@ -86,7 +86,8 @@ async fn start_relay(
     info!("Starting relay: {:?}", body.nickname);
     let mut relays = data.lock().await;
     // generate random address that can be used
-    let relay = Relay::new(body.address, body.nickname.clone());
+    let address = generate_random_socket_address();
+    let relay = Relay::new(address, body.nickname.clone());
     relay.start().await.unwrap();
     relays.push(relay);
     HttpResponse::Ok().finish()
@@ -116,7 +117,7 @@ pub struct SendExtendBody {
     pub extend_to: SocketAddr,
 }
 
-#[post("/users/{user_id}/send_extend_to_relay/")]
+#[post("/users/{user_id}/send_extend_to_relay")]
 async fn send_extend_to_relay(
     data: web::Data<Arc<Mutex<Vec<User>>>>,
     user_id: web::Path<Uuid>,
@@ -136,25 +137,67 @@ async fn send_extend_to_relay(
 #[derive(Deserialize)]
 pub struct SendCreateBody {
     pub relay_socket: SocketAddr,
-    pub circuit_id: Uuid,
+}
+
+#[derive(Serialize)]
+pub struct RelayLog {
+    pub nickname: String,
+    pub logs: Vec<String>,
+}
+
+// fetch logs from relay
+#[get("/relay_logs")]
+async fn get_relay_logs(data: web::Data<Arc<Mutex<Vec<Relay>>>>) -> impl Responder {
+    let data_lock = data.lock().await;
+    let mut all_logs = vec![];
+    for relay in data_lock.iter() {
+        let logs = relay.get_logs().await;
+        all_logs.push(RelayLog {
+            nickname: relay.get_relay_descriptor().nickname,
+            logs,
+        });
+    }
+    HttpResponse::Ok().json(all_logs)
+}
+
+#[derive(Serialize)]
+pub struct UserLog {
+    pub nickname: String,
+    pub logs: Vec<String>,
+}
+
+// fetch logs from user
+#[get("/user_logs")]
+async fn get_user_logs(data: web::Data<Arc<Mutex<Vec<User>>>>) -> impl Responder {
+    let data_lock = data.lock().await;
+    let mut all_logs = vec![];
+    for user in data_lock.iter() {
+        let logs = user.get_logs().await;
+        all_logs.push(UserLog {
+            nickname: user.user_descriptor.nickname.clone(),
+            logs,
+        });
+    }
+    HttpResponse::Ok().json(all_logs)
 }
 
 // call user.send_create_to_relay endpoint
-#[post("/users/{user_id}/send_create_to_relay/")]
+#[post("/users/{user_id}/send_create_to_relay")]
 async fn send_create_to_relay(
     data: web::Data<Arc<Mutex<Vec<User>>>>,
     user_id: web::Path<Uuid>,
     body: web::Json<SendCreateBody>,
 ) -> impl Responder {
     let data_lock = data.lock().await;
+    let circuit_id = Uuid::new_v4();
     let user = data_lock
         .iter()
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
-    user.send_create_to_relay(body.relay_socket, body.circuit_id)
+    user.send_create_to_relay(body.relay_socket, circuit_id)
         .await
         .unwrap();
-    HttpResponse::Ok().finish()
+    HttpResponse::Ok().json(circuit_id.to_string())
 }
 
 #[get("/relays")]
@@ -229,8 +272,7 @@ async fn establish_circuit(
 
 #[derive(Deserialize)]
 pub struct SendEstablishRendezvousBody {
-    pub relay_address: SocketAddr,
-    pub rendezvous_cookie: Uuid,
+    pub relay_socket: SocketAddr,
     pub circuit_id: Uuid,
 }
 
@@ -240,19 +282,21 @@ async fn send_establish_rendezvous_to_relay(
     user_id: web::Path<Uuid>,
     body: web::Json<SendEstablishRendezvousBody>,
 ) -> impl Responder {
+    println!("send_establish_rendezvous_to_relay");
     let data_lock = data.lock().await;
     let user = data_lock
         .iter()
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
+    let rendezvous_cookie = Uuid::new_v4();
     user.send_establish_rendezvous_to_relay(
-        body.relay_address,
-        body.rendezvous_cookie.clone(),
+        body.relay_socket,
+        rendezvous_cookie.clone(),
         body.circuit_id,
     )
     .await
     .unwrap();
-    HttpResponse::Ok().finish()
+    HttpResponse::Ok().json(rendezvous_cookie.to_string())
 }
 
 #[derive(Deserialize)]
@@ -354,7 +398,6 @@ async fn send_data_to_relay(
 #[derive(Deserialize)]
 pub struct SendEstablishIntroductionBody {
     pub relay_address: SocketAddr,
-    pub introduction_id: Uuid,
     pub circuit_id: Uuid,
 }
 
@@ -369,14 +412,11 @@ async fn send_establish_introduction_to_relay(
         .iter()
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
-    user.send_establish_introduction_to_relay(
-        body.relay_address,
-        body.introduction_id,
-        body.circuit_id,
-    )
-    .await
-    .unwrap();
-    HttpResponse::Ok().finish()
+    let introduction_id = Uuid::new_v4();
+    user.send_establish_introduction_to_relay(body.relay_address, introduction_id, body.circuit_id)
+        .await
+        .unwrap();
+    HttpResponse::Ok().json(introduction_id.to_string())
 }
 
 #[derive(Deserialize)]
