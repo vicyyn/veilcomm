@@ -301,10 +301,9 @@ async fn send_establish_rendezvous_to_relay(
 
 #[derive(Deserialize)]
 pub struct SendBeginToRelayBody {
-    pub relay_address: SocketAddr,
+    pub relay_socket: SocketAddr,
     pub circuit_id: Uuid,
-    pub stream_id: Uuid,
-    pub relay_descriptor: RelayDescriptor,
+    pub begin_relay_socket: SocketAddr,
 }
 
 #[post("/users/{user_id}/send_begin_to_relay")]
@@ -313,28 +312,30 @@ async fn send_begin_to_relay(
     user_id: web::Path<Uuid>,
     body: web::Json<SendBeginToRelayBody>,
 ) -> impl Responder {
+    println!("send_begin_to_relay");
     let data_lock = data.lock().await;
     let user = data_lock
         .iter()
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
+    let stream_id = Uuid::new_v4();
     user.send_begin_to_relay(
-        body.relay_address,
+        body.relay_socket,
         body.circuit_id,
-        body.stream_id,
-        body.relay_descriptor.clone(),
+        stream_id,
+        body.begin_relay_socket,
     )
     .await
     .unwrap();
-    HttpResponse::Ok().finish()
+    HttpResponse::Ok().json(stream_id.to_string())
 }
 
 #[derive(Deserialize)]
 pub struct SendIntroduce1Body {
-    pub relay_address: SocketAddr,
+    pub relay_socket: SocketAddr,
     pub introduction_id: Uuid,
     pub stream_id: Uuid,
-    pub rendezvous_point_descriptor: RelayDescriptor,
+    pub rendezvous_point_socket: SocketAddr,
     pub rendezvous_cookie: Uuid,
     pub introduction_rsa_public: Vec<u8>,
     pub circuit_id: Uuid,
@@ -352,10 +353,10 @@ async fn send_introduce1_to_relay(
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
     user.send_introduce1_to_relay(
-        body.relay_address,
+        body.relay_socket,
         body.introduction_id,
         body.stream_id,
-        body.rendezvous_point_descriptor.clone(),
+        body.rendezvous_point_socket,
         body.rendezvous_cookie.clone(),
         body.introduction_rsa_public.clone(),
         body.circuit_id,
@@ -397,7 +398,7 @@ async fn send_data_to_relay(
 
 #[derive(Deserialize)]
 pub struct SendEstablishIntroductionBody {
-    pub relay_address: SocketAddr,
+    pub relay_socket: SocketAddr,
     pub circuit_id: Uuid,
 }
 
@@ -413,7 +414,7 @@ async fn send_establish_introduction_to_relay(
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
     let introduction_id = Uuid::new_v4();
-    user.send_establish_introduction_to_relay(body.relay_address, introduction_id, body.circuit_id)
+    user.send_establish_introduction_to_relay(body.relay_socket, introduction_id, body.circuit_id)
         .await
         .unwrap();
     HttpResponse::Ok().json(introduction_id.to_string())

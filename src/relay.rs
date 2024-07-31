@@ -697,6 +697,11 @@ impl Relay {
                                     )
                                     .await
                                     .unwrap();
+                                info!("Established introduction, id: {}", introduction_id);
+                                logs.lock().await.push(format!(
+                                    "Established introduction, id: {}",
+                                    introduction_id
+                                ));
                             }
                             Payload::Begin(begin_payload) => {
                                 let begin_relay = begin_payload.relay_descriptor.address;

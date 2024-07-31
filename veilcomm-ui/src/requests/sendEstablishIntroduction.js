@@ -6,7 +6,6 @@ async function sendEstablishIntroduction(user, relay, circuit_id) {
     return;
   }
 
-  console.log(user, relay, circuit_id, "qweqwe")
   try {
     const response = await fetch(`http://127.0.0.1:8081/users/${user.id}/send_establish_introduction_to_relay`, {
       method: 'POST',

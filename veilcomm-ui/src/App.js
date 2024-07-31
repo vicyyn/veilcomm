@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchRelays, fetchUsers, startRelay, startUser, sendCreate, sendExtend, fetchUserRelays, getUserLogs, getRelayLogs, sendEstablishRendezvous, sendEstablishIntroduction } from './requests';
+import { fetchRelays, fetchUsers, startRelay, startUser, sendCreate, sendExtend, fetchUserRelays, getUserLogs, getRelayLogs, sendEstablishRendezvous, sendEstablishIntroduction, sendBegin, sendIntroduce1 } from './requests';
 import { RelayCard, UserCard, NewRelayPopup, NewUserPopup, DataPopup } from './components';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -99,16 +99,22 @@ function App() {
   const [selectedSendUser, setSelectedSendUser] = useState(null);
   const [selectedReceiveRelay, setSelectedReceiveRelay] = useState(null);
   const [selectedExtendToRelay, setSelectedExtendToRelay] = useState(null);
+  const [selectedBeginRelay, setSelectedBeginRelay] = useState(null);
+  const [selectedRendezvousRelay, setSelectedRendezvousRelay] = useState(null);
   const [selectedCookie, setSelectedCookie] = useState(null);
   const [selectedIntroduction, setSelectedIntroduction] = useState(null);
+  const [selectedStream, setSelectedStream] = useState(null);
+  const [forUser, setForUser] = useState(null);
+
+  const [circuits, setCircuits] = useState([]);
+  const [cookies, setCookies] = useState([]);
+  const [introductions, setIntroductions] = useState([]);
+  const [streams, setStreams] = useState([]);
 
   const [isNewUserPopupOpen, setIsNewUserPopupOpen] = useState(false);
   const [isNewRelayPopupOpen, setIsNewRelayPopupOpen] = useState(false);
   const [selectedData, setSelectedData] = useState(null);
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
-  const [circuits, setCircuits] = useState([]);
-  const [cookies, setCookies] = useState([]);
-  const [introductions, setIntroductions] = useState([]);
   const [update, setUpdate] = useState("");
   const [relaysLogs, setRelaysLogs] = useState([]);
   const [usersLogs, setUsersLogs] = useState([]);
@@ -201,6 +207,37 @@ function App() {
       setUpdate(generateRandomString);
     });
   }
+
+  const handleSendBegin = () => {
+    if (!selectedSendUser || !selectedReceiveRelay || !selectedCircuit || !selectedBeginRelay) {
+      toast.error('Please select a user, relay, circuit and cookie');
+      return;
+    }
+    sendBegin(selectedSendUser, selectedReceiveRelay, selectedCircuit, selectedBeginRelay).then((stream_id) => {
+      setStreams([...streams, stream_id]);
+      setUpdate(generateRandomString());
+    });
+  }
+
+  const handleSendIntroduce1 = () => {
+    if (!selectedSendUser || !selectedRelay || !selectedCircuit || !selectedRendezvousRelay || !selectedCookie || !selectedIntroduction || !selectedStream) {
+      toast.error('Please select a user, relay, circuit, rendezvous relay, and provide a rendezvous cookie');
+      return;
+    }
+
+    sendIntroduce1(
+      selectedSendUser,
+      selectedRelay,
+      selectedIntroduction,
+      selectedStream,
+      selectedRendezvousRelay,
+      selectedCookie,
+      forUser.rsa_public,
+      selectedCircuit
+    ).then(() => {
+      setUpdate(generateRandomString());
+    });
+  };
 
   return (
     <AppContainer>
@@ -325,6 +362,15 @@ function App() {
                 <option key={introduction} value={introduction}>{introduction}</option>
               ))}
             </Select>
+            <Select
+              value={selectedStream ? selectedStream : ''}
+              onChange={(e) => setSelectedStream(e.target.value)}
+            >
+              <option value="">Select Stream</option>
+              {streams.map(stream => (
+                <option key={stream} value={stream}>{stream}</option>
+              ))}
+            </Select>
           </Section>
 
           <Section>
@@ -354,6 +400,43 @@ function App() {
           <Section>
             <SectionTitle>Establish Introduction Point</SectionTitle>
             <Button onClick={handleSendEstablishIntroduction}>Establish Introduction</Button>
+          </Section>
+
+          <Section>
+            <SectionTitle>Send Begin</SectionTitle>
+            <Select
+              value={selectedBeginRelay ? selectedBeginRelay.nickname : ''}
+              onChange={(e) => setSelectedBeginRelay(relays.find(r => r.nickname === e.target.value))}
+            >
+              <option value="">Select Relay to Begin To</option>
+              {relays.map(relay => (
+                <option key={relay.nickname} value={relay.nickname}>{relay.nickname}</option>
+              ))}
+            </Select>
+            <Button onClick={handleSendBegin}>Send Begin</Button>
+          </Section>
+
+          <Section>
+            <SectionTitle>Send Introduce 1</SectionTitle>
+            <Select
+              value={forUser ? forUser.nickname : ''}
+              onChange={(e) => setForUser(users.find(r => r.nickname === e.target.value))}
+            >
+              <option value="">Select User to Communicate with</option>
+              {users.map(user => (
+                <option key={user.nickname} value={user.nickname}>{user.nickname}</option>
+              ))}
+            </Select>
+            <Select
+              value={selectedRendezvousRelay ? selectedRendezvousRelay.nickname : ''}
+              onChange={(e) => setSelectedRendezvousRelay(relays.find(r => r.nickname === e.target.value))}
+            >
+              <option value="">Select Rendezvous Relay</option>
+              {relays.map(relay => (
+                <option key={relay.nickname} value={relay.nickname}>{relay.nickname}</option>
+              ))}
+            </Select>
+            <Button onClick={handleSendIntroduce1}>Send Introduce 1</Button>
           </Section>
         </ControlPanelContent>
       </ControlPanel>

@@ -677,7 +677,7 @@ impl User {
         relay_address: SocketAddr,
         circuit_id: Uuid,
         stream_id: Uuid,
-        relay_descriptor: RelayDescriptor,
+        begin_relay_address: SocketAddr,
     ) -> Result<()> {
         info!(
             "{} Sending BEGIN to relay at address: {}",
@@ -687,6 +687,14 @@ impl User {
             "Sending BEGIN to relay at address: {}",
             relay_address
         ));
+        let relay_descriptor = self
+            .fetched_relays
+            .lock()
+            .await
+            .iter()
+            .find(|r| r.address == begin_relay_address)
+            .unwrap()
+            .clone();
         let begin_payload = Payload::Begin(crate::BeginPayload {
             stream_id,
             relay_descriptor,
@@ -729,7 +737,7 @@ impl User {
         relay_address: SocketAddr,
         introduction_id: Uuid,
         stream_id: Uuid,
-        rendezvous_point_descriptor: RelayDescriptor,
+        rendezvous_point_descriptor: SocketAddr,
         rendezvous_cookie: Uuid,
         introduction_rsa_public: Vec<u8>,
         circuit_id: Uuid,
@@ -742,6 +750,14 @@ impl User {
             "Sending INTRODUCE1 to relay at address: {}",
             relay_address
         ));
+        let relay_descriptor = self
+            .fetched_relays
+            .lock()
+            .await
+            .iter()
+            .find(|r| r.address == rendezvous_point_descriptor)
+            .unwrap()
+            .clone();
         let rsa_public = Rsa::public_key_from_pem(&introduction_rsa_public).unwrap();
         let half_dh_bytes: Vec<u8> = self.keys.dh.public_key().to_vec();
         let aes = generate_random_aes_key();
@@ -749,7 +765,7 @@ impl User {
         let introduce1_payload = Introduce1Payload {
             stream_id,
             introduction_id,
-            rendezvous_point_descriptor,
+            rendezvous_point_descriptor: relay_descriptor,
             rendezvous_cookie,
             onion_skin,
         };
