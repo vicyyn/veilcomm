@@ -1,3 +1,4 @@
+use crate::OnionSkin;
 use ::rand::{thread_rng, Rng};
 use log::info;
 use openssl::{
@@ -7,41 +8,15 @@ use openssl::{
     rsa::{Padding, Rsa},
     symm::{decrypt, Cipher},
 };
-
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, str::FromStr, sync::Arc};
 use tokio::{net::tcp::OwnedWriteHalf, sync::Mutex};
 
-use crate::OnionSkin;
+pub fn directory_address() -> SocketAddr {
+    SocketAddr::from_str("127.0.0.1:8080").unwrap()
+}
+
+pub fn api_address() -> SocketAddr {
+    SocketAddr::from_str("127.0.0.1:8081").unwrap()
+}
 
 pub type Connections = Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<OwnedWriteHalf>>>>>;
-
-pub fn generate_random_aes_key() -> [u8; 16] {
-    let mut rand = thread_rng();
-    rand.gen::<[u8; 16]>()
-}
-
-pub fn get_handshake_from_onion_skin(
-    onion_skin: OnionSkin,
-    dh_private: &Dh<Private>,
-    rsa_private: &Rsa<Private>,
-) -> Vec<u8> {
-    let mut aes = vec![0; rsa_private.size() as usize];
-    rsa_private
-        .private_decrypt(&onion_skin.rsa_encrypted_aes_key, &mut aes, Padding::PKCS1)
-        .unwrap();
-
-    let dh = decrypt(
-        Cipher::aes_128_ctr(),
-        &aes[0..16],
-        None,
-        &onion_skin.aes_encrypted_dh_key,
-    )
-    .unwrap();
-
-    let handshake = dh_private
-        .compute_key(&BigNum::from_slice(&dh).unwrap())
-        .unwrap();
-
-    info!("Handshake Successful: {}", hex::encode(&handshake[0..32]));
-    handshake
-}

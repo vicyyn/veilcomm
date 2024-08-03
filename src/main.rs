@@ -1,23 +1,7 @@
 mod api;
-mod data;
-mod directory;
-mod relay;
-mod user;
-mod utils;
-
 use api::Api;
-use data::*;
-use directory::Directory;
 use simple_logger::SimpleLogger;
-use std::{net::SocketAddr, str::FromStr};
-
-pub fn directory_address() -> SocketAddr {
-    SocketAddr::from_str("127.0.0.1:8080").unwrap()
-}
-
-pub fn api_address() -> SocketAddr {
-    SocketAddr::from_str("127.0.0.1:8081").unwrap()
-}
+use veilcomm2::{directory_address, Directory};
 
 #[tokio::main]
 async fn main() {
@@ -35,13 +19,10 @@ async fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use directory::Directory;
-    use relay::Relay;
-    use user::User;
-
     use simple_logger::SimpleLogger;
     use std::{net::SocketAddr, str::FromStr, thread::sleep, time::Duration};
     use uuid::Uuid;
+    use veilcomm2::{Event, PayloadType, Relay, User};
 
     #[tokio::test]
     async fn test_main() {
@@ -90,7 +71,7 @@ mod tests {
         let introduction_id = Uuid::new_v4();
         let rendezvous_cookie = Uuid::new_v4();
         let stream_id = Uuid::new_v4();
-        let introduction_rsa_public = user.get_user_descriptor().rsa_public;
+        let introduction_rsa_public = user.user_descriptor.rsa_public.clone();
 
         tokio::spawn(async move {
             user.start().await.unwrap();

@@ -7,10 +7,9 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use uuid::Uuid;
-
-use crate::api_address;
-use crate::relay::{Relay, RelayDescriptor};
-use crate::user::{User, UserDescriptor};
+use veilcomm2::api_address;
+use veilcomm2::relay::{Relay, RelayDescriptor};
+use veilcomm2::user::{User, UserDescriptor};
 
 pub struct Api {
     relays: Arc<Mutex<Vec<Relay>>>,
@@ -289,13 +288,9 @@ async fn send_establish_rendezvous_to_relay(
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
     let rendezvous_cookie = Uuid::new_v4();
-    user.send_establish_rendezvous_to_relay(
-        body.relay_socket,
-        rendezvous_cookie,
-        body.circuit_id,
-    )
-    .await
-    .unwrap();
+    user.send_establish_rendezvous_to_relay(body.relay_socket, rendezvous_cookie, body.circuit_id)
+        .await
+        .unwrap();
     HttpResponse::Ok().json(rendezvous_cookie.to_string())
 }
 
@@ -476,13 +471,9 @@ async fn send_rendezvous1_to_relay(
         .iter()
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
-    user.send_rendezvous1_to_relay(
-        body.relay_socket,
-        body.rendezvous_cookie,
-        body.circuit_id,
-    )
-    .await
-    .unwrap();
+    user.send_rendezvous1_to_relay(body.relay_socket, body.rendezvous_cookie, body.circuit_id)
+        .await
+        .unwrap();
     HttpResponse::Ok().finish()
 }
 

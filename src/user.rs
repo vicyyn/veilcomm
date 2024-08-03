@@ -1,11 +1,11 @@
-use crate::payloads::{CreatePayload, ExtendPayload, OnionSkin};
+use crate::payloads::{CreatePayload, ExtendPayload};
 use crate::relay::RelayDescriptor;
 use crate::relay_cell::RelayCell;
-use crate::utils::{generate_random_aes_key, get_handshake_from_onion_skin, Connections};
 use crate::{
     decrypt_buffer_with_aes, deserialize_payload_with_aes_keys, directory_address,
-    encrypt_buffer_with_aes, serialize_payload_with_aes_keys, EstablishIntroductionPayload,
-    EstablishRendezvousPayload, Event, Introduce1Payload, Payload, PayloadType,
+    encrypt_buffer_with_aes, generate_random_aes_key, get_handshake_from_onion_skin,
+    serialize_payload_with_aes_keys, Connections, EstablishIntroductionPayload,
+    EstablishRendezvousPayload, Event, Introduce1Payload, OnionSkin, Payload, PayloadType,
 };
 use anyhow::Result;
 use log::{error, info};

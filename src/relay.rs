@@ -1,8 +1,8 @@
 use crate::{
     decrypt_buffer_with_aes, directory_address, encrypt_buffer_with_aes,
+    get_handshake_from_onion_skin,
     payloads::{self, CreatePayload},
-    utils::{get_handshake_from_onion_skin, Connections},
-    ConnectedPayload, Payload, PayloadType, RelayCell,
+    ConnectedPayload, Connections, Payload, PayloadType, RelayCell,
 };
 use anyhow::{Context, Result};
 use log::{error, info, warn};

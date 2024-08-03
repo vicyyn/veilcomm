@@ -113,6 +113,8 @@ pub fn encrypt_buffer_with_aes(aes_key: &[u8], buffer: &[u8]) -> Result<Vec<u8>>
 }
 #[cfg(test)]
 mod tests {
+    use crate::OnionSkin;
+
     use super::*;
     use rand::Rng;
 

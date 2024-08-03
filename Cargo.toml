@@ -26,3 +26,11 @@ actix-cors = "0.6.4"
 [dependencies.simple_logger]
 version = "*"
 features = ["colors"]
+
+[lib]
+name = "veilcomm2"
+path = "src/lib.rs"
+
+[[bin]]
+name = "veilcomm2"
+path = "src/main.rs"
