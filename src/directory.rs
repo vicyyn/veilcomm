@@ -26,7 +26,7 @@ impl Directory {
     pub fn start(&self) {
         let relays = self.relays.clone();
         let users = self.users.clone();
-        let address = self.address.clone();
+        let address = self.address;
         tokio::spawn(async move {
             info!("Starting HTTP server at {}", address);
             HttpServer::new(move || {

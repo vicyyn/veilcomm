@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchRelays, fetchUsers, startRelay, startUser, sendCreate, sendExtend, fetchUserRelays, getUserLogs, getRelayLogs, sendEstablishRendezvous, sendEstablishIntroduction, sendBegin, sendIntroduce1 } from './requests';
+import { fetchRelays, fetchUsers, startRelay, startUser, sendCreate, sendExtend, fetchUserRelays, getUserLogs, getRelayLogs, sendEstablishRendezvous, sendEstablishIntroduction, sendBegin, sendIntroduce1, sendRendezvous1, sendData } from './requests';
 import { RelayCard, UserCard, NewRelayPopup, NewUserPopup, DataPopup } from './components';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,6 +29,13 @@ const ControlPanel = styled.div`
   padding: 20px;
   overflow-y: auto;
   z-index: 40;
+`;
+
+const Input = styled.input`
+  font-size: 16px;
+  margin: 10px 0;
+  padding: 5px;
+  width: 100%;
 `;
 
 const Section = styled.div`
@@ -104,6 +111,7 @@ function App() {
   const [selectedCookie, setSelectedCookie] = useState(null);
   const [selectedIntroduction, setSelectedIntroduction] = useState(null);
   const [selectedStream, setSelectedStream] = useState(null);
+  const [data, setData] = useState(null);
   const [forUser, setForUser] = useState(null);
 
   const [circuits, setCircuits] = useState([]);
@@ -220,20 +228,54 @@ function App() {
   }
 
   const handleSendIntroduce1 = () => {
-    if (!selectedSendUser || !selectedRelay || !selectedCircuit || !selectedRendezvousRelay || !selectedCookie || !selectedIntroduction || !selectedStream) {
+    console.log(selectedSendUser, selectedReceiveRelay, selectedIntroduction, selectedStream, selectedRendezvousRelay, selectedCookie, forUser.rsa_public, selectedCircuit)
+    if (!selectedSendUser || !selectedReceiveRelay || !selectedCircuit || !selectedRendezvousRelay || !selectedCookie || !selectedIntroduction || !selectedStream) {
       toast.error('Please select a user, relay, circuit, rendezvous relay, and provide a rendezvous cookie');
       return;
     }
 
     sendIntroduce1(
       selectedSendUser,
-      selectedRelay,
+      selectedReceiveRelay,
       selectedIntroduction,
       selectedStream,
       selectedRendezvousRelay,
       selectedCookie,
       forUser.rsa_public,
       selectedCircuit
+    ).then(() => {
+      setUpdate(generateRandomString());
+    });
+  };
+
+  const handleSendRendezvous1 = () => {
+    if (!selectedSendUser || !selectedReceiveRelay || !selectedCircuit || !selectedCookie) {
+      toast.error('Please select a user, relay, circuit, and provide a rendezvous cookie');
+      return;
+    }
+
+    sendRendezvous1(
+      selectedSendUser,
+      selectedReceiveRelay,
+      selectedCircuit,
+      selectedCookie,
+    ).then(() => {
+      setUpdate(generateRandomString());
+    });
+  };
+
+  const handleSendData = () => {
+    if (!selectedSendUser || !selectedReceiveRelay || !selectedCircuit || !selectedCookie || !data) {
+      toast.error('Please select a user, relay, circuit, and provide a rendezvous cookie and data');
+      return;
+    }
+
+    sendData(
+      selectedSendUser,
+      selectedReceiveRelay,
+      selectedCircuit,
+      selectedCookie,
+      data
     ).then(() => {
       setUpdate(generateRandomString());
     });
@@ -437,6 +479,22 @@ function App() {
               ))}
             </Select>
             <Button onClick={handleSendIntroduce1}>Send Introduce 1</Button>
+          </Section>
+
+          <Section>
+            <SectionTitle>Send Rendezvous1</SectionTitle>
+            <Button onClick={handleSendRendezvous1}>Send Rendezvous1</Button>
+          </Section>
+
+          <Section>
+            <SectionTitle>Send Data</SectionTitle>
+            <Input
+              type="text"
+              placeholder="Enter message to send"
+              value={data}
+              onChange={(e) => setData(e.target.value)}
+            />
+            <Button onClick={handleSendData}>Send Data</Button>
           </Section>
         </ControlPanelContent>
       </ControlPanel>

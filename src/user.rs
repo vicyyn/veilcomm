@@ -36,7 +36,6 @@ pub struct UserKeys {
 }
 
 pub struct ConnectedUser {
-    pub circuit_id: Uuid,
     pub rendezvous_cookie: Uuid,
     pub user_handshake: Vec<u8>,
 }
@@ -94,6 +93,7 @@ impl User {
             .push((introduction_id, address));
     }
 
+    #[cfg(test)]
     pub fn get_user_descriptor(&self) -> UserDescriptor {
         self.user_descriptor.clone()
     }
@@ -205,6 +205,7 @@ impl User {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn handle_read(
         mut read: OwnedReadHalf,
         keys: Arc<UserKeys>,
@@ -309,18 +310,16 @@ impl User {
                                     &keys.dh,
                                     &keys.rsa_private,
                                 );
-                                let circuit_id = Uuid::new_v4();
                                 info!(
                                     "Circuit id {} is used for the circuit to the rendezvous point {}",
-                                    circuit_id, introduce2_payload.rendezvous_point_descriptor.nickname
+                                    relay_cell.circuit_id, introduce2_payload.rendezvous_point_descriptor.nickname
                                 );
                                 logs.lock().await.push(format!(
                                     "Circuit id {} is used for the circuit to the rendezvous point {}",
-                                    circuit_id, introduce2_payload.rendezvous_point_descriptor.nickname
+                                    relay_cell.circuit_id, introduce2_payload.rendezvous_point_descriptor.nickname
                                 ));
                                 let connected_user = ConnectedUser {
                                     rendezvous_cookie: introduce2_payload.rendezvous_cookie,
-                                    circuit_id,
                                     user_handshake: handshake,
                                 };
                                 connected_users.push(connected_user);
@@ -339,7 +338,6 @@ impl User {
                                 ));
                                 let connected_user = ConnectedUser {
                                     rendezvous_cookie: rendezvous2_payload.rendezvous_cookie,
-                                    circuit_id: relay_cell.circuit_id,
                                     user_handshake: handshake,
                                 };
                                 connected_users.push(connected_user);
@@ -355,7 +353,7 @@ impl User {
                                 ));
                                 let connected_user = connected_users
                                     .iter()
-                                    .find(|u| u.circuit_id == relay_cell.circuit_id)
+                                    .find(|u| u.rendezvous_cookie == data_payload.rendezvous_cookie)
                                     .unwrap();
                                 let decrypted_data = decrypt_buffer_with_aes(
                                     &connected_user.user_handshake,
@@ -377,29 +375,29 @@ impl User {
                                 info!("{} established an introduction point", nickname);
                                 logs.lock()
                                     .await
-                                    .push(format!("Established an introduction point"));
+                                    .push("Established an introduction point".to_string());
                             }
                             Payload::EstablishedRendezvous(_) => {
                                 info!("{} established a rendezvous point", nickname);
                                 logs.lock()
                                     .await
-                                    .push(format!("Established a rendezvous point"));
+                                    .push("Established a rendezvous point".to_string());
                             }
                             Payload::Connected(_) => {
                                 info!("{} connected to a relay", nickname);
-                                logs.lock().await.push(format!("Connected to a relay"));
+                                logs.lock().await.push("Connected to a relay".to_string());
                             }
                             Payload::IntroduceAck(_) => {
                                 info!("{} received an introduction ack", nickname);
                                 logs.lock()
                                     .await
-                                    .push(format!("Received an introduction ack"));
+                                    .push("Received an introduction ack".to_string());
                             }
                             _ => {
                                 error!("{} received an unexpected payload", nickname);
                                 logs.lock()
                                     .await
-                                    .push(format!("Received an unexpected payload"));
+                                    .push("Received an unexpected payload".to_string());
                             }
                         }
                         let _ = events_sender
@@ -445,7 +443,7 @@ impl User {
             payload: serde_json::to_vec(&create_payload)?,
         };
         let mut connections_lock = self.connections.lock().await;
-        if let None = connections_lock.get_mut(&relay_address) {
+        if connections_lock.get_mut(&relay_address).is_none() {
             info!(
                 "{} connecting to relay {}",
                 self.user_descriptor.nickname, relay_descriptor.nickname
@@ -732,6 +730,7 @@ impl User {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn send_introduce1_to_relay(
         &self,
         relay_address: SocketAddr,
@@ -818,7 +817,7 @@ impl User {
         self.logs
             .lock()
             .await
-            .push(format!("Updating introduction points"));
+            .push("Updating introduction points".to_string());
         let introduction_points = self.user_descriptor.introduction_points.clone();
         match client.post(&url).json(&introduction_points).send().await {
             Ok(response) => {
@@ -830,7 +829,7 @@ impl User {
                 self.logs
                     .lock()
                     .await
-                    .push(format!("Updated introduction points successfully"));
+                    .push("Updated introduction points successfully".to_string());
             }
             Err(e) => {
                 error!(
@@ -969,6 +968,7 @@ impl User {
         let encrypted_data = encrypt_buffer_with_aes(&user_handshake, &data).unwrap();
         let data_payload: Payload = Payload::Data(crate::DataPayload {
             data: encrypted_data,
+            rendezvous_cookie,
         });
         let circuits_lock = self.circuits.lock().await;
         let circuit = circuits_lock.get(&circuit_id).unwrap();
@@ -1000,15 +1000,5 @@ impl User {
             relay_address
         ));
         Ok(())
-    }
-
-    pub async fn get_circuit_id_for_rendezvous(&self, rendezvous_cookie: Uuid) -> Uuid {
-        self.connected_users
-            .lock()
-            .await
-            .iter()
-            .find(|u| u.rendezvous_cookie == rendezvous_cookie)
-            .unwrap()
-            .circuit_id
     }
 }

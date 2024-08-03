@@ -18,7 +18,7 @@ async function sendIntroduce1(user, relay, introductionId, streamId, rendezvousP
         stream_id: streamId,
         rendezvous_point_socket: rendezvousPointRelay.address,
         rendezvous_cookie: rendezvousCookie,
-        introduction_rsa_public: Array.from(introductionRsaPublic), // Convert Uint8Array to regular array if necessary
+        introduction_rsa_public: Array.from(introductionRsaPublic),
         circuit_id: circuitId
       }),
     });

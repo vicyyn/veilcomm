@@ -181,6 +181,7 @@ impl Relay {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn handle_read(
         mut read: OwnedReadHalf,
         write: Arc<Mutex<OwnedWriteHalf>>,
@@ -254,12 +255,12 @@ impl Relay {
                                         ));
                                         let socket =
                                             circuits_sockets_lock.get(next_circuit_id).unwrap();
-                                        let sender = connections_lock.get_mut(&socket).unwrap();
+                                        let sender = connections_lock.get_mut(socket).unwrap();
                                         let handshake = handshakes_lock
                                             .get(next_circuit_id)
                                             .expect("Handshake not found");
                                         let encrypted_payload =
-                                            encrypt_buffer_with_aes(&handshake, &decrypted_payload)
+                                            encrypt_buffer_with_aes(handshake, &decrypted_payload)
                                                 .unwrap();
                                         let relay_cell = RelayCell {
                                             circuit_id: *next_circuit_id,
@@ -341,65 +342,57 @@ impl Relay {
                                 serde_json::from_slice::<Payload>(&relay_cell.payload)
                             {
                                 payload
-                            } else {
-                                if let Some((next_circuit_id, direction)) =
-                                    circuits_map_lock.get(&relay_cell.circuit_id)
-                                {
-                                    if !*direction {
-                                        let socket =
-                                            circuits_sockets_lock.get(next_circuit_id).unwrap();
-                                        let sender = connections_lock.get_mut(&socket).unwrap();
-                                        info!(
-                                            "Forwarding payload back to circuit {}",
-                                            next_circuit_id
-                                        );
-                                        logs.lock().await.push(format!(
-                                            "Forwarding payload back to circuit {}",
-                                            next_circuit_id
-                                        ));
-                                        let handshake =
-                                            handshakes_lock.get(&next_circuit_id).unwrap();
-                                        let encrypted_payload = encrypt_buffer_with_aes(
-                                            &handshake,
-                                            &relay_cell.payload,
-                                        )
-                                        .unwrap();
-                                        let relay_cell = RelayCell {
-                                            circuit_id: *next_circuit_id,
-                                            payload: encrypted_payload,
-                                        };
-                                        sender
-                                            .lock()
-                                            .await
-                                            .write_all(&serde_json::to_vec(&relay_cell).unwrap())
-                                            .await
-                                            .unwrap();
-                                        info!("Forwarded payload to previous relay");
-                                        logs.lock().await.push(
-                                            "Forwarded payload to previous relay".to_string(),
-                                        );
-                                    } else {
-                                        error!("direction is wrong, expected false, got true for circuit {} coming from {}",
-                                            relay_cell.circuit_id,
-                                            addr
-                                        );
-                                        logs.lock().await.push(format!("direction is wrong, expected false, got true for circuit {} coming from {}",
-                                            relay_cell.circuit_id,
-                                            addr
-                                        ));
-                                    }
-                                    continue;
-                                } else {
-                                    error!(
-                                        "no circuit found for circuit {} coming from {}",
-                                        relay_cell.circuit_id, addr
-                                    );
+                            } else if let Some((next_circuit_id, direction)) =
+                                circuits_map_lock.get(&relay_cell.circuit_id)
+                            {
+                                if !*direction {
+                                    let socket =
+                                        circuits_sockets_lock.get(next_circuit_id).unwrap();
+                                    let sender = connections_lock.get_mut(socket).unwrap();
+                                    info!("Forwarding payload back to circuit {}", next_circuit_id);
                                     logs.lock().await.push(format!(
-                                        "no circuit found for circuit {} coming from {}",
-                                        relay_cell.circuit_id, addr
+                                        "Forwarding payload back to circuit {}",
+                                        next_circuit_id
                                     ));
-                                    continue;
+                                    let handshake = handshakes_lock.get(next_circuit_id).unwrap();
+                                    let encrypted_payload =
+                                        encrypt_buffer_with_aes(handshake, &relay_cell.payload)
+                                            .unwrap();
+                                    let relay_cell = RelayCell {
+                                        circuit_id: *next_circuit_id,
+                                        payload: encrypted_payload,
+                                    };
+                                    sender
+                                        .lock()
+                                        .await
+                                        .write_all(&serde_json::to_vec(&relay_cell).unwrap())
+                                        .await
+                                        .unwrap();
+                                    info!("Forwarded payload to previous relay");
+                                    logs.lock()
+                                        .await
+                                        .push("Forwarded payload to previous relay".to_string());
+                                } else {
+                                    error!("direction is wrong, expected false, got true for circuit {} coming from {}",
+                                            relay_cell.circuit_id,
+                                            addr
+                                        );
+                                    logs.lock().await.push(format!("direction is wrong, expected false, got true for circuit {} coming from {}",
+                                            relay_cell.circuit_id,
+                                            addr
+                                        ));
                                 }
+                                continue;
+                            } else {
+                                error!(
+                                    "no circuit found for circuit {} coming from {}",
+                                    relay_cell.circuit_id, addr
+                                );
+                                logs.lock().await.push(format!(
+                                    "no circuit found for circuit {} coming from {}",
+                                    relay_cell.circuit_id, addr
+                                ));
+                                continue;
                             }
                         };
 
@@ -422,7 +415,7 @@ impl Relay {
                                     &keys.rsa_private,
                                 );
 
-                                handshakes_lock.insert(relay_cell.circuit_id.clone(), handshake);
+                                handshakes_lock.insert(relay_cell.circuit_id, handshake);
                                 drop(handshakes_lock);
                                 info!(
                                     "Adding a new circuit with ID: {}",
@@ -475,7 +468,7 @@ impl Relay {
                                     if !*direction {
                                         let socket =
                                             circuits_sockets_lock.get(next_circuit_id).unwrap();
-                                        let sender = connections_lock.get_mut(&socket).unwrap();
+                                        let sender = connections_lock.get_mut(socket).unwrap();
                                         info!(
                                             "Forwarding extended payload back to circuit {}",
                                             next_circuit_id
@@ -490,9 +483,9 @@ impl Relay {
                                                 dh_key: created_payload.dh_key,
                                             });
                                         let handshake =
-                                            handshakes_lock.get(&next_circuit_id).unwrap();
+                                            handshakes_lock.get(next_circuit_id).unwrap();
                                         let encrypted_payload = encrypt_buffer_with_aes(
-                                            &handshake,
+                                            handshake,
                                             &serde_json::to_vec(&extended_payload).unwrap(),
                                         )
                                         .unwrap();
@@ -525,7 +518,7 @@ impl Relay {
                             Payload::Extend(extend_payload) => {
                                 let next_relay = extend_payload.address;
                                 // Check if the circuit is already extended
-                                if let Some(_) = circuits_map_lock.get(&relay_cell.circuit_id) {
+                                if circuits_map_lock.get(&relay_cell.circuit_id).is_some() {
                                     error!("Circuit already extended");
                                     logs.lock()
                                         .await
@@ -679,7 +672,7 @@ impl Relay {
                                     .get(&relay_cell.circuit_id)
                                     .expect("Handshake not found");
                                 let encrypted_payload = encrypt_buffer_with_aes(
-                                    &handshake,
+                                    handshake,
                                     &serde_json::to_vec(&established_introduction_payload)
                                         .expect("Failed to serialize JSON"),
                                 )
@@ -709,7 +702,7 @@ impl Relay {
                                 let handshake =
                                     handshakes_lock.get(&relay_cell.circuit_id).unwrap();
                                 let encrypted_payload = encrypt_buffer_with_aes(
-                                    &handshake,
+                                    handshake,
                                     &serde_json::to_vec(&connected_payload).unwrap(),
                                 )
                                 .unwrap();
@@ -717,7 +710,7 @@ impl Relay {
                                     circuit_id: relay_cell.circuit_id,
                                     payload: encrypted_payload,
                                 };
-                                if let Some(_) = connections_lock.get_mut(&begin_relay) {
+                                if connections_lock.get_mut(&begin_relay).is_some() {
                                     streams_lock.insert(begin_payload.stream_id, begin_relay);
                                     write
                                         .lock()
@@ -844,7 +837,7 @@ impl Relay {
                                         .get(&relay_cell.circuit_id)
                                         .expect("Handshake not found");
                                     let encrypted_payload = encrypt_buffer_with_aes(
-                                        &handshake,
+                                        handshake,
                                         &serde_json::to_vec(&introduce_ack_payload).unwrap(),
                                     )
                                     .unwrap();
@@ -898,10 +891,10 @@ impl Relay {
                                                 onion_skin: introduce1_payload.onion_skin,
                                             });
                                         let handshake = handshakes_lock
-                                            .get(&introduction_circuit_id)
+                                            .get(introduction_circuit_id)
                                             .expect("Handshake not found");
                                         let introduce2_payload = encrypt_buffer_with_aes(
-                                            &handshake,
+                                            handshake,
                                             &serde_json::to_vec(&introduce2_payload).unwrap(),
                                         )
                                         .unwrap();
@@ -949,7 +942,7 @@ impl Relay {
                                         .get(original_circuit_id)
                                         .expect("Handshake not found");
                                     let encrypted_payload = encrypt_buffer_with_aes(
-                                        &handshake,
+                                        handshake,
                                         &serde_json::to_vec(&rendezvous2_payload).unwrap(),
                                     )
                                     .unwrap();
@@ -975,7 +968,36 @@ impl Relay {
                                     continue;
                                 }
                             }
-                            Payload::Data(_) => {}
+                            Payload::Data(_) => {
+                                let circuit_id =
+                                    circuits_map_lock.get(&relay_cell.circuit_id).unwrap().0;
+                                let handshake = handshakes_lock
+                                    .get(&circuit_id)
+                                    .expect("Handshake not found");
+                                let encrypted_payload = encrypt_buffer_with_aes(
+                                    handshake,
+                                    &serde_json::to_vec(&payload).unwrap(),
+                                )
+                                .unwrap();
+                                let relay_cell = RelayCell {
+                                    circuit_id,
+                                    payload: encrypted_payload,
+                                };
+                                let socket = circuits_sockets_lock
+                                    .get(&circuit_id)
+                                    .expect("Original circuit not found");
+                                let connection = connections_lock.get_mut(socket).unwrap();
+                                connection
+                                    .lock()
+                                    .await
+                                    .write_all(&serde_json::to_vec(&relay_cell).unwrap())
+                                    .await
+                                    .unwrap();
+                                info!("{} Forwarded data payload", nickname.clone());
+                                logs.lock()
+                                    .await
+                                    .push(format!("{} Forwarded data payload", nickname.clone()));
+                            }
                             _ => {
                                 error!("Unhandled payload type");
                                 logs.lock().await.push("Unhandled payload type".to_string());

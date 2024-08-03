@@ -56,7 +56,6 @@ impl Api {
                     .service(send_establish_introduction_to_relay)
                     .service(add_introduction_point)
                     .service(update_introduction_points)
-                    .service(get_circuit_id_for_rendezvous)
                     .service(send_rendezvous1_to_relay)
                     .service(get_relays)
                     .service(get_users)
@@ -106,6 +105,7 @@ async fn start_user(
     info!("Starting user: {:?}", body.nickname);
     let mut users = data.lock().await;
     let user = User::new(body.nickname.clone());
+    user.start().await.unwrap();
     users.push(user);
     HttpResponse::Ok().finish()
 }
@@ -291,7 +291,7 @@ async fn send_establish_rendezvous_to_relay(
     let rendezvous_cookie = Uuid::new_v4();
     user.send_establish_rendezvous_to_relay(
         body.relay_socket,
-        rendezvous_cookie.clone(),
+        rendezvous_cookie,
         body.circuit_id,
     )
     .await
@@ -357,7 +357,7 @@ async fn send_introduce1_to_relay(
         body.introduction_id,
         body.stream_id,
         body.rendezvous_point_socket,
-        body.rendezvous_cookie.clone(),
+        body.rendezvous_cookie,
         body.introduction_rsa_public.clone(),
         body.circuit_id,
     )
@@ -368,7 +368,7 @@ async fn send_introduce1_to_relay(
 
 #[derive(Deserialize)]
 pub struct SendDataToRelayBody {
-    pub relay_address: SocketAddr,
+    pub relay_socket: SocketAddr,
     pub rendezvous_cookie: Uuid,
     pub circuit_id: Uuid,
     pub data: Vec<u8>,
@@ -386,8 +386,8 @@ async fn send_data_to_relay(
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
     user.send_data_to_relay(
-        body.relay_address,
-        body.rendezvous_cookie.clone(),
+        body.relay_socket,
+        body.rendezvous_cookie,
         body.circuit_id,
         body.data.clone(),
     )
@@ -459,30 +459,8 @@ async fn update_introduction_points(
 }
 
 #[derive(Deserialize)]
-pub struct GetCircuitIdForRendezvousBody {
-    pub rendezvous_cookie: Uuid,
-}
-
-#[post("/users/{user_id}/get_circuit_id_for_rendezvous")]
-async fn get_circuit_id_for_rendezvous(
-    data: web::Data<Arc<Mutex<Vec<User>>>>,
-    user_id: web::Path<Uuid>,
-    body: web::Json<GetCircuitIdForRendezvousBody>,
-) -> impl Responder {
-    let data_lock = data.lock().await;
-    let user = data_lock
-        .iter()
-        .find(|u| u.user_descriptor.id == *user_id)
-        .unwrap();
-    let circuit_id = user
-        .get_circuit_id_for_rendezvous(body.rendezvous_cookie.clone())
-        .await;
-    HttpResponse::Ok().json(circuit_id)
-}
-
-#[derive(Deserialize)]
 pub struct SendRendezvous1Body {
-    pub relay_address: SocketAddr,
+    pub relay_socket: SocketAddr,
     pub rendezvous_cookie: Uuid,
     pub circuit_id: Uuid,
 }
@@ -499,8 +477,8 @@ async fn send_rendezvous1_to_relay(
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
     user.send_rendezvous1_to_relay(
-        body.relay_address,
-        body.rendezvous_cookie.clone(),
+        body.relay_socket,
+        body.rendezvous_cookie,
         body.circuit_id,
     )
     .await

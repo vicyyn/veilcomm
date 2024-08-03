@@ -98,7 +98,7 @@ pub fn serialize_payload_with_aes_keys(
         if aes_key.len() < 32 {
             return Err(anyhow::anyhow!("AES key is too short {:?}", aes_key));
         }
-        serialized_payload = encrypt_buffer_with_aes(&aes_key, &serialized_payload)?;
+        serialized_payload = encrypt_buffer_with_aes(aes_key, &serialized_payload)?;
     }
     Ok(serialized_payload)
 }

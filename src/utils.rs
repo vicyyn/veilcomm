@@ -17,8 +17,7 @@ pub type Connections = Arc<Mutex<HashMap<SocketAddr, Arc<Mutex<OwnedWriteHalf>>>
 
 pub fn generate_random_aes_key() -> [u8; 16] {
     let mut rand = thread_rng();
-    let key = rand.gen::<[u8; 16]>();
-    key
+    rand.gen::<[u8; 16]>()
 }
 
 pub fn get_handshake_from_onion_skin(
@@ -44,5 +43,5 @@ pub fn get_handshake_from_onion_skin(
         .unwrap();
 
     info!("Handshake Successful: {}", hex::encode(&handshake[0..32]));
-    return handshake;
+    handshake
 }
