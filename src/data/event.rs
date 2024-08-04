@@ -1,5 +1,5 @@
 use super::PayloadType;
-use std::net::SocketAddr;
+use uuid::Uuid;
 
 #[derive(PartialEq, Eq, Debug)]
-pub struct Event(pub PayloadType, pub SocketAddr);
+pub struct Event(pub PayloadType, pub Uuid);

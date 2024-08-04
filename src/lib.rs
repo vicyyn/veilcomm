@@ -1,3 +1,4 @@
+pub mod communication;
 pub mod crypto;
 pub mod data;
 pub mod directory;
@@ -7,6 +8,7 @@ pub mod state;
 pub mod user;
 pub mod utils;
 
+pub use communication::*;
 pub use crypto::*;
 pub use data::*;
 pub use directory::*;

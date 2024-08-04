@@ -2,7 +2,6 @@ use crate::relay::RelayDescriptor;
 use crate::user::UserDescriptor;
 use crate::Logger;
 use lazy_static::lazy_static;
-use std::net::SocketAddr;
 use std::sync::Mutex;
 use uuid::Uuid;
 
@@ -47,10 +46,7 @@ impl Directory {
         users.push(user);
     }
 
-    pub fn update_user_introduction_points(
-        user_id: Uuid,
-        introduction_points: Vec<(Uuid, SocketAddr)>,
-    ) {
+    pub fn update_user_introduction_points(user_id: Uuid, introduction_points: Vec<(Uuid, Uuid)>) {
         Logger::info(
             "Directory",
             format!("Updating introduction points for user {}", user_id),

@@ -1,9 +1,9 @@
 use crate::OnionSkin;
 use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct ExtendPayload {
-    pub address: SocketAddr,
+    pub extend_to: Uuid,
     pub onion_skin: OnionSkin,
 }
