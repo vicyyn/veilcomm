@@ -4,13 +4,12 @@ use crate::relay_cell::RelayCell;
 use crate::{
     decrypt_buffer_with_aes, directory_address, encrypt_buffer_with_aes, generate_random_aes_key,
     get_handshake_from_onion_skin, Connections, EstablishIntroductionPayload,
-    EstablishRendezvousPayload, Event, Introduce1Payload, OnionSkin, Payload, PayloadType,
+    EstablishRendezvousPayload, Event, Introduce1Payload, Keys, OnionSkin, Payload, PayloadType,
 };
 use anyhow::Result;
 use log::{error, info};
 use openssl::bn::BigNum;
 use openssl::dh::Dh;
-use openssl::pkey::Private;
 use openssl::rsa::Rsa;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
@@ -28,12 +27,6 @@ pub struct UserDescriptor {
     pub rsa_public: Vec<u8>,
     pub introduction_points: Vec<(Uuid, SocketAddr)>,
 }
-
-pub struct UserKeys {
-    pub rsa_private: Rsa<Private>,
-    pub dh: Dh<Private>,
-}
-
 pub struct ConnectedUser {
     pub rendezvous_cookie: Uuid,
     pub user_handshake: Vec<u8>,
@@ -44,7 +37,7 @@ pub struct User {
     pub logs: Arc<Mutex<Vec<String>>>,
     fetched_relays: Mutex<Vec<RelayDescriptor>>,
     connections: Connections,
-    keys: Arc<UserKeys>,
+    keys: Arc<Keys>,
     handshakes: Arc<Mutex<HashMap<SocketAddr, Vec<u8>>>>,
     pub events_receiver: Arc<Mutex<Receiver<Event>>>,
     events_sender: Arc<Mutex<Sender<Event>>>,
@@ -70,7 +63,7 @@ impl User {
             logs,
             connections: Arc::new(Mutex::new(HashMap::new())),
             fetched_relays: Mutex::new(Vec::new()),
-            keys: Arc::new(UserKeys {
+            keys: Arc::new(Keys {
                 rsa_private: rsa.clone(),
                 dh: Dh::get_2048_256().unwrap().generate_key().unwrap(),
             }),
@@ -207,7 +200,7 @@ impl User {
     #[allow(clippy::too_many_arguments)]
     pub fn handle_read(
         mut read: OwnedReadHalf,
-        keys: Arc<UserKeys>,
+        keys: Arc<Keys>,
         events_sender: Arc<Mutex<Sender<Event>>>,
         circuits: Arc<Mutex<HashMap<Uuid, Vec<SocketAddr>>>>,
         handshakes: Arc<Mutex<HashMap<SocketAddr, Vec<u8>>>>,

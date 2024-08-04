@@ -2,11 +2,10 @@ use crate::{
     decrypt_buffer_with_aes, directory_address, encrypt_buffer_with_aes,
     get_handshake_from_onion_skin,
     payloads::{self, CreatePayload},
-    ConnectedPayload, Connections, Payload, PayloadType, RelayCell,
+    ConnectedPayload, Connections, Keys, Payload, PayloadType, RelayCell,
 };
 use anyhow::{Context, Result};
 use log::{error, info, warn};
-use openssl::{dh::Dh, pkey::Private, rsa::Rsa};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{
@@ -26,17 +25,12 @@ pub struct RelayDescriptor {
     pub rsa_public: Vec<u8>,
 }
 
-pub struct RelayKeys {
-    pub rsa_private: Rsa<Private>,
-    pub dh: Dh<Private>,
-}
-
 pub struct Relay {
     relay_descriptor: RelayDescriptor,
     logs: Arc<Mutex<Vec<String>>>,
     connections: Connections,
     handshakes: Arc<Mutex<HashMap<Uuid, Vec<u8>>>>,
-    keys: Arc<RelayKeys>,
+    keys: Arc<Keys>,
     circuits_sockets: Arc<Mutex<HashMap<Uuid, SocketAddr>>>,
     // bool is direction, if true then we have to decrypt, if false then we have to encrypt
     circuits_map: Arc<Mutex<HashMap<Uuid, (Uuid, bool)>>>,
@@ -68,7 +62,7 @@ impl Relay {
             },
             logs: Arc::new(Mutex::new(Vec::new())),
             connections: Arc::new(Mutex::new(HashMap::new())),
-            keys: Arc::new(RelayKeys {
+            keys: Arc::new(Keys {
                 rsa_private: rsa,
                 dh: openssl::dh::Dh::get_2048_256()
                     .unwrap()
@@ -187,7 +181,7 @@ impl Relay {
         write: Arc<Mutex<OwnedWriteHalf>>,
         addr: SocketAddr,
         connections: Connections,
-        keys: Arc<RelayKeys>,
+        keys: Arc<Keys>,
         handshakes: Arc<Mutex<HashMap<Uuid, Vec<u8>>>>,
         circuits_sockets: Arc<Mutex<HashMap<Uuid, SocketAddr>>>,
         circuits_map: Arc<Mutex<HashMap<Uuid, (Uuid, bool)>>>,
