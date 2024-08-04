@@ -1,106 +1,66 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-use std::net::SocketAddr;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use uuid::Uuid;
-
 use crate::relay::RelayDescriptor;
 use crate::user::UserDescriptor;
 use crate::Logger;
+use lazy_static::lazy_static;
+use std::net::SocketAddr;
+use std::sync::Mutex;
+use uuid::Uuid;
+
+lazy_static! {
+    pub static ref directory: Directory = Directory {
+        relays: Mutex::new(Vec::new()),
+        users: Mutex::new(Vec::new()),
+    };
+}
 
 pub struct Directory {
-    relays: Arc<Mutex<Vec<RelayDescriptor>>>,
-    users: Arc<Mutex<Vec<UserDescriptor>>>,
-    address: SocketAddr,
+    relays: Mutex<Vec<RelayDescriptor>>,
+    users: Mutex<Vec<UserDescriptor>>,
 }
 
 impl Directory {
-    pub fn new(address: SocketAddr) -> Self {
-        Self {
-            relays: Arc::new(Mutex::new(Vec::new())),
-            users: Arc::new(Mutex::new(Vec::new())),
-            address,
+    pub fn get_relays() -> Vec<RelayDescriptor> {
+        Logger::info("Directory", "Fetching all relays");
+        directory.relays.lock().unwrap().clone()
+    }
+
+    pub fn get_users() -> Vec<UserDescriptor> {
+        Logger::info("Directory", "Fetching all users");
+        directory.users.lock().unwrap().clone()
+    }
+
+    pub fn publish_relay(relay: RelayDescriptor) {
+        Logger::info(
+            "Directory",
+            format!("Publishing a new relay {}", relay.nickname),
+        );
+        let mut relays = directory.relays.lock().unwrap();
+        relays.push(relay);
+    }
+
+    pub fn publish_user(user: UserDescriptor) {
+        Logger::info(
+            "Directory",
+            format!("Publishing a new user {}", user.nickname),
+        );
+        let mut users = directory.users.lock().unwrap();
+        users.push(user);
+    }
+
+    pub fn update_user_introduction_points(
+        user_id: Uuid,
+        introduction_points: Vec<(Uuid, SocketAddr)>,
+    ) {
+        Logger::info(
+            "Directory",
+            format!("Updating introduction points for user {}", user_id),
+        );
+        let mut users = directory.users.lock().unwrap();
+        for user in users.iter_mut() {
+            if user.id == user_id {
+                user.introduction_points = introduction_points;
+                return;
+            }
         }
     }
-
-    pub fn start(&self) {
-        let relays = self.relays.clone();
-        let users = self.users.clone();
-        let address = self.address;
-        tokio::spawn(async move {
-            Logger::info("Directory", format!("Starting HTTP server at {}", address));
-            HttpServer::new(move || {
-                App::new()
-                    .app_data(web::Data::new(relays.clone()))
-                    .app_data(web::Data::new(users.clone()))
-                    .service(get_relays)
-                    .service(publish_relay)
-                    .service(get_users)
-                    .service(publish_user)
-                    .service(update_user_introduction_points)
-            })
-            .disable_signals()
-            .bind(address)
-            .unwrap_or_else(|_| panic!("Could not bind server to address {}", address))
-            .run()
-            .await
-            .unwrap_or_else(|e| Logger::error("Directory", format!("Error: {}", e)));
-        });
-    }
-}
-
-#[get("/relays")]
-async fn get_relays(data: web::Data<Arc<Mutex<Vec<RelayDescriptor>>>>) -> impl Responder {
-    Logger::info("Directory", "Fetching all relays");
-    let relays = data.lock().await;
-    HttpResponse::Ok().json(&*relays)
-}
-
-#[post("/relays")]
-async fn publish_relay(
-    relay: web::Json<RelayDescriptor>,
-    data: web::Data<Arc<Mutex<Vec<RelayDescriptor>>>>,
-) -> impl Responder {
-    Logger::info("Directory", "Publishing a new relay");
-    let mut relays = data.lock().await;
-    relays.push(relay.into_inner());
-    HttpResponse::Ok().finish()
-}
-
-#[get("/users")]
-async fn get_users(data: web::Data<Arc<Mutex<Vec<UserDescriptor>>>>) -> impl Responder {
-    Logger::info("Directory", "Fetching all users");
-    let users = data.lock().await;
-    HttpResponse::Ok().json(&*users)
-}
-
-#[post("/users/{user_id}/introduction_points")]
-async fn update_user_introduction_points(
-    user_id: web::Path<Uuid>,
-    introduction_points: web::Json<Vec<(Uuid, SocketAddr)>>,
-    data: web::Data<Arc<Mutex<Vec<UserDescriptor>>>>,
-) -> impl Responder {
-    Logger::info(
-        "Directory",
-        format!("Updating introduction points for user {}", user_id),
-    );
-    let mut users = data.lock().await;
-    for user in users.iter_mut() {
-        if user.id == *user_id {
-            user.introduction_points = introduction_points.into_inner();
-            return HttpResponse::Ok().finish();
-        }
-    }
-    HttpResponse::NotFound().finish()
-}
-
-#[post("/users")]
-async fn publish_user(
-    user: web::Json<UserDescriptor>,
-    data: web::Data<Arc<Mutex<Vec<UserDescriptor>>>>,
-) -> impl Responder {
-    Logger::info("Directory", "Publishing a new user");
-    let mut users = data.lock().await;
-    users.push(user.into_inner());
-    HttpResponse::Ok().finish()
 }

@@ -125,7 +125,7 @@ mod tests {
     #[test]
     fn test_multiple_logs_same_id() {
         let id = "multiple_logs_id";
-        let messages = ["Message 1", "Message 2", "Message 3"];
+        let messages = vec!["Message 1", "Message 2", "Message 3"];
 
         Logger::info(id, messages[0]);
         Logger::warn(id, messages[1]);

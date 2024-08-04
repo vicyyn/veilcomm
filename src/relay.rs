@@ -1,11 +1,10 @@
-use crate::Logger;
 use crate::{
-    decrypt_buffer_with_aes, directory_address, encrypt_buffer_with_aes,
-    get_handshake_from_onion_skin,
+    decrypt_buffer_with_aes, encrypt_buffer_with_aes, get_handshake_from_onion_skin,
     payloads::{self, CreatePayload},
     ConnectedPayload, Connections, Keys, Payload, PayloadType, RelayCell,
 };
-use anyhow::{Context, Result};
+use crate::{Directory, Logger};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::{
@@ -77,30 +76,13 @@ impl Relay {
         Logger::info(&self.relay_descriptor.nickname, "Starting the relay server");
 
         // Register with the directory server
-        let client = reqwest::Client::new();
-        let url = format!(
-            "http://{}:{}/relays",
-            directory_address().ip(),
-            directory_address().port()
-        );
-
         Logger::info(
             &self.relay_descriptor.nickname,
-            format!("Registering relay with directory server at {}", url),
+            "Registering relay with directory server",
         );
-        let response = client
-            .post(&url)
-            .json(&self.relay_descriptor)
-            .send()
-            .await
-            .context("Failed to send registration request")?
-            .error_for_status()
-            .context("Registration request returned error")?;
 
-        Logger::info(
-            &self.relay_descriptor.nickname,
-            format!("Registration successful with status: {}", response.status()),
-        );
+        Directory::publish_relay(self.relay_descriptor.clone());
+        Logger::info(&self.relay_descriptor.nickname, "Registration successful");
 
         let listener = TcpListener::bind(self.relay_descriptor.address).await?;
         Logger::info(
@@ -369,7 +351,10 @@ impl Relay {
                                     .insert(relay_cell.circuit_id, addr)
                                     .is_some()
                                 {
-                                    Logger::error(&nickname, "Circuit ID already exists".to_string());
+                                    Logger::error(
+                                        &nickname,
+                                        "Circuit ID already exists".to_string(),
+                                    );
                                     continue;
                                 }
 
@@ -446,7 +431,10 @@ impl Relay {
                                 let next_relay = extend_payload.address;
                                 // Check if the circuit is already extended
                                 if circuits_map_lock.get(&relay_cell.circuit_id).is_some() {
-                                    Logger::error(&nickname, "Circuit already extended".to_string());
+                                    Logger::error(
+                                        &nickname,
+                                        "Circuit already extended".to_string(),
+                                    );
                                     continue;
                                 }
                                 Logger::info(
@@ -487,7 +475,8 @@ impl Relay {
                                 } else {
                                     Logger::warn(
                                         &nickname,
-                                        &"Next relay not connected, attempting to connect".to_string(),
+                                        &"Next relay not connected, attempting to connect"
+                                            .to_string(),
                                     );
                                     match tokio::net::TcpStream::connect(next_relay).await {
                                         Ok(next_relay_stream) => {
@@ -527,7 +516,8 @@ impl Relay {
                                                 .unwrap();
                                             Logger::info(
                                                 &nickname,
-                                                &"Forwarded create payload to next relay".to_string(),
+                                                &"Forwarded create payload to next relay"
+                                                    .to_string(),
                                             );
                                         }
                                         _ => {
@@ -644,7 +634,8 @@ impl Relay {
                                 } else {
                                     Logger::warn(
                                         &nickname,
-                                        &"Begin relay not connected, attempting to connect".to_string(),
+                                        &"Begin relay not connected, attempting to connect"
+                                            .to_string(),
                                     );
                                     match tokio::net::TcpStream::connect(begin_relay).await {
                                         Ok(next_relay_stream) => {

@@ -1,7 +1,7 @@
 mod api;
 use std::{net::SocketAddr, str::FromStr, thread::sleep, time::Duration};
 use uuid::Uuid;
-use veilcomm2::{directory_address, Directory, Event, PayloadType, Relay, User};
+use veilcomm2::{Event, PayloadType, Relay, User};
 
 #[tokio::main]
 async fn main() {
@@ -10,10 +10,6 @@ async fn main() {
     // let api = Api::new();
     // api.start();
     // std::thread::park();
-    let directory = Directory::new(directory_address());
-    directory.start();
-    sleep(Duration::from_secs(2));
-
     let relay_address = SocketAddr::from_str("127.0.0.1:3031").unwrap();
     let relay = Relay::new(relay_address, "Relay1".to_string());
 

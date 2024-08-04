@@ -2,8 +2,8 @@ use crate::payloads::{CreatePayload, ExtendPayload};
 use crate::relay::RelayDescriptor;
 use crate::relay_cell::RelayCell;
 use crate::{
-    decrypt_buffer_with_aes, directory_address, encrypt_buffer_with_aes, generate_random_aes_key,
-    get_handshake_from_onion_skin, Connections, EstablishIntroductionPayload,
+    decrypt_buffer_with_aes, encrypt_buffer_with_aes, generate_random_aes_key,
+    get_handshake_from_onion_skin, Connections, Directory, EstablishIntroductionPayload,
     EstablishRendezvousPayload, Event, Introduce1Payload, Keys, Logger, OnionSkin, Payload,
     PayloadType,
 };
@@ -84,56 +84,28 @@ impl User {
     }
 
     pub async fn start(&self) -> Result<()> {
-        let client = reqwest::Client::new();
-        let url = format!(
-            "http://{}:{}/users",
-            directory_address().ip(),
-            directory_address().port()
-        );
         Logger::info(
             &self.user_descriptor.nickname,
-            format!("Registering user with directory server at URL: {}", url),
+            "Registering user with directory server",
         );
-        match client.post(&url).json(&self.user_descriptor).send().await {
-            Ok(response) => {
-                response.error_for_status_ref()?;
-                Logger::info(
-                    &self.user_descriptor.nickname,
-                    format!("Registered successfully with status: {}", response.status()),
-                );
-            }
-            Err(e) => {
-                Logger::error(
-                    &self.user_descriptor.nickname,
-                    format!("Failed to register user: {}", e),
-                );
-                return Err(e.into());
-            }
-        }
+        Directory::publish_user(self.user_descriptor.clone());
+        Logger::info(&self.user_descriptor.nickname, "Registered successfully");
         Ok(())
     }
 
     /// Fetch all relays from the directory server
     pub async fn fetch_relays(&self) -> Result<()> {
-        let client = reqwest::Client::new();
-        let url = format!(
-            "http://{}:{}/relays",
-            directory_address().ip(),
-            directory_address().port()
-        );
         Logger::info(
             &self.user_descriptor.nickname,
-            format!("Fetching relays from directory server at URL: {}", url),
+            "Fetching relays from directory",
         );
-        let response = client.get(&url).send().await?;
-        let relays_fetched: Vec<RelayDescriptor> = response.json().await?;
+        let relays_fetched: Vec<RelayDescriptor> = Directory::get_relays();
         Logger::info(
             &self.user_descriptor.nickname,
             format!("Fetched {:?} relays", relays_fetched.len()),
         );
         let mut relays = self.fetched_relays.lock().await;
-        relays.clear();
-        relays.extend(relays_fetched);
+        *relays = relays_fetched;
         Ok(())
     }
 
@@ -365,10 +337,7 @@ impl User {
                             .await;
                     }
                     Err(e) => {
-                        Logger::error(
-                            &nickname,
-                            format!("Failed to read from relay: {}", e),
-                        );
+                        Logger::error(&nickname, format!("Failed to read from relay: {}", e));
                         break;
                     }
                 }
@@ -776,34 +745,16 @@ impl User {
     }
 
     pub async fn update_introduction_points(&self) -> Result<()> {
-        let client = reqwest::Client::new();
-        let url = format!(
-            "http://{}:{}/users/{}/introduction_points",
-            directory_address().ip(),
-            directory_address().port(),
-            self.user_descriptor.id
-        );
         Logger::info(
             &self.user_descriptor.nickname,
             "Updating introduction points",
         );
         let introduction_points = self.user_descriptor.introduction_points.clone();
-        match client.post(&url).json(&introduction_points).send().await {
-            Ok(response) => {
-                response.error_for_status_ref()?;
-                Logger::info(
-                    &self.user_descriptor.nickname,
-                    "Updated introduction points successfully",
-                );
-            }
-            Err(e) => {
-                Logger::error(
-                    &self.user_descriptor.nickname,
-                    format!("Failed to update introduction points: {}", e),
-                );
-                return Err(e.into());
-            }
-        }
+        Directory::update_user_introduction_points(self.user_descriptor.id, introduction_points);
+        Logger::info(
+            &self.user_descriptor.nickname,
+            "Updated introduction points successfully",
+        );
         Ok(())
     }
 
