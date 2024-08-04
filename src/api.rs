@@ -58,8 +58,8 @@ impl Api {
                     .service(send_rendezvous1_to_relay)
                     .service(get_relays)
                     .service(get_users)
-                    .service(get_relay_logs)
-                    .service(get_user_logs)
+                // .service(get_relay_logs)
+                // .service(get_user_logs)
             })
             .disable_signals()
             .bind(address)
@@ -145,19 +145,19 @@ pub struct RelayLog {
 }
 
 // fetch logs from relay
-#[get("/relay_logs")]
-async fn get_relay_logs(data: web::Data<Arc<Mutex<Vec<Relay>>>>) -> impl Responder {
-    let data_lock = data.lock().await;
-    let mut all_logs = vec![];
-    for relay in data_lock.iter() {
-        let logs = relay.get_logs().await;
-        all_logs.push(RelayLog {
-            nickname: relay.get_relay_descriptor().nickname,
-            logs,
-        });
-    }
-    HttpResponse::Ok().json(all_logs)
-}
+// #[get("/relay_logs")]
+// async fn get_relay_logs(data: web::Data<Arc<Mutex<Vec<Relay>>>>) -> impl Responder {
+//     let data_lock = data.lock().await;
+//     let mut all_logs = vec![];
+//     for relay in data_lock.iter() {
+//         let logs = relay.get_logs().await;
+//         all_logs.push(RelayLog {
+//             nickname: relay.get_relay_descriptor().nickname,
+//             logs,
+//         });
+//     }
+//     HttpResponse::Ok().json(all_logs)
+// }
 
 #[derive(Serialize)]
 pub struct UserLog {
@@ -166,19 +166,19 @@ pub struct UserLog {
 }
 
 // fetch logs from user
-#[get("/user_logs")]
-async fn get_user_logs(data: web::Data<Arc<Mutex<Vec<User>>>>) -> impl Responder {
-    let data_lock = data.lock().await;
-    let mut all_logs = vec![];
-    for user in data_lock.iter() {
-        let logs = user.get_logs().await;
-        all_logs.push(UserLog {
-            nickname: user.user_descriptor.nickname.clone(),
-            logs,
-        });
-    }
-    HttpResponse::Ok().json(all_logs)
-}
+// #[get("/user_logs")]
+// async fn get_user_logs(data: web::Data<Arc<Mutex<Vec<User>>>>) -> impl Responder {
+//     let data_lock = data.lock().await;
+//     let mut all_logs = vec![];
+//     for user in data_lock.iter() {
+//         let logs = user.get_logs().await;
+//         all_logs.push(UserLog {
+//             nickname: user.user_descriptor.nickname.clone(),
+//             logs,
+//         });
+//     }
+//     HttpResponse::Ok().json(all_logs)
+// }
 
 // call user.send_create_to_relay endpoint
 #[post("/users/{user_id}/send_create_to_relay")]

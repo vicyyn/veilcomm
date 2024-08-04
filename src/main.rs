@@ -1,24 +1,15 @@
 mod api;
-use simple_logger::SimpleLogger;
 use std::{net::SocketAddr, str::FromStr, thread::sleep, time::Duration};
 use uuid::Uuid;
 use veilcomm2::{directory_address, Directory, Event, PayloadType, Relay, User};
 
 #[tokio::main]
 async fn main() {
-    // SimpleLogger::with_level(SimpleLogger::new(), log::LevelFilter::Info)
-    //     .init()
-    //     .unwrap();
-
     // let directory = Directory::new(directory_address());
     // directory.start();
     // let api = Api::new();
     // api.start();
     // std::thread::park();
-    SimpleLogger::with_level(SimpleLogger::new(), log::LevelFilter::Info)
-        .init()
-        .unwrap();
-
     let directory = Directory::new(directory_address());
     directory.start();
     sleep(Duration::from_secs(2));
