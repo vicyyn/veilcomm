@@ -2,9 +2,8 @@ use crate::payloads::{CreatePayload, ExtendPayload};
 use crate::relay::RelayDescriptor;
 use crate::relay_cell::RelayCell;
 use crate::{
-    decrypt_buffer_with_aes, deserialize_payload_with_aes_keys, directory_address,
-    encrypt_buffer_with_aes, generate_random_aes_key, get_handshake_from_onion_skin,
-    serialize_payload_with_aes_keys, Connections, EstablishIntroductionPayload,
+    decrypt_buffer_with_aes, directory_address, encrypt_buffer_with_aes, generate_random_aes_key,
+    get_handshake_from_onion_skin, Connections, EstablishIntroductionPayload,
     EstablishRendezvousPayload, Event, Introduce1Payload, OnionSkin, Payload, PayloadType,
 };
 use anyhow::Result;
@@ -237,15 +236,26 @@ impl User {
                         let mut circuits_lock = circuits.lock().await;
                         let mut handshakes_lock = handshakes.lock().await;
                         let mut connected_users = connected_users.lock().await;
-                        let payload = if let Some(circuit) =
+                        let payload: Payload = if let Some(circuit) =
                             circuits_lock.get(&relay_cell.circuit_id)
                         {
                             let mut vec_handshakes = vec![];
                             for relay in circuit {
                                 vec_handshakes.push(handshakes_lock.get(relay).unwrap().clone());
                             }
-                            deserialize_payload_with_aes_keys(vec_handshakes, &relay_cell.payload)
-                                .unwrap()
+                            let mut buffer = relay_cell.payload.clone();
+                            for handshake in vec_handshakes.iter() {
+                                info!(
+                                    "Decoding with handshake: {}",
+                                    hex::encode(&handshake[0..32])
+                                );
+                                logs.lock().await.push(format!(
+                                    "Decoding with handshake: {}",
+                                    hex::encode(&handshake[0..32])
+                                ));
+                                buffer = decrypt_buffer_with_aes(handshake, &buffer).unwrap();
+                            }
+                            serde_json::from_slice(&buffer).unwrap()
                         } else {
                             serde_json::from_slice(&relay_cell.payload).unwrap()
                         };
@@ -309,7 +319,8 @@ impl User {
                                     introduce2_payload.onion_skin,
                                     &keys.dh,
                                     &keys.rsa_private,
-                                );
+                                )
+                                .unwrap();
                                 info!(
                                     "Circuit id {} is used for the circuit to the rendezvous point {}",
                                     relay_cell.circuit_id, introduce2_payload.rendezvous_point_descriptor.nickname
@@ -436,7 +447,8 @@ impl User {
         let rsa_public = Rsa::public_key_from_pem(&relay_descriptor.rsa_public).unwrap();
         let half_dh_bytes: Vec<u8> = self.keys.dh.public_key().to_vec();
         let aes = generate_random_aes_key();
-        let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap());
+        let onion_skin =
+            OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap()).unwrap();
         let create_payload = Payload::Create(CreatePayload { onion_skin });
         let relay_cell = RelayCell {
             circuit_id,
@@ -517,7 +529,8 @@ impl User {
         let rsa_public = Rsa::public_key_from_pem(&relay_descriptor.rsa_public).unwrap();
         let half_dh_bytes: Vec<u8> = self.keys.dh.public_key().to_vec();
         let aes = generate_random_aes_key();
-        let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap());
+        let onion_skin =
+            OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap()).unwrap();
         let extend_payload = Payload::Extend(ExtendPayload {
             onion_skin,
             address: relay_address_2,
@@ -531,11 +544,21 @@ impl User {
         }
         drop(circuits_lock);
         drop(handshakes_lock);
-        let encrypted_payload =
-            serialize_payload_with_aes_keys(handshakes, &extend_payload).unwrap();
+        let mut buffer: Vec<u8> = serde_json::to_vec(&extend_payload).unwrap();
+        for handshake in handshakes.iter().rev() {
+            info!(
+                "Encoding with handshake: {}",
+                hex::encode(&handshake[0..32])
+            );
+            self.logs.lock().await.push(format!(
+                "Encoding with handshake: {}",
+                hex::encode(&handshake[0..32])
+            ));
+            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
+        }
         let relay_cell = RelayCell {
             circuit_id,
-            payload: encrypted_payload,
+            payload: buffer,
         };
         info!(
             "Sending EXTEND payload to relay {}",
@@ -585,11 +608,21 @@ impl User {
         }
         drop(circuits_lock);
         drop(handshakes_lock);
-        let encrypted_payload =
-            serialize_payload_with_aes_keys(handshakes, &establish_intro_payload).unwrap();
+        let mut buffer = serde_json::to_vec(&establish_intro_payload).unwrap();
+        for handshake in handshakes.iter().rev() {
+            info!(
+                "Encoding with handshake: {}",
+                hex::encode(&handshake[0..32])
+            );
+            self.logs.lock().await.push(format!(
+                "Encoding with handshake: {}",
+                hex::encode(&handshake[0..32])
+            ));
+            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
+        }
         let relay_cell = RelayCell {
             circuit_id,
-            payload: encrypted_payload,
+            payload: buffer,
         };
         let mut connections_lock = self.connections.lock().await;
         let stream = connections_lock.get_mut(&relay_address).unwrap();
@@ -637,11 +670,22 @@ impl User {
         }
         drop(circuits_lock);
         drop(handshakes_lock);
-        let encrypted_payload =
-            serialize_payload_with_aes_keys(handshakes, &establish_intro_payload).unwrap();
+        let mut buffer = serde_json::to_vec(&establish_intro_payload).unwrap();
+        for handshake in handshakes.iter().rev() {
+            info!(
+                "{} Encoding with handshake: {}",
+                self.user_descriptor.nickname,
+                hex::encode(&handshake[0..32])
+            );
+            self.logs.lock().await.push(format!(
+                "Encoding with handshake: {}",
+                hex::encode(&handshake[0..32])
+            ));
+            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
+        }
         let relay_cell = RelayCell {
             circuit_id,
-            payload: encrypted_payload,
+            payload: buffer,
         };
         let mut connections_lock = self.connections.lock().await;
         let stream = connections_lock.get_mut(&relay_address).unwrap();
@@ -706,11 +750,22 @@ impl User {
         }
         drop(circuits_lock);
         drop(handshakes_lock);
-        let encrypted_payload =
-            serialize_payload_with_aes_keys(handshakes, &begin_payload).unwrap();
+        let mut buffer = serde_json::to_vec(&begin_payload).unwrap();
+        for handshake in handshakes.iter().rev() {
+            info!(
+                "{} Encoding with handshake: {}",
+                self.user_descriptor.nickname,
+                hex::encode(&handshake[0..32])
+            );
+            self.logs.lock().await.push(format!(
+                "Encoding with handshake: {}",
+                hex::encode(&handshake[0..32])
+            ));
+            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
+        }
         let relay_cell = RelayCell {
             circuit_id,
-            payload: encrypted_payload,
+            payload: buffer,
         };
         let mut connections_lock = self.connections.lock().await;
         let stream = connections_lock.get_mut(&relay_address).unwrap();
@@ -760,7 +815,8 @@ impl User {
         let rsa_public = Rsa::public_key_from_pem(&introduction_rsa_public).unwrap();
         let half_dh_bytes: Vec<u8> = self.keys.dh.public_key().to_vec();
         let aes = generate_random_aes_key();
-        let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap());
+        let onion_skin =
+            OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap()).unwrap();
         let introduce1_payload = Introduce1Payload {
             stream_id,
             introduction_id,
@@ -778,11 +834,22 @@ impl User {
         }
         drop(circuits_lock);
         drop(handshakes_lock);
-        let encrypted_payload =
-            serialize_payload_with_aes_keys(handshakes, &introduce1_payload).unwrap();
+        let mut buffer = serde_json::to_vec(&introduce1_payload).unwrap();
+        for handshake in handshakes.iter().rev() {
+            info!(
+                "{} Encoding with handshake: {}",
+                self.user_descriptor.nickname,
+                hex::encode(&handshake[0..32])
+            );
+            self.logs.lock().await.push(format!(
+                "Encoding with handshake: {}",
+                hex::encode(&handshake[0..32])
+            ));
+            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
+        }
         let relay_cell = RelayCell {
             circuit_id,
-            payload: encrypted_payload,
+            payload: buffer,
         };
         let mut connections_lock = self.connections.lock().await;
         let stream = connections_lock.get_mut(&relay_address).unwrap();
@@ -917,11 +984,22 @@ impl User {
         }
         drop(circuits_lock);
         drop(handshakes_lock);
-        let encrypted_payload =
-            serialize_payload_with_aes_keys(handshakes, &rendezvous1_payload).unwrap();
+        let mut buffer = serde_json::to_vec(&rendezvous1_payload).unwrap();
+        for handshake in handshakes.iter().rev() {
+            info!(
+                "{} Encoding with handshake: {}",
+                self.user_descriptor.nickname,
+                hex::encode(&handshake[0..32])
+            );
+            self.logs.lock().await.push(format!(
+                "Encoding with handshake: {}",
+                hex::encode(&handshake[0..32])
+            ));
+            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
+        }
         let relay_cell = RelayCell {
             circuit_id,
-            payload: encrypted_payload,
+            payload: buffer,
         };
         let mut connections_lock = self.connections.lock().await;
         let stream = connections_lock.get_mut(&relay_address).unwrap();
@@ -979,10 +1057,22 @@ impl User {
         }
         drop(circuits_lock);
         drop(handshakes_lock);
-        let encrypted_payload = serialize_payload_with_aes_keys(handshakes, &data_payload).unwrap();
+        let mut buffer = serde_json::to_vec(&data_payload).unwrap();
+        for handshake in handshakes.iter().rev() {
+            info!(
+                "{} Encoding with handshake: {}",
+                self.user_descriptor.nickname,
+                hex::encode(&handshake[0..32])
+            );
+            self.logs.lock().await.push(format!(
+                "Encoding with handshake: {}",
+                hex::encode(&handshake[0..32])
+            ));
+            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
+        }
         let relay_cell = RelayCell {
             circuit_id,
-            payload: encrypted_payload,
+            payload: buffer,
         };
         let mut connections_lock = self.connections.lock().await;
         let stream = connections_lock.get_mut(&relay_address).unwrap();

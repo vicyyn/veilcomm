@@ -413,7 +413,8 @@ impl Relay {
                                     create_payload.onion_skin,
                                     &keys.dh,
                                     &keys.rsa_private,
-                                );
+                                )
+                                .unwrap();
 
                                 handshakes_lock.insert(relay_cell.circuit_id, handshake);
                                 drop(handshakes_lock);
