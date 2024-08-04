@@ -50,7 +50,7 @@ impl User {
         let (events_sender, events_receiver) = tokio::sync::mpsc::channel(100);
         let rsa = Rsa::generate(2048).unwrap();
         let id = Uuid::new_v4();
-        Logger::info(&nickname, &format!("User ID: {:?}", id));
+        Logger::info(&nickname, format!("User ID: {:?}", id));
         Self {
             user_descriptor: UserDescriptor {
                 nickname,
@@ -367,7 +367,7 @@ impl User {
                     Err(e) => {
                         Logger::error(
                             &nickname,
-                            format!("Failed to read from relay: {}", e.to_string()),
+                            format!("Failed to read from relay: {}", e),
                         );
                         break;
                     }
@@ -508,7 +508,7 @@ impl User {
             .await?;
         Logger::info(
             &self.user_descriptor.nickname,
-            &format!("Sent EXTEND payload to relay {}", relay_descriptor.nickname),
+            format!("Sent EXTEND payload to relay {}", relay_descriptor.nickname),
         );
         Ok(())
     }

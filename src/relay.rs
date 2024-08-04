@@ -46,7 +46,7 @@ impl Relay {
     pub fn new(address: SocketAddr, nickname: String) -> Self {
         Logger::info(
             &nickname,
-            &format!("Creating new relay at address: {}", address),
+            format!("Creating new relay at address: {}", address),
         );
         let rsa = openssl::rsa::Rsa::generate(2048).unwrap();
         Self {
@@ -86,7 +86,7 @@ impl Relay {
 
         Logger::info(
             &self.relay_descriptor.nickname,
-            &format!("Registering relay with directory server at {}", url),
+            format!("Registering relay with directory server at {}", url),
         );
         let response = client
             .post(&url)
@@ -99,13 +99,13 @@ impl Relay {
 
         Logger::info(
             &self.relay_descriptor.nickname,
-            &format!("Registration successful with status: {}", response.status()),
+            format!("Registration successful with status: {}", response.status()),
         );
 
         let listener = TcpListener::bind(self.relay_descriptor.address).await?;
         Logger::info(
             &self.relay_descriptor.nickname,
-            &format!("TCP server listening on {}", self.relay_descriptor.address),
+            format!("TCP server listening on {}", self.relay_descriptor.address),
         );
 
         let keys = self.keys.clone();
@@ -320,7 +320,7 @@ impl Relay {
                                         .unwrap();
                                     Logger::info(
                                         &nickname,
-                                        &format!("Forwarded payload to previous relay"),
+                                        &"Forwarded payload to previous relay".to_string(),
                                     );
                                 } else {
                                     Logger::error(&nickname, &format!("direction is wrong, expected false, got true for circuit {} coming from {}",
@@ -369,11 +369,11 @@ impl Relay {
                                     .insert(relay_cell.circuit_id, addr)
                                     .is_some()
                                 {
-                                    Logger::error(&nickname, format!("Circuit ID already exists"));
+                                    Logger::error(&nickname, "Circuit ID already exists".to_string());
                                     continue;
                                 }
 
-                                Logger::info(&nickname, format!("Sending created payload"));
+                                Logger::info(&nickname, "Sending created payload".to_string());
                                 let created_payload = Payload::Created(payloads::CreatedPayload {
                                     dh_key: keys.dh.public_key().to_vec(),
                                 });
@@ -391,7 +391,7 @@ impl Relay {
                                     )
                                     .await
                                     .unwrap();
-                                Logger::info(&nickname, &format!("Sent created payload"));
+                                Logger::info(&nickname, &"Sent created payload".to_string());
                             }
                             Payload::Created(created_payload) => {
                                 if let Some((next_circuit_id, direction)) =
@@ -432,7 +432,7 @@ impl Relay {
                                             .unwrap();
                                         Logger::info(
                                             &nickname,
-                                            format!("Forwarded payload to previous relay"),
+                                            "Forwarded payload to previous relay".to_string(),
                                         );
                                     } else {
                                         Logger::error(&nickname, format!("direction is wrong, expected false, got true for circuit {} coming from {}",
@@ -446,7 +446,7 @@ impl Relay {
                                 let next_relay = extend_payload.address;
                                 // Check if the circuit is already extended
                                 if circuits_map_lock.get(&relay_cell.circuit_id).is_some() {
-                                    Logger::error(&nickname, format!("Circuit already extended"));
+                                    Logger::error(&nickname, "Circuit already extended".to_string());
                                     continue;
                                 }
                                 Logger::info(
@@ -487,7 +487,7 @@ impl Relay {
                                 } else {
                                     Logger::warn(
                                         &nickname,
-                                        &format!("Next relay not connected, attempting to connect"),
+                                        &"Next relay not connected, attempting to connect".to_string(),
                                     );
                                     match tokio::net::TcpStream::connect(next_relay).await {
                                         Ok(next_relay_stream) => {
@@ -527,7 +527,7 @@ impl Relay {
                                                 .unwrap();
                                             Logger::info(
                                                 &nickname,
-                                                &format!("Forwarded create payload to next relay"),
+                                                &"Forwarded create payload to next relay".to_string(),
                                             );
                                         }
                                         _ => {
@@ -644,9 +644,7 @@ impl Relay {
                                 } else {
                                     Logger::warn(
                                         &nickname,
-                                        &format!(
-                                            "Begin relay not connected, attempting to connect"
-                                        ),
+                                        &"Begin relay not connected, attempting to connect".to_string(),
                                     );
                                     match tokio::net::TcpStream::connect(begin_relay).await {
                                         Ok(next_relay_stream) => {
@@ -881,12 +879,12 @@ impl Relay {
                                 Logger::info(&nickname, "Forwarded data payload");
                             }
                             _ => {
-                                Logger::error(&nickname, &format!("Unhandled payload type"));
+                                Logger::error(&nickname, &"Unhandled payload type".to_string());
                             }
                         }
                     }
                     Err(e) => {
-                        Logger::error(&nickname, &format!("Failed to read from socket: {}", e));
+                        Logger::error(&nickname, format!("Failed to read from socket: {}", e));
                         break;
                     }
                 }
