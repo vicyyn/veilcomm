@@ -57,9 +57,9 @@ impl User {
         Logger::info(&nickname, format!("User ID: {:?}", id));
         Self {
             nickname: nickname.clone(),
-            id: id.clone(),
+            id,
             rsa_public: rsa.public_key_to_pem().unwrap(),
-            events_receiver: events_receiver,
+            events_receiver,
             internal_state: Arc::new(Mutex::new(InternalState {
                 user_descriptor: UserDescriptor {
                     nickname,
@@ -73,7 +73,7 @@ impl User {
                     dh: Dh::get_2048_256().unwrap().generate_key().unwrap(),
                 },
                 handshakes: HashMap::new(),
-                events_sender: events_sender,
+                events_sender,
                 circuits: HashMap::new(),
                 connected_users: Vec::new(),
             })),
