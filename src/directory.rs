@@ -1,6 +1,6 @@
 use crate::relay::RelayDescriptor;
 use crate::user::UserDescriptor;
-use crate::Logger;
+use crate::{IntroductionPointId, Logger, RelayId};
 use lazy_static::lazy_static;
 use std::sync::Mutex;
 use uuid::Uuid;
@@ -28,6 +28,18 @@ impl Directory {
         directory.users.lock().unwrap().clone()
     }
 
+    pub fn get_relay(relay_id: RelayId) -> Option<RelayDescriptor> {
+        Logger::info("Directory", format!("Fetching relay {}", relay_id));
+        let relays = directory.relays.lock().unwrap();
+        relays.iter().find(|r| r.id == relay_id).cloned()
+    }
+
+    pub fn get_user(user_id: Uuid) -> Option<UserDescriptor> {
+        Logger::info("Directory", format!("Fetching user {}", user_id));
+        let users = directory.users.lock().unwrap();
+        users.iter().find(|u| u.id == user_id).cloned()
+    }
+
     pub fn publish_relay(relay: RelayDescriptor) {
         Logger::info(
             "Directory",
@@ -46,15 +58,20 @@ impl Directory {
         users.push(user);
     }
 
-    pub fn update_user_introduction_points(user_id: Uuid, introduction_points: Vec<(Uuid, Uuid)>) {
+    pub fn add_user_introduction_point(
+        user_id: Uuid,
+        introduction_points: IntroductionPointId,
+        relay_id: RelayId,
+    ) {
         Logger::info(
             "Directory",
-            format!("Updating introduction points for user {}", user_id),
+            format!("Adding introduction point for user {}", user_id),
         );
         let mut users = directory.users.lock().unwrap();
         for user in users.iter_mut() {
             if user.id == user_id {
-                user.introduction_points = introduction_points;
+                user.introduction_points
+                    .insert(introduction_points, relay_id);
                 return;
             }
         }

@@ -1,7 +1,7 @@
 use crate::{
     decrypt_buffer_with_aes, encrypt_buffer_with_aes, get_handshake_from_onion_skin,
     payloads::{self, CreatePayload},
-    Communication, ConnectedPayload, Keys, Payload, PayloadType, RelayCell,
+    Communication, ConnectedPayload, Keys, Payload, PayloadType, RelayCell, RelayState,
 };
 use crate::{Directory, Logger};
 use serde::{Deserialize, Serialize};
@@ -57,7 +57,15 @@ impl Relay {
         }
     }
 
-    /// Start the relay server
+    pub fn get_state(&self) -> RelayState {
+        RelayState {
+            id: self.relay_descriptor.id,
+            nickname: self.relay_descriptor.nickname.clone(),
+            circuits: self.circuits_ids.clone(),
+            logs: Logger::get_logs(self.relay_descriptor.nickname.clone()),
+        }
+    }
+
     pub fn start(&mut self) {
         Logger::info(&self.relay_descriptor.nickname, "Starting the relay server");
 

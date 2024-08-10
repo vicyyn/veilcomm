@@ -1,11 +1,11 @@
 use crate::payloads::{CreatePayload, ExtendPayload};
-use crate::relay::RelayDescriptor;
 use crate::relay_cell::RelayCell;
 use crate::{
     decrypt_buffer_with_aes, encrypt_buffer_with_aes, generate_random_aes_key,
-    get_handshake_from_onion_skin, Communication, Directory, EstablishIntroductionPayload,
-    EstablishRendezvousPayload, Event, Introduce1Payload, Keys, Logger, OnionSkin, Payload,
-    PayloadType,
+    get_handshake_from_onion_skin, CircuitId, Communication, Directory,
+    EstablishIntroductionPayload, EstablishRendezvousPayload, Event, Handshake, Introduce1Payload,
+    IntroductionPointId, Keys, Logger, OnionSkin, Payload, PayloadType, RelayId,
+    RendezvousCookieId, StreamId, UserId, UserState,
 };
 use anyhow::Result;
 use openssl::bn::BigNum;
@@ -16,35 +16,34 @@ use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use uuid::Uuid;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct UserDescriptor {
-    pub id: Uuid,
+    pub id: UserId,
     pub nickname: String,
     pub rsa_public: Vec<u8>,
-    pub introduction_points: Vec<(Uuid, Uuid)>,
+    pub introduction_points: HashMap<IntroductionPointId, RelayId>,
 }
 pub struct ConnectedUser {
-    pub rendezvous_cookie: Uuid,
-    pub user_handshake: Vec<u8>,
+    pub rendezvous_cookie: RendezvousCookieId,
+    pub user_handshake: Handshake,
 }
 
 pub struct InternalState {
-    pub user_descriptor: UserDescriptor,
-    fetched_relays: Vec<RelayDescriptor>,
     keys: Keys,
-    handshakes: HashMap<Uuid, Vec<u8>>,
+    handshakes: HashMap<RelayId, Handshake>,
     events_sender: Sender<Event>,
-    circuits: HashMap<Uuid, Vec<Uuid>>,
-    connected_users: Vec<ConnectedUser>,
+    circuits: HashMap<CircuitId, Vec<RelayId>>,
+    connected_users: HashMap<RendezvousCookieId, Handshake>,
+    stream_ids: HashMap<StreamId, RelayId>,
 }
 
 pub struct User {
     nickname: String,
-    id: Uuid,
+    id: UserId,
     rsa_public: Vec<u8>,
     pub events_receiver: Receiver<Event>,
+    pub user_descriptor: UserDescriptor,
     internal_state: Arc<Mutex<InternalState>>,
 }
 
@@ -53,21 +52,20 @@ impl User {
         Logger::info(&nickname, "Creating new user");
         let (events_sender, events_receiver) = mpsc::channel();
         let rsa = Rsa::generate(2048).unwrap();
-        let id = Uuid::new_v4();
+        let id = UserId::new_v4();
         Logger::info(&nickname, format!("User ID: {:?}", id));
         Self {
             nickname: nickname.clone(),
             id,
             rsa_public: rsa.public_key_to_pem().unwrap(),
             events_receiver,
+            user_descriptor: UserDescriptor {
+                nickname,
+                id,
+                rsa_public: rsa.public_key_to_pem().unwrap(),
+                introduction_points: HashMap::new(),
+            },
             internal_state: Arc::new(Mutex::new(InternalState {
-                user_descriptor: UserDescriptor {
-                    nickname,
-                    id,
-                    rsa_public: rsa.public_key_to_pem().unwrap(),
-                    introduction_points: Vec::new(),
-                },
-                fetched_relays: Vec::new(),
                 keys: Keys {
                     rsa_private: rsa.clone(),
                     dh: Dh::get_2048_256().unwrap().generate_key().unwrap(),
@@ -75,27 +73,24 @@ impl User {
                 handshakes: HashMap::new(),
                 events_sender,
                 circuits: HashMap::new(),
-                connected_users: Vec::new(),
+                connected_users: HashMap::new(),
+                stream_ids: HashMap::new(),
             })),
         }
     }
 
-    pub fn add_introduction_point(&mut self, introduction_id: Uuid, relay_id: Uuid) {
-        self.internal_state
-            .lock()
-            .unwrap()
-            .user_descriptor
-            .introduction_points
-            .push((introduction_id, relay_id));
-    }
-
-    pub fn get_public_rsa_key(&self) -> Vec<u8> {
-        self.internal_state
-            .lock()
-            .unwrap()
-            .user_descriptor
-            .rsa_public
-            .clone()
+    pub fn get_state(&self) -> UserState {
+        let internal_state_lock = self.internal_state.lock().unwrap();
+        UserState {
+            id: self.id,
+            nickname: self.nickname.clone(),
+            introduction_points: self.user_descriptor.introduction_points.clone(),
+            circuits: internal_state_lock.circuits.clone(),
+            handshakes: internal_state_lock.handshakes.clone(),
+            connected_users: internal_state_lock.connected_users.clone(),
+            streams: internal_state_lock.stream_ids.clone().into_iter().collect(),
+            logs: Logger::get_logs(self.nickname.clone()),
+        }
     }
 
     pub fn start(&self) {
@@ -108,7 +103,7 @@ impl User {
             id,
             nickname: nickname.clone(),
             rsa_public,
-            introduction_points: vec![],
+            introduction_points: HashMap::new(),
         });
         Logger::info(&nickname, "Registered successfully");
 
@@ -222,11 +217,9 @@ impl User {
                                     "Circuit id {} is used for the circuit to the rendezvous point {}",
                                     relay_cell.circuit_id, introduce2_payload.rendezvous_point_descriptor.nickname
                                 ));
-                            let connected_user = ConnectedUser {
-                                rendezvous_cookie: introduce2_payload.rendezvous_cookie,
-                                user_handshake: handshake,
-                            };
-                            internal_state_lock.connected_users.push(connected_user);
+                            internal_state_lock
+                                .connected_users
+                                .insert(introduce2_payload.rendezvous_cookie, handshake);
                         }
                         Payload::Rendezvous2(rendezvous2_payload) => {
                             let handshake = internal_state_lock
@@ -243,32 +236,27 @@ impl User {
                                     hex::encode(&handshake[0..32])
                                 ),
                             );
-                            let connected_user = ConnectedUser {
-                                rendezvous_cookie: rendezvous2_payload.rendezvous_cookie,
-                                user_handshake: handshake,
-                            };
-                            internal_state_lock.connected_users.push(connected_user);
+                            internal_state_lock
+                                .connected_users
+                                .insert(rendezvous2_payload.rendezvous_cookie, handshake);
                         }
                         Payload::Data(data_payload) => {
                             Logger::info(
                                 &nickname,
                                 format!("Received data from relay {}", sender_id),
                             );
-                            let connected_user = internal_state_lock
+                            let user_handshake = internal_state_lock
                                 .connected_users
-                                .iter()
-                                .find(|u| u.rendezvous_cookie == data_payload.rendezvous_cookie)
+                                .get(&data_payload.rendezvous_cookie)
                                 .unwrap();
-                            let decrypted_data = decrypt_buffer_with_aes(
-                                &connected_user.user_handshake,
-                                &data_payload.data,
-                            )
-                            .unwrap();
+                            let decrypted_data =
+                                decrypt_buffer_with_aes(user_handshake, &data_payload.data)
+                                    .unwrap();
                             Logger::info(
                                 &nickname,
                                 format!(
                                     "Received String from user with rendezvous cookie {}: {:?}",
-                                    connected_user.rendezvous_cookie,
+                                    data_payload.rendezvous_cookie,
                                     String::from_utf8(decrypted_data.clone()).unwrap()
                                 ),
                             );
@@ -308,26 +296,9 @@ impl User {
         });
     }
 
-    /// Fetch all relays from the directory server
-    pub fn fetch_relays(&self) -> Result<()> {
-        let mut internal_state_lock = self.internal_state.lock().unwrap();
-        Logger::info(&self.nickname, "Fetching relays from directory");
-        let relays_fetched: Vec<RelayDescriptor> = Directory::get_relays();
-        Logger::info(
-            &self.nickname,
-            format!("Fetched {:?} relays", relays_fetched.len()),
-        );
-        internal_state_lock.fetched_relays = relays_fetched;
-        Ok(())
-    }
-
-    pub fn send_create_to_relay(&self, relay_id: Uuid, circuit_id: Uuid) -> Result<()> {
+    pub fn send_create_to_relay(&self, relay_id: RelayId, circuit_id: CircuitId) -> Result<()> {
         let internal_state_lock = self.internal_state.lock().unwrap();
-        let relay_descriptor = internal_state_lock
-            .fetched_relays
-            .iter()
-            .find(|r| r.id == relay_id)
-            .unwrap();
+        let relay_descriptor = Directory::get_relay(relay_id).unwrap();
         Logger::info(
             &self.nickname,
             format!("Sending CREATE payload to: {}", relay_descriptor.nickname,),
@@ -343,11 +314,7 @@ impl User {
             circuit_id,
             payload: serde_json::to_vec(&create_payload)?,
         };
-        Communication::send(
-            internal_state_lock.user_descriptor.id,
-            relay_descriptor.id,
-            relay_cell,
-        );
+        Communication::send(self.user_descriptor.id, relay_descriptor.id, relay_cell);
         Logger::info(
             &self.nickname,
             format!("Sent CREATE payload to: {}", relay_descriptor.nickname),
@@ -357,9 +324,9 @@ impl User {
 
     pub fn send_extend_to_relay(
         &self,
-        relay_id: Uuid,
-        relay_id_2: Uuid,
-        circuit_id: Uuid,
+        relay_id: RelayId,
+        relay_id_2: RelayId,
+        circuit_id: CircuitId,
     ) -> Result<()> {
         let internal_state_lock = self.internal_state.lock().unwrap();
         Logger::info(
@@ -369,12 +336,7 @@ impl User {
                 relay_id, relay_id_2
             ),
         );
-        let relay_descriptor = internal_state_lock
-            .fetched_relays
-            .iter()
-            .find(|r| r.id == relay_id_2)
-            .unwrap()
-            .clone();
+        let relay_descriptor = Directory::get_relay(relay_id_2).unwrap();
         let rsa_public = Rsa::public_key_from_pem(&relay_descriptor.rsa_public).unwrap();
         let half_dh_bytes: Vec<u8> = internal_state_lock.keys.dh.public_key().to_vec();
         let aes = generate_random_aes_key();
@@ -411,7 +373,7 @@ impl User {
                 relay_descriptor.nickname
             ),
         );
-        Communication::send(internal_state_lock.user_descriptor.id, relay_id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
         Logger::info(
             &self.nickname,
             format!("Sent EXTEND payload to relay {}", relay_descriptor.nickname),
@@ -421,9 +383,9 @@ impl User {
 
     pub fn send_establish_rendezvous_to_relay(
         &self,
-        relay_id: Uuid,
-        rendezvous_cookie: Uuid,
-        circuit_id: Uuid,
+        relay_id: RelayId,
+        rendezvous_cookie: RendezvousCookieId,
+        circuit_id: CircuitId,
     ) -> Result<()> {
         let internal_state_lock = self.internal_state.lock().unwrap();
         Logger::info(
@@ -452,7 +414,7 @@ impl User {
             circuit_id,
             payload: buffer,
         };
-        Communication::send(internal_state_lock.user_descriptor.id, relay_id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
         Logger::info(
             &self.nickname,
             format!("Sent ESTABLISH_INTRO payload to relay {}", relay_id),
@@ -462,9 +424,9 @@ impl User {
 
     pub fn send_establish_introduction_to_relay(
         &self,
-        relay_id: Uuid,
-        introduction_id: Uuid,
-        circuit_id: Uuid,
+        relay_id: RelayId,
+        introduction_id: IntroductionPointId,
+        circuit_id: CircuitId,
     ) -> Result<()> {
         let internal_state_lock = self.internal_state.lock().unwrap();
         Logger::info(
@@ -474,7 +436,7 @@ impl User {
         let establish_intro_payload =
             Payload::EstablishIntroduction(EstablishIntroductionPayload {
                 introduction_id,
-                rsa_publickey: internal_state_lock.user_descriptor.rsa_public.clone(),
+                rsa_publickey: self.user_descriptor.rsa_public.clone(),
             });
         let circuit = internal_state_lock.circuits.get(&circuit_id).unwrap();
         let mut handshakes = vec![];
@@ -496,7 +458,12 @@ impl User {
             circuit_id,
             payload: buffer,
         };
-        Communication::send(internal_state_lock.user_descriptor.id, relay_id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
+        Directory::add_user_introduction_point(
+            self.id,
+            introduction_id,
+            circuit.last().unwrap().clone(),
+        );
         Logger::info(
             &self.nickname,
             format!("Sent ESTABLISH_INTRO payload to relay {}", relay_id),
@@ -515,22 +482,17 @@ impl User {
 
     pub fn send_begin_to_relay(
         &self,
-        relay_id: Uuid,
-        circuit_id: Uuid,
-        stream_id: Uuid,
-        begin_relay_id: Uuid,
+        relay_id: RelayId,
+        circuit_id: CircuitId,
+        stream_id: StreamId,
+        begin_relay_id: RelayId,
     ) -> Result<()> {
-        let internal_state_lock = self.internal_state.lock().unwrap();
+        let mut internal_state_lock = self.internal_state.lock().unwrap();
         Logger::info(
             &self.nickname,
             format!("Sending BEGIN to relay {}", relay_id),
         );
-        let relay_descriptor = internal_state_lock
-            .fetched_relays
-            .iter()
-            .find(|r| r.id == begin_relay_id)
-            .unwrap()
-            .clone();
+        let relay_descriptor = Directory::get_relay(begin_relay_id).unwrap();
         let begin_payload = Payload::Begin(crate::BeginPayload {
             stream_id,
             relay_descriptor,
@@ -555,7 +517,10 @@ impl User {
             circuit_id,
             payload: buffer,
         };
-        Communication::send(internal_state_lock.user_descriptor.id, relay_id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
+        internal_state_lock
+            .stream_ids
+            .insert(stream_id, begin_relay_id);
         Logger::info(
             &self.nickname,
             format!("Sent BEGIN payload to relay at address: {}", relay_id),
@@ -566,25 +531,20 @@ impl User {
     #[allow(clippy::too_many_arguments)]
     pub fn send_introduce1_to_relay(
         &self,
-        relay_id: Uuid,
-        introduction_id: Uuid,
-        stream_id: Uuid,
-        rendezvous_point_id: Uuid,
-        rendezvous_cookie: Uuid,
+        relay_id: RelayId,
+        introduction_id: IntroductionPointId,
+        stream_id: StreamId,
+        rendezvous_point_relay_id: RelayId,
+        rendezvous_cookie: RendezvousCookieId,
         introduction_rsa_public: Vec<u8>,
-        circuit_id: Uuid,
+        circuit_id: CircuitId,
     ) -> Result<()> {
         let internal_state_lock = self.internal_state.lock().unwrap();
         Logger::info(
             &self.nickname,
             format!("Sending INTRODUCE1 to relay {}", relay_id),
         );
-        let relay_descriptor = internal_state_lock
-            .fetched_relays
-            .iter()
-            .find(|r| r.id == rendezvous_point_id)
-            .unwrap()
-            .clone();
+        let relay_descriptor = Directory::get_relay(rendezvous_point_relay_id).unwrap();
         let rsa_public = Rsa::public_key_from_pem(&introduction_rsa_public).unwrap();
         let half_dh_bytes: Vec<u8> = internal_state_lock.keys.dh.public_key().to_vec();
         let aes = generate_random_aes_key();
@@ -618,7 +578,7 @@ impl User {
             circuit_id,
             payload: buffer,
         };
-        Communication::send(internal_state_lock.user_descriptor.id, relay_id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
         Logger::info(
             &self.nickname,
             format!("Sent INTRODUCE1 payload to relay {}", relay_id),
@@ -626,27 +586,12 @@ impl User {
         Ok(())
     }
 
-    pub fn update_introduction_points(&self) -> Result<()> {
-        let internal_state_lock = self.internal_state.lock().unwrap();
-        Logger::info(&self.nickname, "Updating introduction points");
-        let introduction_points = internal_state_lock
-            .user_descriptor
-            .introduction_points
-            .clone();
-        Directory::update_user_introduction_points(
-            internal_state_lock.user_descriptor.id,
-            introduction_points,
-        );
-        Logger::info(&self.nickname, "Updated introduction points successfully");
-        Ok(())
-    }
-
     pub fn establish_circuit(
         &self,
-        circuit_id: Uuid,
-        relay_id_1: Uuid,
-        relay_id_2: Uuid,
-        relay_id_3: Uuid,
+        circuit_id: CircuitId,
+        relay_id_1: RelayId,
+        relay_id_2: RelayId,
+        relay_id_3: RelayId,
     ) -> Result<()> {
         self.send_create_to_relay(relay_id_1, circuit_id).unwrap();
         self.listen_for_event(Event(PayloadType::Created, relay_id_1))
@@ -671,9 +616,9 @@ impl User {
 
     pub fn send_rendezvous1_to_relay(
         &self,
-        relay_id: Uuid,
-        rendezvous_cookie: Uuid,
-        circuit_id: Uuid,
+        relay_id: RelayId,
+        rendezvous_cookie: RendezvousCookieId,
+        circuit_id: CircuitId,
     ) -> Result<()> {
         let internal_state_lock = self.internal_state.lock().unwrap();
         Logger::info(
@@ -704,7 +649,7 @@ impl User {
             circuit_id,
             payload: buffer,
         };
-        Communication::send(internal_state_lock.user_descriptor.id, relay_id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
         Logger::info(
             &self.nickname,
             format!("Sent RENDEZVOUS1 payload to relay {}", relay_id),
@@ -714,9 +659,9 @@ impl User {
 
     pub fn send_data_to_relay(
         &self,
-        relay_id: Uuid,
-        rendezvous_cookie: Uuid,
-        circuit_id: Uuid,
+        relay_id: RelayId,
+        rendezvous_cookie: RendezvousCookieId,
+        circuit_id: CircuitId,
         data: Vec<u8>,
     ) -> Result<()> {
         Logger::info(
@@ -726,12 +671,9 @@ impl User {
         let internal_state_lock = self.internal_state.lock().unwrap();
         let user_handshake = internal_state_lock
             .connected_users
-            .iter()
-            .find(|u| u.rendezvous_cookie == rendezvous_cookie)
-            .unwrap()
-            .user_handshake
-            .clone();
-        let encrypted_data = encrypt_buffer_with_aes(&user_handshake, &data).unwrap();
+            .get(&rendezvous_cookie)
+            .unwrap();
+        let encrypted_data = encrypt_buffer_with_aes(user_handshake, &data).unwrap();
         let data_payload: Payload = Payload::Data(crate::DataPayload {
             data: encrypted_data,
             rendezvous_cookie,
@@ -756,7 +698,7 @@ impl User {
             circuit_id,
             payload: buffer,
         };
-        Communication::send(internal_state_lock.user_descriptor.id, relay_id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
         Logger::info(
             &self.nickname,
             format!("Sent DATA payload to relay {}", relay_id),

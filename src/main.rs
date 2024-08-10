@@ -49,16 +49,15 @@ fn main() {
         relay_6.start();
     });
 
-    let mut user = User::new("User".to_string());
+    let user = User::new("User".to_string());
     let user_2 = User::new("User2".to_string());
     let introduction_id = Uuid::new_v4();
     let rendezvous_cookie = Uuid::new_v4();
     let stream_id = Uuid::new_v4();
-    let introduction_rsa_public = user.get_public_rsa_key();
+    let introduction_rsa_public = user.user_descriptor.rsa_public.clone();
 
     thread::spawn(move || {
         user.start();
-        user.fetch_relays().unwrap();
         let circuit_id = Uuid::new_v4();
         user.establish_circuit(circuit_id, relay_id, relay_id_2, relay_id_3)
             .unwrap();
@@ -66,8 +65,6 @@ fn main() {
             .unwrap();
         user.listen_for_event(Event(PayloadType::EstablishedIntroduction, relay_id))
             .unwrap();
-        user.add_introduction_point(introduction_id, relay_id_3);
-        user.update_introduction_points().unwrap();
         user.listen_for_event(Event(PayloadType::Introduce2, relay_id))
             .unwrap();
         let new_circuit_id = Uuid::new_v4();
@@ -82,7 +79,6 @@ fn main() {
 
     thread::spawn(move || {
         user_2.start();
-        user_2.fetch_relays().unwrap();
         let circuit_id = Uuid::new_v4();
         user_2
             .establish_circuit(circuit_id, relay_id_4, relay_id_5, relay_id_6)
