@@ -10,8 +10,8 @@ pub struct SendExtendBody {
     pub extend_to: RelayId,
 }
 
-#[post("/users/{user_id}/send_extend_to_relay")]
-async fn send_extend_to_relay(
+#[post("/users/{user_id}/send_extend")]
+async fn send_extend(
     data: web::Data<Arc<Mutex<Vec<User>>>>,
     user_id: web::Path<UserId>,
     body: web::Json<SendExtendBody>,
@@ -21,7 +21,7 @@ async fn send_extend_to_relay(
         .iter()
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
-    user.send_extend_to_relay(body.relay_id, body.extend_to, body.circuit_id)
+    user.send_extend(body.relay_id, body.extend_to, body.circuit_id)
         .unwrap();
     HttpResponse::Ok().finish()
 }

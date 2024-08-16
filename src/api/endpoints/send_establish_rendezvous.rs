@@ -9,8 +9,8 @@ pub struct SendEstablishRendezvousBody {
     pub circuit_id: CircuitId,
 }
 
-#[post("/users/{user_id}/send_establish_rendezvous_to_relay")]
-async fn send_establish_rendezvous_to_relay(
+#[post("/users/{user_id}/send_establish_rendezvous")]
+async fn send_establish_rendezvous(
     data: web::Data<Arc<Mutex<Vec<User>>>>,
     user_id: web::Path<UserId>,
     body: web::Json<SendEstablishRendezvousBody>,
@@ -21,7 +21,7 @@ async fn send_establish_rendezvous_to_relay(
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
     let rendezvous_cookie = RendezvousCookieId::new_v4();
-    user.send_establish_rendezvous_to_relay(body.relay_id, rendezvous_cookie, body.circuit_id)
+    user.send_establish_rendezvous(body.relay_id, rendezvous_cookie, body.circuit_id)
         .unwrap();
     HttpResponse::Ok().finish()
 }

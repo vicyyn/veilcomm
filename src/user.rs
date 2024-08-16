@@ -296,7 +296,7 @@ impl User {
         });
     }
 
-    pub fn send_create_to_relay(&self, relay_id: RelayId, circuit_id: CircuitId) -> Result<()> {
+    pub fn send_create(&self, relay_id: RelayId, circuit_id: CircuitId) -> Result<()> {
         let internal_state_lock = self.internal_state.lock().unwrap();
         let relay_descriptor = Directory::get_relay(relay_id).unwrap();
         Logger::info(
@@ -319,10 +319,13 @@ impl User {
             &self.nickname,
             format!("Sent CREATE payload to: {}", relay_descriptor.nickname),
         );
+        drop(internal_state_lock);
+        self.listen_for_event(Event(PayloadType::Created, relay_id))
+            .unwrap();
         Ok(())
     }
 
-    pub fn send_extend_to_relay(
+    pub fn send_extend(
         &self,
         relay_id: RelayId,
         relay_id_2: RelayId,
@@ -378,10 +381,13 @@ impl User {
             &self.nickname,
             format!("Sent EXTEND payload to relay {}", relay_descriptor.nickname),
         );
+        drop(internal_state_lock);
+        self.listen_for_event(Event(PayloadType::Extended, relay_id))
+            .unwrap();
         Ok(())
     }
 
-    pub fn send_establish_rendezvous_to_relay(
+    pub fn send_establish_rendezvous(
         &self,
         relay_id: RelayId,
         rendezvous_cookie: RendezvousCookieId,
@@ -419,10 +425,13 @@ impl User {
             &self.nickname,
             format!("Sent ESTABLISH_INTRO payload to relay {}", relay_id),
         );
+        drop(internal_state_lock);
+        self.listen_for_event(Event(PayloadType::EstablishedRendezvous, relay_id))
+            .unwrap();
         Ok(())
     }
 
-    pub fn send_establish_introduction_to_relay(
+    pub fn send_establish_introduction(
         &self,
         relay_id: RelayId,
         introduction_id: IntroductionPointId,
@@ -468,10 +477,13 @@ impl User {
             &self.nickname,
             format!("Sent ESTABLISH_INTRO payload to relay {}", relay_id),
         );
+        drop(internal_state_lock);
+        self.listen_for_event(Event(PayloadType::EstablishedIntroduction, relay_id))
+            .unwrap();
         Ok(())
     }
 
-    pub fn listen_for_event(&self, event: Event) -> Result<()> {
+    fn listen_for_event(&self, event: Event) -> Result<()> {
         loop {
             let received_event = self.events_receiver.recv().unwrap();
             if received_event == event {
@@ -529,7 +541,7 @@ impl User {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn send_introduce1_to_relay(
+    pub fn send_introduce1(
         &self,
         relay_id: RelayId,
         introduction_id: IntroductionPointId,
@@ -583,6 +595,9 @@ impl User {
             &self.nickname,
             format!("Sent INTRODUCE1 payload to relay {}", relay_id),
         );
+        drop(internal_state_lock);
+        self.listen_for_event(Event(PayloadType::Introduce2, relay_id))
+            .unwrap();
         Ok(())
     }
 
@@ -593,16 +608,10 @@ impl User {
         relay_id_2: RelayId,
         relay_id_3: RelayId,
     ) -> Result<()> {
-        self.send_create_to_relay(relay_id_1, circuit_id).unwrap();
-        self.listen_for_event(Event(PayloadType::Created, relay_id_1))
+        self.send_create(relay_id_1, circuit_id).unwrap();
+        self.send_extend(relay_id_1, relay_id_2, circuit_id)
             .unwrap();
-        self.send_extend_to_relay(relay_id_1, relay_id_2, circuit_id)
-            .unwrap();
-        self.listen_for_event(Event(PayloadType::Extended, relay_id_1))
-            .unwrap();
-        self.send_extend_to_relay(relay_id_1, relay_id_3, circuit_id)
-            .unwrap();
-        self.listen_for_event(Event(PayloadType::Extended, relay_id_1))
+        self.send_extend(relay_id_1, relay_id_3, circuit_id)
             .unwrap();
         Logger::info(
             &self.nickname,
@@ -654,6 +663,9 @@ impl User {
             &self.nickname,
             format!("Sent RENDEZVOUS1 payload to relay {}", relay_id),
         );
+        drop(internal_state_lock);
+        self.listen_for_event(Event(PayloadType::Rendezvous2, relay_id))
+            .unwrap();
         Ok(())
     }
 

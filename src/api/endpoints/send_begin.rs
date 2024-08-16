@@ -10,8 +10,8 @@ pub struct SendBeginToRelayBody {
     pub begin_relay_id: RelayId,
 }
 
-#[post("/users/{user_id}/send_begin_to_relay")]
-async fn send_begin_to_relay(
+#[post("/users/{user_id}/send_begin")]
+async fn send_begin(
     data: web::Data<Arc<Mutex<Vec<User>>>>,
     user_id: web::Path<UserId>,
     body: web::Json<SendBeginToRelayBody>,

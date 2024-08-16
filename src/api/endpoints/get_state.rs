@@ -7,6 +7,10 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+#[cfg(test)]
+use serde::Deserialize;
+
+#[cfg_attr(test, derive(Deserialize))]
 #[derive(Serialize)]
 pub struct UserState {
     pub id: UserId,
@@ -19,6 +23,7 @@ pub struct UserState {
     pub logs: Vec<String>,
 }
 
+#[cfg_attr(test, derive(Deserialize))]
 #[derive(Serialize)]
 pub struct RelayState {
     pub id: RelayId,
@@ -27,6 +32,7 @@ pub struct RelayState {
     pub logs: Vec<String>,
 }
 
+#[cfg_attr(test, derive(Deserialize))]
 #[derive(Serialize)]
 pub struct ApiState {
     pub relay_states: Vec<RelayState>,

@@ -14,8 +14,7 @@ async fn start_relay(
     body: web::Json<StartRelayBody>,
 ) -> impl Responder {
     let mut relays = data.lock().unwrap();
-    // generate random address that can be used
-    let mut relay = Relay::new(body.nickname.clone());
+    let relay = Relay::new(body.nickname.clone());
     relay.start();
     relays.push(relay);
     HttpResponse::Ok().finish()

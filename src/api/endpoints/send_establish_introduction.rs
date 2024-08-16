@@ -5,12 +5,12 @@ use std::sync::{Arc, Mutex};
 
 #[derive(Deserialize)]
 pub struct SendEstablishIntroductionBody {
-    pub relay_socket: RelayId,
+    pub relay_id: RelayId,
     pub circuit_id: CircuitId,
 }
 
-#[post("/users/{user_id}/send_establish_introduction_to_relay")]
-async fn send_establish_introduction_to_relay(
+#[post("/users/{user_id}/send_establish_introduction")]
+async fn send_establish_introduction(
     data: web::Data<Arc<Mutex<Vec<User>>>>,
     user_id: web::Path<UserId>,
     body: web::Json<SendEstablishIntroductionBody>,
@@ -21,7 +21,7 @@ async fn send_establish_introduction_to_relay(
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
     let introduction_id = UserId::new_v4();
-    user.send_establish_introduction_to_relay(body.relay_socket, introduction_id, body.circuit_id)
+    user.send_establish_introduction(body.relay_id, introduction_id, body.circuit_id)
         .unwrap();
     HttpResponse::Ok().json(introduction_id.to_string())
 }

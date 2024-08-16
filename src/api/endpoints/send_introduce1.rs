@@ -14,8 +14,8 @@ pub struct SendIntroduce1Body {
     pub circuit_id: CircuitId,
 }
 
-#[post("/users/{user_id}/send_introduce1_to_relay")]
-async fn send_introduce1_to_relay(
+#[post("/users/{user_id}/send_introduce1")]
+async fn send_introduce1(
     data: web::Data<Arc<Mutex<Vec<User>>>>,
     user_id: web::Path<UserId>,
     body: web::Json<SendIntroduce1Body>,
@@ -25,7 +25,7 @@ async fn send_introduce1_to_relay(
         .iter()
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
-    user.send_introduce1_to_relay(
+    user.send_introduce1(
         body.relay_id,
         body.introduction_id,
         body.stream_id,

@@ -8,8 +8,8 @@ pub struct SendCreateBody {
     pub relay_id: RelayId,
 }
 
-#[post("/users/{user_id}/send_create_to_relay")]
-async fn send_create_to_relay(
+#[post("/users/{user_id}/send_create")]
+async fn send_create(
     data: web::Data<Arc<Mutex<Vec<User>>>>,
     user_id: web::Path<UserId>,
     body: web::Json<SendCreateBody>,
@@ -20,7 +20,6 @@ async fn send_create_to_relay(
         .iter()
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
-    user.send_create_to_relay(body.relay_id, circuit_id)
-        .unwrap();
-    HttpResponse::Ok().finish()
+    user.send_create(body.relay_id, circuit_id).unwrap();
+    HttpResponse::Ok().json(circuit_id.to_string())
 }

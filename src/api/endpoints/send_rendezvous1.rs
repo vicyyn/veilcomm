@@ -10,8 +10,8 @@ pub struct SendRendezvous1Body {
     pub circuit_id: CircuitId,
 }
 
-#[post("/users/{user_id}/send_rendezvous1_to_relay")]
-async fn send_rendezvous1_to_relay(
+#[post("/users/{user_id}/send_rendezvous1")]
+async fn send_rendezvous1(
     data: web::Data<Arc<Mutex<Vec<User>>>>,
     user_id: web::Path<UserId>,
     body: web::Json<SendRendezvous1Body>,

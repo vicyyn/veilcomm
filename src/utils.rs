@@ -1,7 +1,4 @@
-use std::{net::SocketAddr, str::FromStr};
 use uuid::Uuid;
-
-pub fn api_address() -> SocketAddr {}
 
 pub type CircuitId = Uuid;
 pub type RelayId = Uuid;
