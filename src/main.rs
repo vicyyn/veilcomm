@@ -3,14 +3,14 @@ use std::{
     time::Duration,
 };
 use uuid::Uuid;
-use veilcomm2::{Relay, User};
+use veilcomm2::{Api, Event, PayloadType, Relay, User};
 
-fn main() {
-    // let directory = Directory::new(directory_address());
-    // directory.start();
-    // let api = Api::new();
-    // api.start();
-    // std::thread::park();
+#[tokio::main]
+async fn main() {
+    let api = Api::new();
+    api.start();
+    std::thread::park();
+
     let relay = Relay::new("Relay1".to_string());
     let relay_id = relay.get_relay_descriptor().id;
     thread::spawn(move || {
@@ -66,7 +66,9 @@ fn main() {
         let new_circuit_id = Uuid::new_v4();
         user.establish_circuit(new_circuit_id, relay_id_3, relay_id_2, relay_id_6)
             .unwrap();
-        user.send_rendezvous1_to_relay(relay_id_3, rendezvous_cookie, new_circuit_id)
+        user.listen_for_event(Event(PayloadType::Introduce2, relay_id))
+            .unwrap();
+        user.send_rendezvous1(relay_id_3, rendezvous_cookie, new_circuit_id)
             .unwrap();
     });
 
@@ -83,7 +85,7 @@ fn main() {
             .send_establish_rendezvous(relay_id_4, rendezvous_cookie, circuit_id)
             .unwrap();
         user_2
-            .send_begin_to_relay(relay_id_4, circuit_id, stream_id, relay_descriptor_3.id)
+            .send_begin(relay_id_4, circuit_id, stream_id, relay_descriptor_3.id)
             .unwrap();
         user_2
             .send_introduce1(
@@ -96,9 +98,12 @@ fn main() {
                 circuit_id,
             )
             .unwrap();
+        user_2
+            .listen_for_event(Event(PayloadType::Rendezvous2, relay_id_4))
+            .unwrap();
         let data: Vec<u8> = "Hello, world!".as_bytes().to_vec();
         user_2
-            .send_data_to_relay(relay_id_4, rendezvous_cookie, circuit_id, data)
+            .send_data(relay_id_4, rendezvous_cookie, circuit_id, data)
             .unwrap();
     });
     std::thread::park();

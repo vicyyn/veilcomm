@@ -101,9 +101,9 @@ impl Relay {
 
         std::thread::spawn(move || {
             loop {
-                let mut internal_state_lock = internal_state.lock().unwrap();
                 match receiver.recv() {
                     Ok((sender_id, relay_cell)) => {
+                        let mut internal_state_lock = internal_state.lock().unwrap();
                         Logger::info(&nickname, "Received relay cell");
 
                         if let Some((next_circuit_id, direction)) =

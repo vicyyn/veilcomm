@@ -1,7 +1,8 @@
-use crate::{CircuitId, RelayId, User, UserId};
+use crate::{CircuitId, Logger, RelayId, User, UserId};
 use actix_web::{post, web, HttpResponse, Responder};
 use serde::Deserialize;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Deserialize)]
 pub struct SendCreateBody {
@@ -14,7 +15,8 @@ async fn send_create(
     user_id: web::Path<UserId>,
     body: web::Json<SendCreateBody>,
 ) -> impl Responder {
-    let data_lock = data.lock().unwrap();
+    Logger::info("API", format!("send_create: {:?}", user_id));
+    let data_lock = data.lock().await;
     let circuit_id = CircuitId::new_v4();
     let user = data_lock
         .iter()

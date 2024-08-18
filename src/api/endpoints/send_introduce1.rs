@@ -1,7 +1,8 @@
 use crate::{CircuitId, IntroductionPointId, RelayId, RendezvousCookieId, StreamId, User, UserId};
 use actix_web::{post, web, HttpResponse, Responder};
 use serde::Deserialize;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Deserialize)]
 pub struct SendIntroduce1Body {
@@ -20,7 +21,7 @@ async fn send_introduce1(
     user_id: web::Path<UserId>,
     body: web::Json<SendIntroduce1Body>,
 ) -> impl Responder {
-    let data_lock = data.lock().unwrap();
+    let data_lock = data.lock().await;
     let user = data_lock
         .iter()
         .find(|u| u.user_descriptor.id == *user_id)

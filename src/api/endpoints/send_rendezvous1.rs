@@ -1,7 +1,8 @@
 use crate::{CircuitId, RelayId, RendezvousCookieId, User, UserId};
 use actix_web::{post, web, HttpResponse, Responder};
 use serde::Deserialize;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Deserialize)]
 pub struct SendRendezvous1Body {
@@ -16,12 +17,12 @@ async fn send_rendezvous1(
     user_id: web::Path<UserId>,
     body: web::Json<SendRendezvous1Body>,
 ) -> impl Responder {
-    let data_lock = data.lock().unwrap();
+    let data_lock = data.lock().await;
     let user = data_lock
         .iter()
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
-    user.send_rendezvous1_to_relay(body.relay_id, body.rendezvous_cookie, body.circuit_id)
+    user.send_rendezvous1(body.relay_id, body.rendezvous_cookie, body.circuit_id)
         .unwrap();
     HttpResponse::Ok().finish()
 }

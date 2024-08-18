@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchRelays, fetchUsers, startRelay, startUser, sendCreate, sendExtend, fetchUserRelays, getUserLogs, getRelayLogs, sendEstablishRendezvous, sendEstablishIntroduction, sendBegin, sendIntroduce1, sendRendezvous1, sendData } from './requests';
-import { RelayCard, UserCard, NewRelayPopup, NewUserPopup, DataPopup } from './components';
+import { startRelay, startUser, sendCreate, sendExtend, sendEstablishRendezvous, sendEstablishIntroduction, sendBegin, sendIntroduce1, sendRendezvous1, sendData, getState } from './requests';
+import { Card, DataPopup } from './components';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import Draggable from 'react-draggable';
@@ -9,6 +9,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import './App.css';
 import { FiRefreshCw, FiInfo, FiGithub } from 'react-icons/fi';
 import { generateRandomString } from './utils';
+import { Position, RelayState, UserState } from './data';
 
 const Dashboard = styled(motion.div)`
   width: 100%;
@@ -93,76 +94,99 @@ const TopButton = styled.button`
   }
 `;
 
+
 const AppContainer = styled.div`
 `;
 
 function App() {
-  const [users, setUsers] = useState([]);
-  const [relays, setRelays] = useState([]);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [selectedRelay, setSelectedRelay] = useState(null);
+  const [selectedUser, setSelectedUser] = useState<UserState | undefined>(undefined);
+  const [selectedRelay, setSelectedRelay] = useState<RelayState | undefined>(undefined);
+  const [users, setUsers] = useState<UserState[]>([]);
+  const [relays, setRelays] = useState<RelayState[]>([]);
+  const [positions, setPositions] = useState<{ [key: string]: Position }>({});
 
-  const [selectedCircuit, setSelectedCircuit] = useState(null);
-  const [selectedSendUser, setSelectedSendUser] = useState(null);
-  const [selectedReceiveRelay, setSelectedReceiveRelay] = useState(null);
-  const [selectedExtendToRelay, setSelectedExtendToRelay] = useState(null);
-  const [selectedBeginRelay, setSelectedBeginRelay] = useState(null);
-  const [selectedRendezvousRelay, setSelectedRendezvousRelay] = useState(null);
-  const [selectedCookie, setSelectedCookie] = useState(null);
-  const [selectedIntroduction, setSelectedIntroduction] = useState(null);
-  const [selectedStream, setSelectedStream] = useState(null);
-  const [data, setData] = useState(null);
-  const [forUser, setForUser] = useState(null);
+  const [selectedCircuit, setSelectedCircuit] = useState<string>("");
+  const [selectedSendUser, setSelectedSendUser] = useState<UserState | undefined>(undefined);
+  const [selectedReceiveRelay, setSelectedReceiveRelay] = useState<RelayState | undefined>(undefined);
+  const [selectedExtendToRelay, setSelectedExtendToRelay] = useState<RelayState | undefined>(undefined);
+  const [selectedBeginRelay, setSelectedBeginRelay] = useState<RelayState | undefined>(undefined);
+  const [selectedRendezvousRelay, setSelectedRendezvousRelay] = useState<RelayState | undefined>(undefined);
 
-  const [circuits, setCircuits] = useState([]);
-  const [cookies, setCookies] = useState([]);
-  const [introductions, setIntroductions] = useState([]);
-  const [streams, setStreams] = useState([]);
+  const [selectedCookie, setSelectedCookie] = useState<string>("");
+  const [selectedIntroduction, setSelectedIntroduction] = useState<string>("");
+  const [selectedStream, setSelectedStream] = useState<string>("");
+  const [data, setData] = useState<string>("");
 
-  const [isNewUserPopupOpen, setIsNewUserPopupOpen] = useState(false);
-  const [isNewRelayPopupOpen, setIsNewRelayPopupOpen] = useState(false);
-  const [selectedData, setSelectedData] = useState(null);
+  const [forUser, setForUser] = useState<UserState | undefined>(undefined);
+  const [circuits, setCircuits] = useState<string[]>([]);
+  const [cookies, setCookies] = useState<string[]>([]);
+  const [introductions, setIntroductions] = useState<string[]>([]);
+  const [streams, setStreams] = useState<string[]>([]);
+
+  const [selectedData, setSelectedData] = useState<RelayState | UserState | undefined>(undefined);
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
   const [update, setUpdate] = useState("");
-  const [relaysLogs, setRelaysLogs] = useState([]);
-  const [usersLogs, setUsersLogs] = useState([]);
 
   useEffect(() => {
-    async function fetchData() {
-      let users = await fetchUsers();
-      setUsers(users);
-      console.log(users)
-      let relays = await fetchRelays();
-      setRelays(relays);
-      fetchUserRelays(users)
-      let userLogs = await getUserLogs();
-      setUsersLogs(userLogs);
-      let relayLogs = await getRelayLogs();
-      setRelaysLogs(relayLogs);
+    const savedPositions = localStorage.getItem('cardPositions');
+    if (savedPositions) {
+      setPositions(JSON.parse(savedPositions));
     }
-    fetchData();
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('cardPositions', JSON.stringify(positions));
+  }, [positions]);
+
+  useEffect(() => {
+    async function updateState() {
+      const newState = await getState();
+      console.log(newState?.relay_states)
+
+      setPositions(prevPositions => {
+        const updatedPositions = { ...prevPositions };
+
+        newState?.user_states.forEach(user => {
+          if (!updatedPositions[user.id]) {
+            updatedPositions[user.id] = {
+              x: Math.floor(Math.random() * 500),
+              y: Math.floor(Math.random() * 500)
+            };
+          }
+        });
+
+        newState?.relay_states.forEach(relay => {
+          if (!updatedPositions[relay.id]) {
+            updatedPositions[relay.id] = {
+              x: Math.floor(Math.random() * 500),
+              y: Math.floor(Math.random() * 500)
+            };
+          }
+        });
+
+        return updatedPositions;
+      });
+
+      setUsers(newState?.user_states || []);
+      setRelays(newState?.relay_states || []);
+    }
+
+    updateState();
   }, [update]);
 
-  const handleCardClick = useCallback((data, event) => {
-    event.stopPropagation(); // Prevent the click from immediately closing the popup
-    setSelectedData(data);
-    setPopupPosition({ x: event.clientX, y: event.clientY });
-  }, []);
-
-  const getLogsForSelectedData = () => {
-    if (selectedData.hasOwnProperty('id')) {
-      return usersLogs.filter(log => log.nickname === selectedData.nickname)[0].logs;
-    } else {
-      return relaysLogs.filter(log => log.nickname === selectedData.nickname)[0].logs;
-    }
-  }
+  const handleDrag = (id: string, data: { x: number; y: number }) => {
+    setPositions(prevPositions => ({
+      ...prevPositions,
+      [id]: { x: data.x, y: data.y }
+    }));
+  };
 
   const handleClosePopup = useCallback(() => {
-    setSelectedData(null);
+    setSelectedData(undefined);
   }, []);
 
   useEffect(() => {
-    const handleClickOutside = (event) => {
+    const handleClickOutside = (event: MouseEvent) => {
       if (selectedData) {
         handleClosePopup();
       }
@@ -174,12 +198,29 @@ function App() {
     };
   }, [selectedData, handleClosePopup]);
 
+  const handleStartUser = () => {
+    let user_next_number = Number(users.length) + 1;
+    startUser("User " + user_next_number).then(() => {
+      setUpdate(generateRandomString());
+    });
+  }
+
+  const handleStartRelay = () => {
+    let relay_next_number = Number(relays.length) + 1;
+    startRelay("Relay " + relay_next_number).then(() => {
+      setUpdate(generateRandomString());
+    });
+  }
+
   const handleSendCreate = () => {
     if (!selectedSendUser || !selectedReceiveRelay) {
       toast.error('Please select a user and a relay');
       return;
     }
     sendCreate(selectedSendUser, selectedReceiveRelay).then((circuit_id) => {
+      if (!circuit_id) {
+        return;
+      }
       setCircuits([...circuits, circuit_id]);
       setUpdate(generateRandomString());
     });
@@ -200,8 +241,11 @@ function App() {
       return;
     }
     sendEstablishRendezvous(selectedSendUser, selectedReceiveRelay, selectedCircuit).then((cookie) => {
-      setUpdate(generateRandomString());
+      if (!cookie) {
+        return;
+      }
       setCookies([...cookies, cookie]);
+      setUpdate(generateRandomString());
     });
   }
 
@@ -222,14 +266,16 @@ function App() {
       return;
     }
     sendBegin(selectedSendUser, selectedReceiveRelay, selectedCircuit, selectedBeginRelay).then((stream_id) => {
+      if (!stream_id) {
+        return;
+      }
       setStreams([...streams, stream_id]);
       setUpdate(generateRandomString());
     });
   }
 
   const handleSendIntroduce1 = () => {
-    console.log(selectedSendUser, selectedReceiveRelay, selectedIntroduction, selectedStream, selectedRendezvousRelay, selectedCookie, forUser.rsa_public, selectedCircuit)
-    if (!selectedSendUser || !selectedReceiveRelay || !selectedCircuit || !selectedRendezvousRelay || !selectedCookie || !selectedIntroduction || !selectedStream) {
+    if (!selectedSendUser || !selectedReceiveRelay || !selectedCircuit || !selectedRendezvousRelay || !selectedCookie || !selectedIntroduction || !selectedStream || !forUser) {
       toast.error('Please select a user, relay, circuit, rendezvous relay, and provide a rendezvous cookie');
       return;
     }
@@ -241,7 +287,7 @@ function App() {
       selectedStream,
       selectedRendezvousRelay,
       selectedCookie,
-      forUser.rsa_public,
+      forUser.rsa_public_key,
       selectedCircuit
     ).then(() => {
       setUpdate(generateRandomString());
@@ -281,34 +327,64 @@ function App() {
     });
   };
 
+  const setRelay = useCallback((event: React.MouseEvent<HTMLElement>, relayId: string) => {
+    setRelays(currentRelays => {
+      const r = currentRelays.find(r => r.id === relayId);
+      if (r) {
+        setSelectedRelay(r);
+        setSelectedData(r);
+      }
+      return currentRelays;
+    });
+    event.stopPropagation();
+    setPopupPosition({ x: event.clientX, y: event.clientY });
+  }, []);
+
+  const setUser = useCallback((event: React.MouseEvent<HTMLElement>, userId: string) => {
+    setUsers(currentUsers => {
+      const u = currentUsers.find(u => u.id === userId);
+      if (u) {
+        setSelectedUser(u);
+        setSelectedData(u);
+      }
+      return currentUsers;
+    });
+    event.stopPropagation();
+    setPopupPosition({ x: event.clientX, y: event.clientY });
+  }, []);
+
   return (
     <AppContainer>
       <ToastContainer autoClose={3000} />
       <Dashboard>
         <AnimatePresence>
           {users.map(user => (
-            <Draggable key={user.id} bounds="parent" defaultPosition={user.position}>
+            <Draggable key={user.id} bounds="parent" defaultPosition={positions[user.id]} onStop={(e, data) => handleDrag(user.id, data)}
+            >
               <div style={{ position: 'absolute' }}>
-                <UserCard
-                  user={user}
-                  isSelected={selectedUser && selectedUser.id === user.id}
-                  onClick={(event) => {
-                    setSelectedUser(user);
-                    handleCardClick(user, event);
+                <Card
+                  key={`${user.id}-${user.logs.length}`}
+                  type='user'
+                  item={user}
+                  isSelected={selectedUser?.id === user.id}
+                  onClick={(event: React.MouseEvent<HTMLElement>) => {
+                    setUser(event, user.id);
                   }}
                 />
               </div>
             </Draggable>
           ))}
           {relays.map(relay => (
-            <Draggable key={relay.nickname} bounds="parent" defaultPosition={relay.position}>
+            <Draggable key={relay.nickname} bounds="parent" defaultPosition={positions[relay.id]} onStop={(e, data) => handleDrag(relay.id, data)}
+            >
               <div style={{ position: 'absolute' }}>
-                <RelayCard
-                  relay={relay}
-                  isSelected={selectedRelay && selectedRelay.id === relay.id}
-                  onClick={(event) => {
-                    setSelectedRelay(relay);
-                    handleCardClick(relay, event);
+                <Card
+                  key={`${relay.id}-${relay.logs.length}`}
+                  item={relay}
+                  type='relay'
+                  isSelected={selectedRelay?.id === relay.id}
+                  onClick={(event: React.MouseEvent<HTMLElement>) => {
+                    setRelay(event, relay.id);
                   }}
                 />
               </div>
@@ -321,22 +397,8 @@ function App() {
         <DataPopup
           data={selectedData}
           position={popupPosition}
-          getLogs={getLogsForSelectedData}
         />
       )}
-
-      <NewUserPopup
-        isOpen={isNewUserPopupOpen}
-        onClose={() => setIsNewUserPopupOpen(false)}
-        onSubmit={startUser}
-        setUpdate={setUpdate}
-      />
-      <NewRelayPopup
-        isOpen={isNewRelayPopupOpen}
-        onClose={() => setIsNewRelayPopupOpen(false)}
-        onSubmit={startRelay}
-        setUpdate={setUpdate}
-      />
 
       <ControlPanel>
         <ControlPanelContent>
@@ -353,8 +415,8 @@ function App() {
           </ButtonGroup>
           <Section>
             <SectionTitle>New Entities</SectionTitle>
-            <Button onClick={() => setIsNewUserPopupOpen(true)}>New User</Button>
-            <Button onClick={() => setIsNewRelayPopupOpen(true)}>New Relay</Button>
+            <Button onClick={() => handleStartUser()}>New User</Button>
+            <Button onClick={() => handleStartRelay()}>New Relay</Button>
           </Section>
 
           <Section>
@@ -424,7 +486,7 @@ function App() {
             <SectionTitle>Send Extend</SectionTitle>
             <Select
               value={selectedExtendToRelay ? selectedExtendToRelay.nickname : ''}
-              onChange={(e) => setSelectedExtendToRelay(relays.find(r => r.nickname === e.target.value))}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedExtendToRelay(relays.find(r => r.nickname === e.target.value))}
             >
               <option value="">Select Relay to Extend To</option>
               {relays.map(relay => (
@@ -462,7 +524,7 @@ function App() {
             <SectionTitle>Send Introduce 1</SectionTitle>
             <Select
               value={forUser ? forUser.nickname : ''}
-              onChange={(e) => setForUser(users.find(r => r.nickname === e.target.value))}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setForUser(users.find(u => u.nickname === e.target.value))}
             >
               <option value="">Select User to Communicate with</option>
               {users.map(user => (
@@ -471,7 +533,7 @@ function App() {
             </Select>
             <Select
               value={selectedRendezvousRelay ? selectedRendezvousRelay.nickname : ''}
-              onChange={(e) => setSelectedRendezvousRelay(relays.find(r => r.nickname === e.target.value))}
+              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedRendezvousRelay(relays.find(r => r.nickname === e.target.value))}
             >
               <option value="">Select Rendezvous Relay</option>
               {relays.map(relay => (

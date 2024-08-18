@@ -1,15 +1,18 @@
 use crate::send_establish_introduction::send_establish_introduction;
 use crate::send_establish_rendezvous::send_establish_rendezvous;
 use crate::{
-    establish_circuit, get_state, send_create, send_data_to_relay, send_extend, send_introduce1,
-    send_rendezvous1, start_relay, start_user, Relay, User,
+    establish_circuit, get_state, send_create, send_data, send_extend, send_introduce1,
+    send_rendezvous1, start_relay, start_user, Logger, Relay, User,
 };
 use actix_cors::Cors;
 use actix_web::{web, App, HttpServer};
-use log::{error, info};
+use log::error;
 use std::net::SocketAddr;
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+use super::send_begin::send_begin;
 
 pub struct Api {
     relays: Arc<Mutex<Vec<Relay>>>,
@@ -29,8 +32,7 @@ impl Api {
         let users = self.users.clone();
         let address = SocketAddr::from_str("127.0.0.1:8081").unwrap();
         tokio::spawn(async move {
-            info!("Starting API HTTP server at {}", address);
-
+            Logger::info("API", format!("Starting API HTTP server at {}", address));
             HttpServer::new(move || {
                 let cors = Cors::default()
                     .allow_any_origin()
@@ -48,11 +50,12 @@ impl Api {
                     .service(send_extend)
                     .service(establish_circuit)
                     .service(send_introduce1)
-                    .service(send_data_to_relay)
+                    .service(send_data)
                     .service(send_rendezvous1)
                     .service(get_state)
                     .service(send_establish_introduction)
                     .service(send_establish_rendezvous)
+                    .service(send_begin)
             })
             .disable_signals()
             .bind(address)
@@ -67,10 +70,7 @@ impl Api {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        send_begin, send_establish_introduction, send_establish_rendezvous, CircuitId,
-        StartUserBody,
-    };
+    use crate::{send_establish_introduction, send_establish_rendezvous, CircuitId, StartUserBody};
     use actix_web::{test, App};
     use serde_json::json;
     use uuid::Uuid;
@@ -118,7 +118,7 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
 
-        let users_lock = users.lock().unwrap();
+        let users_lock = users.lock().await;
         assert_eq!(users_lock.len(), 1);
         assert_eq!(users_lock[0].user_descriptor.nickname, "test_user");
 
@@ -147,7 +147,7 @@ mod tests {
         let resp = test::call_service(&app, req).await;
         assert!(resp.status().is_success());
 
-        let relays_lock = relays.lock().unwrap();
+        let relays_lock = relays.lock().await;
         assert_eq!(relays_lock.len(), 1);
         assert_eq!(relays_lock[0].get_relay_descriptor().nickname, "test_relay");
     }
@@ -155,8 +155,8 @@ mod tests {
     #[actix_rt::test]
     async fn test_send_create() {
         let (users, relays) = setup_test_environment(1, 1);
-        let user_id = users.lock().unwrap()[0].user_descriptor.id;
-        let relay_id = relays.lock().unwrap()[0].get_relay_descriptor().id;
+        let user_id = users.lock().await[0].user_descriptor.id;
+        let relay_id = relays.lock().await[0].get_relay_descriptor().id;
         let app = test::init_service(
             App::new()
                 .app_data(web::Data::new(users.clone()))
@@ -179,9 +179,9 @@ mod tests {
     #[actix_rt::test]
     async fn test_establish_rendezvous() {
         let (users, relays) = setup_test_environment(1, 2);
-        let user_id = users.lock().unwrap()[0].user_descriptor.id;
-        let relay_id = relays.lock().unwrap()[0].get_relay_descriptor().id;
-        let relay_id_2 = relays.lock().unwrap()[1].get_relay_descriptor().id;
+        let user_id = users.lock().await[0].user_descriptor.id;
+        let relay_id = relays.lock().await[0].get_relay_descriptor().id;
+        let relay_id_2 = relays.lock().await[1].get_relay_descriptor().id;
         let app = test::init_service(
             App::new()
                 .app_data(web::Data::new(users.clone()))
@@ -241,10 +241,10 @@ mod tests {
     #[actix_rt::test]
     async fn test_establish_circuit() {
         let (users, relays) = setup_test_environment(1, 3);
-        let user_id = users.lock().unwrap()[0].user_descriptor.id;
-        let relay_id_1 = relays.lock().unwrap()[0].get_relay_descriptor().id;
-        let relay_id_2 = relays.lock().unwrap()[1].get_relay_descriptor().id;
-        let relay_id_3 = relays.lock().unwrap()[2].get_relay_descriptor().id;
+        let user_id = users.lock().await[0].user_descriptor.id;
+        let relay_id_1 = relays.lock().await[0].get_relay_descriptor().id;
+        let relay_id_2 = relays.lock().await[1].get_relay_descriptor().id;
+        let relay_id_3 = relays.lock().await[2].get_relay_descriptor().id;
         let app = test::init_service(
             App::new()
                 .app_data(web::Data::new(users.clone()))
@@ -273,9 +273,9 @@ mod tests {
     #[actix_rt::test]
     async fn test_establish_introduction() {
         let (users, relays) = setup_test_environment(1, 2);
-        let user_id = users.lock().unwrap()[0].user_descriptor.id;
-        let relay_id = relays.lock().unwrap()[0].get_relay_descriptor().id;
-        let relay_id_2 = relays.lock().unwrap()[1].get_relay_descriptor().id;
+        let user_id = users.lock().await[0].user_descriptor.id;
+        let relay_id = relays.lock().await[0].get_relay_descriptor().id;
+        let relay_id_2 = relays.lock().await[1].get_relay_descriptor().id;
         let app = test::init_service(
             App::new()
                 .app_data(web::Data::new(users.clone()))
@@ -346,23 +346,22 @@ mod tests {
                 .service(establish_circuit)
                 .service(send_establish_introduction)
                 .service(send_establish_rendezvous)
-                .service(send_begin)
                 .service(send_introduce1)
                 .service(send_rendezvous1)
-                .service(send_data_to_relay),
+                .service(send_data),
         )
         .await;
 
         let relay_ids: Vec<Uuid> = relays
             .lock()
-            .unwrap()
+            .await
             .iter()
             .map(|r| r.get_relay_descriptor().id)
             .collect();
 
         let user_ids: Vec<Uuid> = users
             .lock()
-            .unwrap()
+            .await
             .iter()
             .map(|u| u.user_descriptor.id)
             .collect();
@@ -454,7 +453,7 @@ mod tests {
         .to_string();
 
         let req = test::TestRequest::post()
-            .uri(&format!("/users/{}/send_rendezvous1_to_relay", user_ids[0]))
+            .uri(&format!("/users/{}/send_rendezvous1", user_ids[0]))
             .set_payload(json_string)
             .insert_header(("content-type", "application/json"))
             .to_request();
@@ -494,7 +493,7 @@ mod tests {
         .to_string();
 
         let req = test::TestRequest::post()
-            .uri(&format!("/users/{}/send_begin_to_relay", user_ids[1]))
+            .uri(&format!("/users/{}/send_begin", user_ids[1]))
             .set_payload(json_string)
             .insert_header(("content-type", "application/json"))
             .to_request();
@@ -503,7 +502,7 @@ mod tests {
         assert!(resp.status().is_success());
 
         // Send introduce1
-        let introduction_rsa_public = users.lock().unwrap()[0].user_descriptor.rsa_public.clone();
+        let introduction_rsa_public = users.lock().await[0].user_descriptor.rsa_public.clone();
         let json_string = json!({
             "relay_id": relay_ids[3],
             "introduction_id": introduction_id,
@@ -516,7 +515,7 @@ mod tests {
         .to_string();
 
         let req = test::TestRequest::post()
-            .uri(&format!("/users/{}/send_introduce1_to_relay", user_ids[1]))
+            .uri(&format!("/users/{}/send_introduce1", user_ids[1]))
             .set_payload(json_string)
             .insert_header(("content-type", "application/json"))
             .to_request();
@@ -535,7 +534,7 @@ mod tests {
         .to_string();
 
         let req = test::TestRequest::post()
-            .uri(&format!("/users/{}/send_data_to_relay", user_ids[1]))
+            .uri(&format!("/users/{}/send_data", user_ids[1]))
             .set_payload(json_string)
             .insert_header(("content-type", "application/json"))
             .to_request();

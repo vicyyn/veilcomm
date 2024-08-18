@@ -1,6 +1,7 @@
 use colored::{ColoredString, Colorize};
 use lazy_static::lazy_static;
 use std::{collections::HashMap, sync::Mutex};
+
 lazy_static! {
     pub static ref logger: Logger = Logger {
         logs: Mutex::new(HashMap::new())
@@ -29,19 +30,25 @@ impl LogType {
 
 impl Logger {
     pub fn log(id: impl Into<String>, message: impl Into<String>, _type: LogType) {
-        let timestamp = chrono::Local::now()
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string()
-            .cyan();
+        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let id: String = id.into();
+        let message = message.into();
+
+        println!(
+            "[{}] [{}] {} : {}",
+            timestamp.cyan(),
+            _type.to_string(),
+            id.purple(),
+            message,
+        );
+
         let new_message = format!(
             "[{}] [{}] {} : {}",
             timestamp,
-            _type.to_string(),
-            id.magenta(),
-            message.into()
+            _type.to_string().clear().to_string(),
+            id,
+            message,
         );
-        println!("{}", new_message);
         let mut logs_lock = logger.logs.lock().unwrap();
         if let Some(logs) = logs_lock.get_mut(&id) {
             logs.push(new_message);

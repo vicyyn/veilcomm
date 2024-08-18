@@ -1,6 +1,6 @@
 import { toast } from "react-toastify";
 
-async function startUser(userNickname) {
+async function startUser(userNickname: string) {
   if (!userNickname) {
     toast.error('Please enter a nickname for the new user');
     return;

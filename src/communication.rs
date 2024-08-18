@@ -107,7 +107,6 @@ mod tests {
         let nonexistent_receiver_id = Uuid::new_v4();
         let cell = create_mock_relay_cell();
 
-        // This should not panic
         Communication::send(sender_id, nonexistent_receiver_id, cell);
     }
 

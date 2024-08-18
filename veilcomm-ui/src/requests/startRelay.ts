@@ -1,5 +1,5 @@
 import { toast } from "react-toastify";
-async function startRelay(relayNickname) {
+async function startRelay(relayNickname: string) {
   if (!relayNickname) {
     toast.error('Please enter nickname for the new relay');
     return;

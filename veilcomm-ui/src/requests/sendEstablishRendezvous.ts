@@ -1,19 +1,20 @@
 import { toast } from "react-toastify";
+import { RelayState, UserState } from "../data";
 
-async function sendEstablishRendezvous(user, relay, circuit_id) {
+async function sendEstablishRendezvous(user: UserState, relay: RelayState, circuit_id: string): Promise<string | undefined> {
   if (!user || !relay || !circuit_id) {
     toast.error('Please select a user, circuit_id and relay to send establish rendezvous');
-    return;
+    return undefined;
   }
 
   try {
-    const response = await fetch(`http://127.0.0.1:8081/users/${user.id}/send_establish_rendezvous_to_relay`, {
+    const response = await fetch(`http://127.0.0.1:8081/users/${user.id}/send_establish_rendezvous`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        relay_socket: relay.address,
+        relay_id: relay.id,
         circuit_id: circuit_id
       }),
     });
@@ -27,6 +28,7 @@ async function sendEstablishRendezvous(user, relay, circuit_id) {
     console.error('Error:', error);
     toast.error('An error occurred while sending Establish Rendezvous');
   }
+  return undefined;
 };
 
 export default sendEstablishRendezvous;

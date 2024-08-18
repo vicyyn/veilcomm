@@ -1,7 +1,8 @@
 use crate::{CircuitId, RelayId, RendezvousCookieId, User, UserId};
 use actix_web::{post, web, HttpResponse, Responder};
 use serde::Deserialize;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Deserialize)]
 pub struct SendDataToRelayBody {
@@ -11,18 +12,18 @@ pub struct SendDataToRelayBody {
     pub data: Vec<u8>,
 }
 
-#[post("/users/{user_id}/send_data_to_relay")]
-async fn send_data_to_relay(
+#[post("/users/{user_id}/send_data")]
+async fn send_data(
     data: web::Data<Arc<Mutex<Vec<User>>>>,
     user_id: web::Path<UserId>,
     body: web::Json<SendDataToRelayBody>,
 ) -> impl Responder {
-    let data_lock = data.lock().unwrap();
+    let data_lock = data.lock().await;
     let user = data_lock
         .iter()
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
-    user.send_data_to_relay(
+    user.send_data(
         body.relay_id,
         body.rendezvous_cookie,
         body.circuit_id,

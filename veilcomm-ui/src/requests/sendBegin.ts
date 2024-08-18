@@ -1,21 +1,22 @@
 import { toast } from "react-toastify";
+import { RelayState, UserState } from "../data";
 
-async function sendBegin(user, relay, circuit_id, begin_relay) {
+async function sendBegin(user: UserState, relay: RelayState, circuit_id: string, begin_relay: RelayState): Promise<string | undefined> {
   if (!user || !relay || !circuit_id || !begin_relay) {
     toast.error('Please select a user, circuit_id, begin_relay and relay to send begin');
-    return;
+    return undefined;
   }
 
   try {
-    const response = await fetch(`http://127.0.0.1:8081/users/${user.id}/send_begin_to_relay`, {
+    const response = await fetch(`http://127.0.0.1:8081/users/${user.id}/send_begin`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        relay_socket: relay.address,
+        relay_id: relay.id,
         circuit_id: circuit_id,
-        begin_relay_socket: begin_relay.address
+        begin_relay_id: begin_relay.id
       }),
     });
     if (response.ok) {
@@ -28,6 +29,7 @@ async function sendBegin(user, relay, circuit_id, begin_relay) {
     console.error('Error:', error);
     toast.error('An error occurred while sending Begin');
   }
+  return undefined
 };
 
 export default sendBegin

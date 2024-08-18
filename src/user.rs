@@ -84,6 +84,7 @@ impl User {
         UserState {
             id: self.id,
             nickname: self.nickname.clone(),
+            rsa_public_key: self.rsa_public.clone(),
             introduction_points: self.user_descriptor.introduction_points.clone(),
             circuits: internal_state_lock.circuits.clone(),
             handshakes: internal_state_lock.handshakes.clone(),
@@ -483,7 +484,7 @@ impl User {
         Ok(())
     }
 
-    fn listen_for_event(&self, event: Event) -> Result<()> {
+    pub fn listen_for_event(&self, event: Event) -> Result<()> {
         loop {
             let received_event = self.events_receiver.recv().unwrap();
             if received_event == event {
@@ -492,7 +493,7 @@ impl User {
         }
     }
 
-    pub fn send_begin_to_relay(
+    pub fn send_begin(
         &self,
         relay_id: RelayId,
         circuit_id: CircuitId,
@@ -596,7 +597,7 @@ impl User {
             format!("Sent INTRODUCE1 payload to relay {}", relay_id),
         );
         drop(internal_state_lock);
-        self.listen_for_event(Event(PayloadType::Introduce2, relay_id))
+        self.listen_for_event(Event(PayloadType::IntroduceAck, relay_id))
             .unwrap();
         Ok(())
     }
@@ -623,7 +624,7 @@ impl User {
         Ok(())
     }
 
-    pub fn send_rendezvous1_to_relay(
+    pub fn send_rendezvous1(
         &self,
         relay_id: RelayId,
         rendezvous_cookie: RendezvousCookieId,
@@ -663,13 +664,10 @@ impl User {
             &self.nickname,
             format!("Sent RENDEZVOUS1 payload to relay {}", relay_id),
         );
-        drop(internal_state_lock);
-        self.listen_for_event(Event(PayloadType::Rendezvous2, relay_id))
-            .unwrap();
         Ok(())
     }
 
-    pub fn send_data_to_relay(
+    pub fn send_data(
         &self,
         relay_id: RelayId,
         rendezvous_cookie: RendezvousCookieId,

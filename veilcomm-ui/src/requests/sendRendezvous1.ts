@@ -1,19 +1,20 @@
 import { toast } from "react-toastify";
+import { RelayState, UserState } from "../data";
 
-async function sendRendezvous1(user, relay, circuitId, rendezvousCookie) {
+async function sendRendezvous1(user: UserState, relay: RelayState, circuitId: string, rendezvousCookie: string) {
   if (!user || !relay || !rendezvousCookie || !circuitId) {
     toast.error('All parameters are required to send Sen');
     return;
   }
 
   try {
-    const response = await fetch(`http://127.0.0.1:8081/users/${user.id}/send_rendezvous1_to_relay`, {
+    const response = await fetch(`http://127.0.0.1:8081/users/${user.id}/send_rendezvous1`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        relay_socket: relay.address,
+        relay_id: relay.id,
         rendezvous_cookie: rendezvousCookie,
         circuit_id: circuitId
       }),

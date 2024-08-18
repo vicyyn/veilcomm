@@ -1,20 +1,20 @@
 import { toast } from "react-toastify";
+import { RelayState, UserState } from "../data";
 
-async function sendCreate(user, relay) {
+async function sendCreate(user: UserState, relay: RelayState): Promise<string | undefined> {
   if (!user || !relay) {
     toast.error('Please select a user and relay to send create');
-    return;
+    return undefined;
   }
 
-  console.log(user, relay)
   try {
-    const response = await fetch(`http://127.0.0.1:8081/users/${user.id}/send_create_to_relay`, {
+    const response = await fetch(`http://127.0.0.1:8081/users/${user.id}/send_create`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        relay_socket: relay.address
+        relay_id: relay.id
       }),
     });
     if (response.ok) {
@@ -27,6 +27,7 @@ async function sendCreate(user, relay) {
     console.error('Error:', error);
     toast.error('An error occurred while sending create');
   }
+  return undefined
 };
 
 export default sendCreate;
