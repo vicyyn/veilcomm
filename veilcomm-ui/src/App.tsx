@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { startRelay, startUser, sendCreate, sendExtend, sendEstablishRendezvous, sendEstablishIntroduction, sendBegin, sendIntroduce1, sendRendezvous1, sendData, getState } from './requests';
-import { Card, DataPopup } from './components';
+import { Card, ConnectionLines, DataPopup } from './components';
 import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import Draggable from 'react-draggable';
@@ -94,6 +94,28 @@ const TopButton = styled.button`
   }
 `;
 
+const ConnectionLinesWrapper = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+`;
+
+const CardsWrapper = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+`;
+
+const CardContainer = styled.div`
+  position: absolute;
+  z-index: 3;
+`;
 
 const AppContainer = styled.div`
 `;
@@ -104,6 +126,7 @@ function App() {
   const [users, setUsers] = useState<UserState[]>([]);
   const [relays, setRelays] = useState<RelayState[]>([]);
   const [positions, setPositions] = useState<{ [key: string]: Position }>({});
+  const [cardSize, setCardSize] = useState({ width: 250, height: 120 });
 
   const [selectedCircuit, setSelectedCircuit] = useState<string>("");
   const [selectedSendUser, setSelectedSendUser] = useState<UserState | undefined>(undefined);
@@ -355,42 +378,45 @@ function App() {
 
   return (
     <AppContainer>
-      <ToastContainer autoClose={3000} />
+      <ToastContainer autoClose={1000} />
       <Dashboard>
-        <AnimatePresence>
-          {users.map(user => (
-            <Draggable key={user.id} bounds="parent" defaultPosition={positions[user.id]} onStop={(e, data) => handleDrag(user.id, data)}
-            >
-              <div style={{ position: 'absolute' }}>
-                <Card
-                  key={`${user.id}-${user.logs.length}`}
-                  type='user'
-                  item={user}
-                  isSelected={selectedUser?.id === user.id}
-                  onClick={(event: React.MouseEvent<HTMLElement>) => {
-                    setUser(event, user.id);
-                  }}
-                />
-              </div>
-            </Draggable>
-          ))}
-          {relays.map(relay => (
-            <Draggable key={relay.nickname} bounds="parent" defaultPosition={positions[relay.id]} onStop={(e, data) => handleDrag(relay.id, data)}
-            >
-              <div style={{ position: 'absolute' }}>
-                <Card
-                  key={`${relay.id}-${relay.logs.length}`}
-                  item={relay}
-                  type='relay'
-                  isSelected={selectedRelay?.id === relay.id}
-                  onClick={(event: React.MouseEvent<HTMLElement>) => {
-                    setRelay(event, relay.id);
-                  }}
-                />
-              </div>
-            </Draggable>
-          ))}
-        </AnimatePresence>
+        <ConnectionLinesWrapper>
+          <ConnectionLines users={users} relays={relays} positions={positions} cardSize={cardSize} />
+        </ConnectionLinesWrapper>
+        <CardsWrapper>
+          <AnimatePresence>
+            {users.map(user => (
+              <Draggable key={user.id} bounds="parent" defaultPosition={positions[user.id]} onStop={(e, data) => handleDrag(user.id, data)}>
+                <CardContainer>
+                  <Card
+                    key={`${user.id}-${user.logs.length}`}
+                    type='user'
+                    item={user}
+                    isSelected={selectedUser?.id === user.id}
+                    onClick={(event: React.MouseEvent<HTMLElement>) => {
+                      setUser(event, user.id);
+                    }}
+                  />
+                </CardContainer>
+              </Draggable>
+            ))}
+            {relays.map(relay => (
+              <Draggable key={relay.nickname} bounds="parent" defaultPosition={positions[relay.id]} onStop={(e, data) => handleDrag(relay.id, data)}>
+                <CardContainer>
+                  <Card
+                    key={`${relay.id}-${relay.logs.length}`}
+                    item={relay}
+                    type='relay'
+                    isSelected={selectedRelay?.id === relay.id}
+                    onClick={(event: React.MouseEvent<HTMLElement>) => {
+                      setRelay(event, relay.id);
+                    }}
+                  />
+                </CardContainer>
+              </Draggable>
+            ))}
+          </AnimatePresence>
+        </CardsWrapper>
       </Dashboard>
 
       {selectedData && (
