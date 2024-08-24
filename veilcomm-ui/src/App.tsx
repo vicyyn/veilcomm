@@ -145,11 +145,6 @@ function App() {
   const [data, setData] = useState<string>("");
 
   const [forUser, setForUser] = useState<UserState | undefined>(undefined);
-  const [circuits, setCircuits] = useState<string[]>([]);
-  const [cookies, setCookies] = useState<string[]>([]);
-  const [introductions, setIntroductions] = useState<string[]>([]);
-  const [streams, setStreams] = useState<string[]>([]);
-
   const [selectedData, setSelectedData] = useState<RelayState | UserState | undefined>(undefined);
   const [popupPosition, setPopupPosition] = useState({ x: 0, y: 0 });
   const [update, setUpdate] = useState("");
@@ -483,9 +478,11 @@ function App() {
               onChange={(e) => setSelectedIntroduction(e.target.value)}
             >
               <option value="">Select Introduction Id</option>
-              {Object.keys(users.find(u => u.id === selectedSendUser?.id)?.introduction_points || {}).map(introduction_point => (
-                <option key={introduction_point} value={introduction_point}>{introduction_point}</option>
-              ))}
+              {users.map(user =>
+                Object.entries(user.introduction_points).map(([introduction_point, relayId]) => (
+                  <option key={introduction_point} value={introduction_point}>{introduction_point}</option>
+                ))
+              )}
             </Select>
             <Select
               value={selectedStream}
