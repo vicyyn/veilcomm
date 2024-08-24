@@ -1,10 +1,10 @@
 import { toast } from "react-toastify";
 import { RelayState, UserState } from "../data";
 
-async function sendCreate(user: UserState, relay: RelayState): Promise<string | undefined> {
+async function sendCreate(user: UserState, relay: RelayState) {
   if (!user || !relay) {
     toast.error('Please select a user and relay to send create');
-    return undefined;
+    return;
   }
 
   try {
@@ -19,7 +19,6 @@ async function sendCreate(user: UserState, relay: RelayState): Promise<string | 
     });
     if (response.ok) {
       toast.success('Create sent successfully');
-      return response.json();
     } else {
       toast.error('Failed to send create');
     }
@@ -27,7 +26,6 @@ async function sendCreate(user: UserState, relay: RelayState): Promise<string | 
     console.error('Error:', error);
     toast.error('An error occurred while sending create');
   }
-  return undefined
 };
 
 export default sendCreate;

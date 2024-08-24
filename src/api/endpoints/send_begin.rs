@@ -30,5 +30,5 @@ async fn send_begin(
         body.begin_relay_id,
     )
     .unwrap();
-    HttpResponse::Ok().json(stream_id.to_string())
+    HttpResponse::Ok().finish()
 }

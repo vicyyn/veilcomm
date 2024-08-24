@@ -6,6 +6,7 @@ export default interface UserState {
   circuits: Record<string, string[]>;
   handshakes: Record<string, number[]>;
   connected_users: Record<string, number[]>;
+  rendezvous_cookies: Record<string, string>,
   streams: Record<string, string>;
   logs: string[];
 }

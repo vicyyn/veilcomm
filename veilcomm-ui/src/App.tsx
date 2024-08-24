@@ -21,64 +21,66 @@ const Dashboard = styled(motion.div)`
   position: relative;
 `;
 
+
 const ControlPanel = styled.div`
-  width: 300px;
+  width: 200px;
   position: fixed;
   top: 0;
   right: 0;
   height: 100vh;
-  padding: 20px;
+  padding: 10px;
   overflow-y: auto;
   z-index: 40;
+  font-size: 10px;
 `;
 
 const Input = styled.input`
-  font-size: 16px;
-  margin: 10px 0;
-  padding: 5px;
+  font-size: 10px;
+  margin: 5px 0;
+  padding: 3px;
   width: 100%;
 `;
 
 const Section = styled.div`
   background-color: white;
-  padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
+  padding: 10px;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin-bottom: 15px;
 `;
 
 const SectionTitle = styled.h3`
   margin-top: 0;
-  margin-bottom: 10px;
-  font-size: 18px;
+  margin-bottom: 5px;
+  font-size: 14px;
 `;
 
 const ControlPanelContent = styled.div`
-  margin-top: 10px;
+  margin-top: 5px;
 `;
 
 const Button = styled.button`
-  font-size: 18px;
-  margin: 10px 0;
-  padding: 10px;
+  font-size: 12px;
+  margin: 5px 0;
+  padding: 5px;
   width: 100%;
 `;
 
 const Select = styled.select`
-  font-size: 16px;
-  margin: 10px 0;
-  padding: 5px;
+  font-size: 12px;
+  margin: 5px 0;
+  padding: 3px;
   width: 100%;
 `;
 
 const ButtonGroup = styled.div`
   display: flex;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
 `;
 
 const TopButton = styled.button`
-  font-size: 26px;
+  font-size: 20px;
   background-color: #FFA500;
   border: none;
   cursor: pointer;
@@ -87,6 +89,7 @@ const TopButton = styled.button`
   justify-content: center;
   color: white;
   transition: background-color 0.3s, transform 0.3s;
+  padding: 10px;
 
   &:hover {
     background-color: #FF8C00;
@@ -126,8 +129,9 @@ function App() {
   const [users, setUsers] = useState<UserState[]>([]);
   const [relays, setRelays] = useState<RelayState[]>([]);
   const [positions, setPositions] = useState<{ [key: string]: Position }>({});
-  const [cardSize, setCardSize] = useState({ width: 250, height: 120 });
+  const [cardSize, setCardSize] = useState({ width: 150, height: 60 });
 
+  const [selectedCreateRelay, setSelectedCreateRelay] = useState<RelayState | undefined>(undefined);
   const [selectedCircuit, setSelectedCircuit] = useState<string>("");
   const [selectedSendUser, setSelectedSendUser] = useState<UserState | undefined>(undefined);
   const [selectedReceiveRelay, setSelectedReceiveRelay] = useState<RelayState | undefined>(undefined);
@@ -164,7 +168,7 @@ function App() {
   useEffect(() => {
     async function updateState() {
       const newState = await getState();
-      console.log(newState?.relay_states)
+      console.log(newState);
 
       setPositions(prevPositions => {
         const updatedPositions = { ...prevPositions };
@@ -196,6 +200,17 @@ function App() {
 
     updateState();
   }, [update]);
+
+  useEffect(() => {
+    if (selectedCircuit && selectedSendUser) {
+      const user = users.find(u => u.id === selectedSendUser.id);
+      if (user && user.circuits[selectedCircuit]) {
+        const firstRelayId = user.circuits[selectedCircuit][0];
+        const firstRelay = relays.find(r => r.id === firstRelayId);
+        setSelectedReceiveRelay(firstRelay);
+      }
+    }
+  }, [selectedCircuit, selectedSendUser, users, relays]);
 
   const handleDrag = (id: string, data: { x: number; y: number }) => {
     setPositions(prevPositions => ({
@@ -235,16 +250,13 @@ function App() {
     });
   }
 
+
   const handleSendCreate = () => {
-    if (!selectedSendUser || !selectedReceiveRelay) {
-      toast.error('Please select a user and a relay');
+    if (!selectedSendUser || !selectedCreateRelay) {
+      toast.error('Please select a user and a relay for create');
       return;
     }
-    sendCreate(selectedSendUser, selectedReceiveRelay).then((circuit_id) => {
-      if (!circuit_id) {
-        return;
-      }
-      setCircuits([...circuits, circuit_id]);
+    sendCreate(selectedSendUser, selectedCreateRelay).then(() => {
       setUpdate(generateRandomString());
     });
   };
@@ -254,8 +266,9 @@ function App() {
       toast.error('Please select a user and both relays for extend. Also select a circuit');
       return;
     }
-    sendExtend(selectedSendUser, selectedReceiveRelay, selectedExtendToRelay, selectedCircuit);
-    setUpdate(generateRandomString());
+    sendExtend(selectedSendUser, selectedReceiveRelay, selectedExtendToRelay, selectedCircuit).then(() => {
+      setUpdate(generateRandomString());
+    });
   };
 
   const handleSendEstablishRendezvous = () => {
@@ -263,11 +276,7 @@ function App() {
       toast.error('Please select a user and a relay');
       return;
     }
-    sendEstablishRendezvous(selectedSendUser, selectedReceiveRelay, selectedCircuit).then((cookie) => {
-      if (!cookie) {
-        return;
-      }
-      setCookies([...cookies, cookie]);
+    sendEstablishRendezvous(selectedSendUser, selectedReceiveRelay, selectedCircuit).then(() => {
       setUpdate(generateRandomString());
     });
   }
@@ -277,8 +286,7 @@ function App() {
       toast.error('Please select a user and a relay');
       return;
     }
-    sendEstablishIntroduction(selectedSendUser, selectedReceiveRelay, selectedCircuit).then((introduction_id) => {
-      setIntroductions([...introductions, introduction_id]);
+    sendEstablishIntroduction(selectedSendUser, selectedReceiveRelay, selectedCircuit).then(() => {
       setUpdate(generateRandomString);
     });
   }
@@ -288,11 +296,7 @@ function App() {
       toast.error('Please select a user, relay, circuit and cookie');
       return;
     }
-    sendBegin(selectedSendUser, selectedReceiveRelay, selectedCircuit, selectedBeginRelay).then((stream_id) => {
-      if (!stream_id) {
-        return;
-      }
-      setStreams([...streams, stream_id]);
+    sendBegin(selectedSendUser, selectedReceiveRelay, selectedCircuit, selectedBeginRelay).then(() => {
       setUpdate(generateRandomString());
     });
   }
@@ -378,7 +382,7 @@ function App() {
 
   return (
     <AppContainer>
-      <ToastContainer autoClose={1000} />
+      <ToastContainer autoClose={1000} position='top-left' />
       <Dashboard>
         <ConnectionLinesWrapper>
           <ConnectionLines users={users} relays={relays} positions={positions} cardSize={cardSize} />
@@ -429,13 +433,13 @@ function App() {
       <ControlPanel>
         <ControlPanelContent>
           <ButtonGroup>
-            <TopButton onClick={() => setUpdate(generateRandomString())} title="Restart">
+            <TopButton onClick={() => { setUpdate(generateRandomString()); toast.success("Restarted Succesfully") }} title="Restart">
               <FiRefreshCw />
             </TopButton>
-            <TopButton onClick={() => { }} title="Info">
+            <TopButton onClick={() => { window.open("https://www.vicyyn.com", "_blank") }} title="Info">
               <FiInfo />
             </TopButton>
-            <TopButton onClick={() => { }} title="GitHub">
+            <TopButton onClick={() => { window.open("https://www.github.com/vicyyn/veilcomm", "_blank") }} title="Github">
               <FiGithub />
             </TopButton>
           </ButtonGroup>
@@ -457,56 +461,57 @@ function App() {
               ))}
             </Select>
             <Select
-              value={selectedReceiveRelay ? selectedReceiveRelay.nickname : ''}
-              onChange={(e) => setSelectedReceiveRelay(relays.find(r => r.nickname === e.target.value))}
-            >
-              <option value="">Select Relay to Receive</option>
-              {relays.map(relay => (
-                <option key={relay.nickname} value={relay.nickname}>{relay.nickname}</option>
-              ))}
-            </Select>
-            <Select
-              value={selectedCircuit ? selectedCircuit : ''}
+              value={selectedCircuit}
               onChange={(e) => setSelectedCircuit(e.target.value)}
             >
               <option value="">Select Circuit</option>
-              {circuits.map(circuit => (
+              {Object.keys(users.find(u => u.id === selectedSendUser?.id)?.circuits || {}).map(circuit => (
                 <option key={circuit} value={circuit}>{circuit}</option>
               ))}
             </Select>
             <Select
-              value={selectedCookie ? selectedCookie : ''}
+              value={selectedCookie}
               onChange={(e) => setSelectedCookie(e.target.value)}
             >
               <option value="">Select Rendezvous Cookie</option>
-              {cookies.map(cookie => (
+              {Object.keys(users.find(u => u.id === selectedSendUser?.id)?.rendezvous_cookies || {}).map(cookie => (
                 <option key={cookie} value={cookie}>{cookie}</option>
               ))}
             </Select>
             <Select
-              value={selectedIntroduction ? selectedIntroduction : ''}
+              value={selectedIntroduction}
               onChange={(e) => setSelectedIntroduction(e.target.value)}
             >
               <option value="">Select Introduction Id</option>
-              {introductions.map(introduction => (
-                <option key={introduction} value={introduction}>{introduction}</option>
+              {Object.keys(users.find(u => u.id === selectedSendUser?.id)?.introduction_points || {}).map(introduction_point => (
+                <option key={introduction_point} value={introduction_point}>{introduction_point}</option>
               ))}
             </Select>
             <Select
-              value={selectedStream ? selectedStream : ''}
+              value={selectedStream}
               onChange={(e) => setSelectedStream(e.target.value)}
             >
               <option value="">Select Stream</option>
-              {streams.map(stream => (
-                <option key={stream} value={stream}>{stream}</option>
+              {Object.keys(users.find(u => u.id === selectedSendUser?.id)?.streams || {}).map(circuit => (
+                <option key={circuit} value={circuit}>{circuit}</option>
               ))}
             </Select>
           </Section>
 
           <Section>
             <SectionTitle>Send Create</SectionTitle>
+            <Select
+              value={selectedCreateRelay ? selectedCreateRelay.nickname : ''}
+              onChange={(e) => setSelectedCreateRelay(relays.find(r => r.nickname === e.target.value))}
+            >
+              <option value="">Select Relay to Create Circuit</option>
+              {relays.map(relay => (
+                <option key={relay.nickname} value={relay.nickname}>{relay.nickname}</option>
+              ))}
+            </Select>
             <Button onClick={handleSendCreate}>Send Create</Button>
           </Section>
+
 
           <Section>
             <SectionTitle>Send Extend</SectionTitle>
@@ -586,7 +591,7 @@ function App() {
           </Section>
         </ControlPanelContent>
       </ControlPanel>
-    </AppContainer>
+    </AppContainer >
   );
 }
 

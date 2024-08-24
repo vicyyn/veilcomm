@@ -29,22 +29,11 @@ const ConnectionLines: React.FC<Props> = ({ users, relays, positions, cardSize }
 
   const getCircuitColor = useCallback(() => {
     const colors = [
-      '#E6772E', // Dark Orange
-      '#C23B22', // Vermilion
-      '#D6618F', // Dark Pink
-      '#8E4585', // Plum
-      '#4A5899', // Dark Blue-Purple
-      '#38764A', // Forest Green
-      '#31A354', // Emerald
-      '#9D5C0D', // Bronze
-      '#D49F39', // Golden Brown
-      '#B75D69', // Dark Rose
-      '#766EC8', // Blue-Violet
-      '#6E8E84', // Dark Sea Green
+      '#E6772E', '#C23B22', '#D6618F', '#8E4585', '#4A5899', '#38764A',
+      '#31A354', '#9D5C0D', '#D49F39', '#B75D69', '#766EC8', '#6E8E84',
     ];
     const cache: { [key: string]: string } = {};
     let colorIndex = 0;
-
     return (circuitId: string): string => {
       if (!cache[circuitId]) {
         cache[circuitId] = colors[colorIndex % colors.length];
@@ -63,6 +52,7 @@ const ConnectionLines: React.FC<Props> = ({ users, relays, positions, cardSize }
       y: pos.y + cardSize.height / 2,
     });
 
+    // Draw lines for user-relay and relay-relay connections (unchanged)
     users.forEach((user) => {
       Object.entries(user.circuits).forEach(([circuitId, relayIds]) => {
         const color = circuitColorGetter(circuitId);
@@ -70,19 +60,17 @@ const ConnectionLines: React.FC<Props> = ({ users, relays, positions, cardSize }
         // Connect the user to the first relay
         const userPos = getCardCenter(positions[user.id]);
         const firstRelayPos = getCardCenter(positions[relayIds[0]]);
-
         if (userPos && firstRelayPos) {
           newLines.push(
-            <g key={`${user.id}-${circuitId}-start`}>
-              <line
-                x1={userPos.x}
-                y1={userPos.y}
-                x2={firstRelayPos.x}
-                y2={firstRelayPos.y}
-                stroke={color}
-                strokeWidth="2"
-              />
-            </g>
+            <line
+              key={`${user.id}-${circuitId}-start`}
+              x1={userPos.x}
+              y1={userPos.y}
+              x2={firstRelayPos.x}
+              y2={firstRelayPos.y}
+              stroke={color}
+              strokeWidth="2"
+            />
           );
         }
 
@@ -90,21 +78,42 @@ const ConnectionLines: React.FC<Props> = ({ users, relays, positions, cardSize }
         for (let i = 0; i < relayIds.length - 1; i++) {
           const startPos = getCardCenter(positions[relayIds[i]]);
           const endPos = getCardCenter(positions[relayIds[i + 1]]);
-
           if (startPos && endPos) {
             newLines.push(
-              <g key={`${user.id}-${circuitId}-${i}`}>
-                <line
-                  x1={startPos.x}
-                  y1={startPos.y}
-                  x2={endPos.x}
-                  y2={endPos.y}
-                  stroke={color}
-                  strokeWidth="2"
-                />
-              </g>
+              <line
+                key={`${user.id}-${circuitId}-${i}`}
+                x1={startPos.x}
+                y1={startPos.y}
+                x2={endPos.x}
+                y2={endPos.y}
+                stroke={color}
+                strokeWidth="2"
+              />
             );
           }
+        }
+      });
+    });
+
+    // Draw dashed lines for stream connections
+    relays.forEach((relay) => {
+      Object.entries(relay.streams).forEach(([streamId, connectedRelayId]) => {
+        const startPos = getCardCenter(positions[relay.id]);
+        const endPos = getCardCenter(positions[connectedRelayId]);
+        if (startPos && endPos) {
+          const color = circuitColorGetter(streamId);
+          newLines.push(
+            <line
+              key={`stream-${relay.id}-${streamId}-${connectedRelayId}`}
+              x1={startPos.x}
+              y1={startPos.y}
+              x2={endPos.x}
+              y2={endPos.y}
+              stroke={color}
+              strokeWidth="2"
+              strokeDasharray="5,5"
+            />
+          );
         }
       });
     });

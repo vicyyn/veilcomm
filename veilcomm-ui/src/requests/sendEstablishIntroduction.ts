@@ -20,7 +20,6 @@ async function sendEstablishIntroduction(user: UserState, relay: RelayState, cir
     });
     if (response.ok) {
       toast.success('Establish Introduction sent successfully');
-      return response.json();
     } else {
       toast.error('Failed to send Establish Introduction');
     }

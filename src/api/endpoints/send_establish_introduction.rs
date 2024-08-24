@@ -24,5 +24,5 @@ async fn send_establish_introduction(
     let introduction_id = UserId::new_v4();
     user.send_establish_introduction(body.relay_id, introduction_id, body.circuit_id)
         .unwrap();
-    HttpResponse::Ok().json(introduction_id.to_string())
+    HttpResponse::Ok().finish()
 }

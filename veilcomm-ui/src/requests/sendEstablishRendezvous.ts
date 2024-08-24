@@ -1,10 +1,10 @@
 import { toast } from "react-toastify";
 import { RelayState, UserState } from "../data";
 
-async function sendEstablishRendezvous(user: UserState, relay: RelayState, circuit_id: string): Promise<string | undefined> {
+async function sendEstablishRendezvous(user: UserState, relay: RelayState, circuit_id: string) {
   if (!user || !relay || !circuit_id) {
     toast.error('Please select a user, circuit_id and relay to send establish rendezvous');
-    return undefined;
+    return;
   }
 
   try {
@@ -20,7 +20,6 @@ async function sendEstablishRendezvous(user: UserState, relay: RelayState, circu
     });
     if (response.ok) {
       toast.success('Establish Rendezvous sent successfully');
-      return response.json();
     } else {
       toast.error('Failed to send Establish Rendezvous');
     }
@@ -28,7 +27,6 @@ async function sendEstablishRendezvous(user: UserState, relay: RelayState, circu
     console.error('Error:', error);
     toast.error('An error occurred while sending Establish Rendezvous');
   }
-  return undefined;
 };
 
 export default sendEstablishRendezvous;

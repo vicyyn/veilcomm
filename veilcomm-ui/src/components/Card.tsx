@@ -9,8 +9,8 @@ interface StyledCardProps {
 }
 
 const StyledCard = styled(motion.div) <StyledCardProps>`
-  height: 120px;
-  width: 250px;
+  height: 60px;
+  width: 150px;
   background-color: ${props => props.$isUser ? '#e6f7ff' : '#f6ffed'};
   border-radius: 8px;
   padding: 15px;
@@ -30,14 +30,13 @@ const StyledCard = styled(motion.div) <StyledCardProps>`
 `;
 
 const Title = styled.h3`
-  margin: 0 0 10px 0;
-  font-size: 18px;
+  font-size: 12px;
   color: #333;
 `;
 
 const IdText = styled.p`
   margin: 0;
-  font-size: 14px;
+  font-size: 10px;
   color: #666;
 `;
 

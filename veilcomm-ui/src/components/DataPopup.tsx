@@ -5,68 +5,70 @@ import { Position, RelayState, UserState } from '../data';
 const PopupContainer = styled.div`
   position: fixed;
   background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   z-index: 100;
-  width: 400px;
-  max-height: 600px;
+  width: 300px;
+  max-height: 400px;
   display: flex;
   flex-direction: column;
   font-family: 'Arial', sans-serif;
   overflow: hidden;
+  font-size: 12px;
 `;
 
 const Title = styled.h3`
   margin: 0;
   color: #333;
-  border-bottom: 2px solid #f0f0f0;
-  padding: 20px;
+  border-bottom: 1px solid #f0f0f0;
+  padding: 10px;
   background-color: #f8f8f8;
+  font-size: 14px;
 `;
 
 const ScrollableContent = styled.div`
   flex-grow: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 10px;
 `;
 
 const DataSection = styled.div`
-  margin-bottom: 15px;
+  margin-bottom: 10px;
 `;
 
 const DataKey = styled.strong`
   color: #555;
-  font-size: 14px;
+  font-size: 12px;
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 2px;
 `;
 
 const DataValue = styled.pre`
   background-color: #f8f8f8;
-  border-radius: 4px;
-  padding: 8px;
-  margin: 5px 0;
-  font-size: 13px;
+  border-radius: 3px;
+  padding: 4px;
+  margin: 2px 0;
+  font-size: 11px;
   white-space: pre-wrap;
   word-break: break-all;
   color: #333;
-  border-left: 3px solid #3498db;
+  border-left: 2px solid #3498db;
   overflow-y: auto;
 `;
 
 const LogsContainer = styled.div`
-  margin-top: 20px;
-  padding: 10px;
+  margin-top: 10px;
+  padding: 5px;
   background-color: #f0f0f0;
-  border-radius: 8px;
-  max-height: 200px;
+  border-radius: 4px;
+  max-height: 150px;
   overflow-y: auto;
 `;
 
 const LogEntry = styled.pre`
   margin: 0;
-  padding: 4px 0;
-  font-size: 12px;
+  padding: 2px 0;
+  font-size: 10px;
   color: #555;
   border-bottom: 1px solid #e0e0e0;
   &:last-child {
@@ -88,16 +90,16 @@ type DataPopupProps = {
 function DataPopup({ data, position }: DataPopupProps): JSX.Element {
   const renderValue = (key: string, value: any): string => {
     if (key === 'rsa_public_key') {
-      return toHexString(value).substring(0, 20) + '...';
+      return toHexString(value).substring(0, 15) + '...';
     }
     if (key === 'handshakes' || key === 'connected_users') {
       const hexObject = Object.fromEntries(
-        Object.entries(value).map(([k, v]) => [k, toHexString(v as number[]).substring(0, 20) + '...'])
+        Object.entries(value).map(([k, v]) => [k, toHexString(v as number[]).substring(0, 15) + '...'])
       );
-      return JSON.stringify(hexObject, null, 2);
+      return JSON.stringify(hexObject, null, 1);
     }
     if (typeof value === 'object' && value !== null) {
-      return JSON.stringify(value, null, 2);
+      return JSON.stringify(value, null, 1);
     }
     return String(value);
   };

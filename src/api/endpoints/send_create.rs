@@ -23,5 +23,5 @@ async fn send_create(
         .find(|u| u.user_descriptor.id == *user_id)
         .unwrap();
     user.send_create(body.relay_id, circuit_id).unwrap();
-    HttpResponse::Ok().json(circuit_id.to_string())
+    HttpResponse::Ok().finish()
 }

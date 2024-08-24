@@ -24,5 +24,5 @@ async fn send_establish_rendezvous(
     let rendezvous_cookie = RendezvousCookieId::new_v4();
     user.send_establish_rendezvous(body.relay_id, rendezvous_cookie, body.circuit_id)
         .unwrap();
-    HttpResponse::Ok().json(rendezvous_cookie.to_string())
+    HttpResponse::Ok().finish()
 }

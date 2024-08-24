@@ -35,6 +35,7 @@ pub struct InternalState {
     events_sender: Sender<Event>,
     circuits: HashMap<CircuitId, Vec<RelayId>>,
     connected_users: HashMap<RendezvousCookieId, Handshake>,
+    rendezvous_cookies: HashMap<RendezvousCookieId, RelayId>,
     stream_ids: HashMap<StreamId, RelayId>,
 }
 
@@ -70,6 +71,7 @@ impl User {
                     rsa_private: rsa.clone(),
                     dh: Dh::get_2048_256().unwrap().generate_key().unwrap(),
                 },
+                rendezvous_cookies: HashMap::new(),
                 handshakes: HashMap::new(),
                 events_sender,
                 circuits: HashMap::new(),
@@ -85,12 +87,13 @@ impl User {
             id: self.id,
             nickname: self.nickname.clone(),
             rsa_public_key: self.rsa_public.clone(),
-            introduction_points: self.user_descriptor.introduction_points.clone(),
+            introduction_points: Directory::get_user(self.id).unwrap().introduction_points,
             circuits: internal_state_lock.circuits.clone(),
             handshakes: internal_state_lock.handshakes.clone(),
             connected_users: internal_state_lock.connected_users.clone(),
             streams: internal_state_lock.stream_ids.clone().into_iter().collect(),
             logs: Logger::get_logs(self.nickname.clone()),
+            rendezvous_cookies: internal_state_lock.rendezvous_cookies.clone(),
         }
     }
 
@@ -394,7 +397,7 @@ impl User {
         rendezvous_cookie: RendezvousCookieId,
         circuit_id: CircuitId,
     ) -> Result<()> {
-        let internal_state_lock = self.internal_state.lock().unwrap();
+        let mut internal_state_lock = self.internal_state.lock().unwrap();
         Logger::info(
             &self.nickname,
             format!("Sending ESTABLISH_INTRO to relay {}", relay_id),
@@ -426,6 +429,9 @@ impl User {
             &self.nickname,
             format!("Sent ESTABLISH_INTRO payload to relay {}", relay_id),
         );
+        internal_state_lock
+            .rendezvous_cookies
+            .insert(rendezvous_cookie, relay_id);
         drop(internal_state_lock);
         self.listen_for_event(Event(PayloadType::EstablishedRendezvous, relay_id))
             .unwrap();

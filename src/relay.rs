@@ -66,11 +66,15 @@ impl Relay {
     }
 
     pub fn get_state(&self) -> RelayState {
+        let internal_state_lock = self.internal_state.lock().unwrap();
         RelayState {
             id: self.relay_descriptor.id,
             nickname: self.relay_descriptor.nickname.clone(),
-            circuits: self.internal_state.lock().unwrap().circuits_ids.clone(),
+            circuits: internal_state_lock.circuits_ids.clone(),
+            streams: internal_state_lock.streams.clone(),
             logs: Logger::get_logs(self.relay_descriptor.nickname.clone()),
+            is_rendezvous_point: internal_state_lock.rendezvous_points.len() > 0,
+            is_introduction_point: internal_state_lock.introduction_points.len() > 0,
         }
     }
 

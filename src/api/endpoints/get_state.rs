@@ -20,6 +20,7 @@ pub struct UserState {
     pub introduction_points: HashMap<IntroductionPointId, RelayId>,
     pub circuits: HashMap<CircuitId, Vec<RelayId>>,
     pub handshakes: HashMap<RelayId, Handshake>,
+    pub rendezvous_cookies: HashMap<RendezvousCookieId, RelayId>,
     pub connected_users: HashMap<RendezvousCookieId, Handshake>,
     pub streams: HashMap<StreamId, RelayId>,
     pub logs: Vec<String>,
@@ -29,8 +30,11 @@ pub struct UserState {
 #[derive(Serialize, Debug)]
 pub struct RelayState {
     pub id: RelayId,
+    pub is_rendezvous_point: bool,
+    pub is_introduction_point: bool,
     pub nickname: String,
     pub circuits: HashMap<CircuitId, RelayId>,
+    pub streams: HashMap<StreamId, RelayId>,
     pub logs: Vec<String>,
 }
 
