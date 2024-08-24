@@ -7,7 +7,7 @@ use crate::{
     IntroductionPointId, Keys, Logger, OnionSkin, Payload, PayloadType, RelayId,
     RendezvousCookieId, StreamId, UserId, UserState,
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use openssl::bn::BigNum;
 use openssl::dh::Dh;
 use openssl::rsa::Rsa;
@@ -300,32 +300,46 @@ impl User {
         });
     }
 
+    pub fn listen_for_event(&self, event: Event) -> Result<()> {
+        loop {
+            let received_event = self.events_receiver.recv().unwrap();
+            if received_event == event {
+                return Ok(());
+            }
+        }
+    }
+
     pub fn send_create(&self, relay_id: RelayId, circuit_id: CircuitId) -> Result<()> {
-        let internal_state_lock = self.internal_state.lock().unwrap();
-        let relay_descriptor = Directory::get_relay(relay_id).unwrap();
+        let internal_state_lock = self
+            .internal_state
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock internal state: {}", e))?;
+        let relay_descriptor =
+            Directory::get_relay(relay_id).context("Failed to get relay from directory")?;
         Logger::info(
             &self.nickname,
-            format!("Sending CREATE payload to: {}", relay_descriptor.nickname,),
+            format!("Sending CREATE payload to: {}", relay_descriptor.nickname),
         );
 
-        let rsa_public = Rsa::public_key_from_pem(&relay_descriptor.rsa_public).unwrap();
+        let rsa_public = Rsa::public_key_from_pem(&relay_descriptor.rsa_public)
+            .context("Failed to parse RSA public key")?;
         let half_dh_bytes: Vec<u8> = internal_state_lock.keys.dh.public_key().to_vec();
         let aes = generate_random_aes_key();
-        let onion_skin =
-            OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap()).unwrap();
+        let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap())
+            .context("Failed to create onion skin")?;
         let create_payload = Payload::Create(CreatePayload { onion_skin });
         let relay_cell = RelayCell {
             circuit_id,
-            payload: serde_json::to_vec(&create_payload)?,
+            payload: serde_json::to_vec(&create_payload)
+                .context("Failed to serialize create payload")?,
         };
-        Communication::send(self.user_descriptor.id, relay_descriptor.id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_descriptor.id, relay_cell)?;
         Logger::info(
             &self.nickname,
             format!("Sent CREATE payload to: {}", relay_descriptor.nickname),
         );
         drop(internal_state_lock);
-        self.listen_for_event(Event(PayloadType::Created, relay_id))
-            .unwrap();
+        self.listen_for_event(Event(PayloadType::Created, relay_id))?;
         Ok(())
     }
 
@@ -335,7 +349,10 @@ impl User {
         relay_id_2: RelayId,
         circuit_id: CircuitId,
     ) -> Result<()> {
-        let internal_state_lock = self.internal_state.lock().unwrap();
+        let internal_state_lock = self
+            .internal_state
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock internal state: {}", e))?;
         Logger::info(
             &self.nickname,
             format!(
@@ -343,22 +360,34 @@ impl User {
                 relay_id, relay_id_2
             ),
         );
-        let relay_descriptor = Directory::get_relay(relay_id_2).unwrap();
-        let rsa_public = Rsa::public_key_from_pem(&relay_descriptor.rsa_public).unwrap();
+        let relay_descriptor =
+            Directory::get_relay(relay_id_2).context("Failed to get relay from directory")?;
+        let rsa_public = Rsa::public_key_from_pem(&relay_descriptor.rsa_public)
+            .context("Failed to parse RSA public key")?;
         let half_dh_bytes: Vec<u8> = internal_state_lock.keys.dh.public_key().to_vec();
         let aes = generate_random_aes_key();
-        let onion_skin =
-            OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap()).unwrap();
+        let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap())
+            .context("Failed to create onion skin")?;
         let extend_payload = Payload::Extend(ExtendPayload {
             onion_skin,
             extend_to: relay_descriptor.id,
         });
-        let circuit = internal_state_lock.circuits.get(&circuit_id).unwrap();
+        let circuit = internal_state_lock
+            .circuits
+            .get(&circuit_id)
+            .ok_or_else(|| anyhow::anyhow!("Circuit not found"))?;
         let mut handshakes = vec![];
         for relay in circuit {
-            handshakes.push(internal_state_lock.handshakes.get(relay).unwrap().clone());
+            handshakes.push(
+                internal_state_lock
+                    .handshakes
+                    .get(relay)
+                    .ok_or_else(|| anyhow::anyhow!("Handshake not found for relay"))?
+                    .clone(),
+            );
         }
-        let mut buffer: Vec<u8> = serde_json::to_vec(&extend_payload).unwrap();
+        let mut buffer: Vec<u8> =
+            serde_json::to_vec(&extend_payload).context("Failed to serialize extend payload")?;
         for handshake in handshakes.iter().rev() {
             Logger::info(
                 &self.nickname,
@@ -367,7 +396,8 @@ impl User {
                     hex::encode(&handshake[0..32])
                 ),
             );
-            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
+            buffer =
+                encrypt_buffer_with_aes(handshake, &buffer).context("Failed to encrypt buffer")?;
         }
         let relay_cell = RelayCell {
             circuit_id,
@@ -380,14 +410,14 @@ impl User {
                 relay_descriptor.nickname
             ),
         );
-        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell)
+            .context("Failed to send communication")?;
         Logger::info(
             &self.nickname,
             format!("Sent EXTEND payload to relay {}", relay_descriptor.nickname),
         );
         drop(internal_state_lock);
-        self.listen_for_event(Event(PayloadType::Extended, relay_id))
-            .unwrap();
+        self.listen_for_event(Event(PayloadType::Extended, relay_id))?;
         Ok(())
     }
 
@@ -397,19 +427,32 @@ impl User {
         rendezvous_cookie: RendezvousCookieId,
         circuit_id: CircuitId,
     ) -> Result<()> {
-        let mut internal_state_lock = self.internal_state.lock().unwrap();
+        let mut internal_state_lock = self
+            .internal_state
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock internal state: {}", e))?;
         Logger::info(
             &self.nickname,
-            format!("Sending ESTABLISH_INTRO to relay {}", relay_id),
+            format!("Sending ESTABLISH_RENDEZVOUS to relay {}", relay_id),
         );
-        let establish_intro_payload =
+        let establish_rendezvous_payload =
             Payload::EstablishRendezvous(EstablishRendezvousPayload { rendezvous_cookie });
-        let circuit = internal_state_lock.circuits.get(&circuit_id).unwrap();
+        let circuit = internal_state_lock
+            .circuits
+            .get(&circuit_id)
+            .ok_or_else(|| anyhow::anyhow!("Circuit not found"))?;
         let mut handshakes = vec![];
         for relay in circuit {
-            handshakes.push(internal_state_lock.handshakes.get(relay).unwrap().clone());
+            handshakes.push(
+                internal_state_lock
+                    .handshakes
+                    .get(relay)
+                    .ok_or_else(|| anyhow::anyhow!("Handshake not found for relay"))?
+                    .clone(),
+            );
         }
-        let mut buffer = serde_json::to_vec(&establish_intro_payload).unwrap();
+        let mut buffer = serde_json::to_vec(&establish_rendezvous_payload)
+            .context("Failed to serialize establish rendezvous payload")?;
         for handshake in handshakes.iter().rev() {
             Logger::info(
                 &self.nickname,
@@ -418,23 +461,112 @@ impl User {
                     hex::encode(&handshake[0..32])
                 ),
             );
-            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
+            buffer =
+                encrypt_buffer_with_aes(handshake, &buffer).context("Failed to encrypt buffer")?;
         }
         let relay_cell = RelayCell {
             circuit_id,
             payload: buffer,
         };
-        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell)
+            .context("Failed to send communication")?;
         Logger::info(
             &self.nickname,
-            format!("Sent ESTABLISH_INTRO payload to relay {}", relay_id),
+            format!("Sent ESTABLISH_RENDEZVOUS payload to relay {}", relay_id),
         );
         internal_state_lock
             .rendezvous_cookies
             .insert(rendezvous_cookie, relay_id);
         drop(internal_state_lock);
-        self.listen_for_event(Event(PayloadType::EstablishedRendezvous, relay_id))
-            .unwrap();
+        self.listen_for_event(Event(PayloadType::EstablishedRendezvous, relay_id))?;
+        Ok(())
+    }
+
+    pub fn establish_circuit(
+        &self,
+        circuit_id: CircuitId,
+        relay_id_1: RelayId,
+        relay_id_2: RelayId,
+        relay_id_3: RelayId,
+    ) -> Result<()> {
+        self.send_create(relay_id_1, circuit_id)
+            .context("Failed to send CREATE")?;
+        self.send_extend(relay_id_1, relay_id_2, circuit_id)
+            .context("Failed to send first EXTEND")?;
+        self.send_extend(relay_id_1, relay_id_3, circuit_id)
+            .context("Failed to send second EXTEND")?;
+        Logger::info(
+            &self.nickname,
+            format!(
+                "Established a circuit with 3 relays, {} {} {}",
+                relay_id_1, relay_id_2, relay_id_3
+            ),
+        );
+        Ok(())
+    }
+
+    pub fn send_data(
+        &self,
+        relay_id: RelayId,
+        rendezvous_cookie: RendezvousCookieId,
+        circuit_id: CircuitId,
+        data: Vec<u8>,
+    ) -> Result<()> {
+        Logger::info(
+            &self.nickname,
+            format!("Sending DATA to relay at address: {}", relay_id),
+        );
+        let internal_state_lock = self
+            .internal_state
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock internal state: {}", e))?;
+        let user_handshake = internal_state_lock
+            .connected_users
+            .get(&rendezvous_cookie)
+            .ok_or_else(|| anyhow::anyhow!("User handshake not found"))?;
+        let encrypted_data =
+            encrypt_buffer_with_aes(user_handshake, &data).context("Failed to encrypt data")?;
+        let data_payload: Payload = Payload::Data(crate::DataPayload {
+            data: encrypted_data,
+            rendezvous_cookie,
+        });
+        let circuit = internal_state_lock
+            .circuits
+            .get(&circuit_id)
+            .ok_or_else(|| anyhow::anyhow!("Circuit not found"))?;
+        let mut handshakes = vec![];
+        for relay in circuit {
+            handshakes.push(
+                internal_state_lock
+                    .handshakes
+                    .get(relay)
+                    .ok_or_else(|| anyhow::anyhow!("Handshake not found for relay"))?
+                    .clone(),
+            );
+        }
+        let mut buffer =
+            serde_json::to_vec(&data_payload).context("Failed to serialize data payload")?;
+        for handshake in handshakes.iter().rev() {
+            Logger::info(
+                &self.nickname,
+                format!(
+                    "Encoding with handshake: {}",
+                    hex::encode(&handshake[0..32])
+                ),
+            );
+            buffer =
+                encrypt_buffer_with_aes(handshake, &buffer).context("Failed to encrypt buffer")?;
+        }
+        let relay_cell = RelayCell {
+            circuit_id,
+            payload: buffer,
+        };
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell)
+            .context("Failed to send communication")?;
+        Logger::info(
+            &self.nickname,
+            format!("Sent DATA payload to relay {}", relay_id),
+        );
         Ok(())
     }
 
@@ -444,22 +576,35 @@ impl User {
         introduction_id: IntroductionPointId,
         circuit_id: CircuitId,
     ) -> Result<()> {
-        let internal_state_lock = self.internal_state.lock().unwrap();
+        let internal_state_lock = self
+            .internal_state
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock internal state: {}", e))?;
         Logger::info(
             &self.nickname,
-            format!("Sending ESTABLISH_INTRO to relay {}", relay_id),
+            format!("Sending ESTABLISH_INTRODUCTION to relay {}", relay_id),
         );
         let establish_intro_payload =
             Payload::EstablishIntroduction(EstablishIntroductionPayload {
                 introduction_id,
                 rsa_publickey: self.user_descriptor.rsa_public.clone(),
             });
-        let circuit = internal_state_lock.circuits.get(&circuit_id).unwrap();
+        let circuit = internal_state_lock
+            .circuits
+            .get(&circuit_id)
+            .ok_or_else(|| anyhow::anyhow!("Circuit not found"))?;
         let mut handshakes = vec![];
         for relay in circuit {
-            handshakes.push(internal_state_lock.handshakes.get(relay).unwrap().clone());
+            handshakes.push(
+                internal_state_lock
+                    .handshakes
+                    .get(relay)
+                    .ok_or_else(|| anyhow::anyhow!("Handshake not found for relay"))?
+                    .clone(),
+            );
         }
-        let mut buffer = serde_json::to_vec(&establish_intro_payload).unwrap();
+        let mut buffer = serde_json::to_vec(&establish_intro_payload)
+            .context("Failed to serialize establish introduction payload")?;
         for handshake in handshakes.iter().rev() {
             Logger::info(
                 &self.nickname,
@@ -468,35 +613,31 @@ impl User {
                     hex::encode(&handshake[0..32])
                 ),
             );
-            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
+            buffer =
+                encrypt_buffer_with_aes(handshake, &buffer).context("Failed to encrypt buffer")?;
         }
         let relay_cell = RelayCell {
             circuit_id,
             payload: buffer,
         };
-        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell)
+            .context("Failed to send communication")?;
         Directory::add_user_introduction_point(
             self.id,
             introduction_id,
-            circuit.last().unwrap().clone(),
-        );
+            circuit
+                .last()
+                .ok_or_else(|| anyhow::anyhow!("Circuit is empty"))?
+                .clone(),
+        )
+        .context("Failed to add user introduction point to directory")?;
         Logger::info(
             &self.nickname,
-            format!("Sent ESTABLISH_INTRO payload to relay {}", relay_id),
+            format!("Sent ESTABLISH_INTRODUCTION payload to relay {}", relay_id),
         );
         drop(internal_state_lock);
-        self.listen_for_event(Event(PayloadType::EstablishedIntroduction, relay_id))
-            .unwrap();
+        self.listen_for_event(Event(PayloadType::EstablishedIntroduction, relay_id))?;
         Ok(())
-    }
-
-    pub fn listen_for_event(&self, event: Event) -> Result<()> {
-        loop {
-            let received_event = self.events_receiver.recv().unwrap();
-            if received_event == event {
-                return Ok(());
-            }
-        }
     }
 
     pub fn send_begin(
@@ -506,22 +647,36 @@ impl User {
         stream_id: StreamId,
         begin_relay_id: RelayId,
     ) -> Result<()> {
-        let mut internal_state_lock = self.internal_state.lock().unwrap();
+        let mut internal_state_lock = self
+            .internal_state
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock internal state: {}", e))?;
         Logger::info(
             &self.nickname,
             format!("Sending BEGIN to relay {}", relay_id),
         );
-        let relay_descriptor = Directory::get_relay(begin_relay_id).unwrap();
+        let relay_descriptor =
+            Directory::get_relay(begin_relay_id).context("Failed to get relay from directory")?;
         let begin_payload = Payload::Begin(crate::BeginPayload {
             stream_id,
             relay_descriptor,
         });
-        let circuit = internal_state_lock.circuits.get(&circuit_id).unwrap();
+        let circuit = internal_state_lock
+            .circuits
+            .get(&circuit_id)
+            .ok_or_else(|| anyhow::anyhow!("Circuit not found"))?;
         let mut handshakes = vec![];
         for relay in circuit {
-            handshakes.push(internal_state_lock.handshakes.get(relay).unwrap().clone());
+            handshakes.push(
+                internal_state_lock
+                    .handshakes
+                    .get(relay)
+                    .ok_or_else(|| anyhow::anyhow!("Handshake not found for relay"))?
+                    .clone(),
+            );
         }
-        let mut buffer = serde_json::to_vec(&begin_payload).unwrap();
+        let mut buffer =
+            serde_json::to_vec(&begin_payload).context("Failed to serialize begin payload")?;
         for handshake in handshakes.iter().rev() {
             Logger::info(
                 &self.nickname,
@@ -530,13 +685,15 @@ impl User {
                     hex::encode(&handshake[0..32])
                 ),
             );
-            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
+            buffer =
+                encrypt_buffer_with_aes(handshake, &buffer).context("Failed to encrypt buffer")?;
         }
         let relay_cell = RelayCell {
             circuit_id,
             payload: buffer,
         };
-        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell)
+            .context("Failed to send communication")?;
         internal_state_lock
             .stream_ids
             .insert(stream_id, begin_relay_id);
@@ -558,17 +715,22 @@ impl User {
         introduction_rsa_public: Vec<u8>,
         circuit_id: CircuitId,
     ) -> Result<()> {
-        let internal_state_lock = self.internal_state.lock().unwrap();
+        let internal_state_lock = self
+            .internal_state
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock internal state: {}", e))?;
         Logger::info(
             &self.nickname,
             format!("Sending INTRODUCE1 to relay {}", relay_id),
         );
-        let relay_descriptor = Directory::get_relay(rendezvous_point_relay_id).unwrap();
-        let rsa_public = Rsa::public_key_from_pem(&introduction_rsa_public).unwrap();
+        let relay_descriptor = Directory::get_relay(rendezvous_point_relay_id)
+            .context("Failed to get relay from directory")?;
+        let rsa_public = Rsa::public_key_from_pem(&introduction_rsa_public)
+            .context("Failed to parse RSA public key")?;
         let half_dh_bytes: Vec<u8> = internal_state_lock.keys.dh.public_key().to_vec();
         let aes = generate_random_aes_key();
-        let onion_skin =
-            OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap()).unwrap();
+        let onion_skin = OnionSkin::new(rsa_public, aes, half_dh_bytes.try_into().unwrap())
+            .context("Failed to create onion skin")?;
         let introduce1_payload = Introduce1Payload {
             stream_id,
             introduction_id,
@@ -577,12 +739,22 @@ impl User {
             onion_skin,
         };
         let introduce1_payload = Payload::Introduce1(introduce1_payload);
-        let circuit = internal_state_lock.circuits.get(&circuit_id).unwrap();
+        let circuit = internal_state_lock
+            .circuits
+            .get(&circuit_id)
+            .ok_or_else(|| anyhow::anyhow!("Circuit not found"))?;
         let mut handshakes = vec![];
         for relay in circuit {
-            handshakes.push(internal_state_lock.handshakes.get(relay).unwrap().clone());
+            handshakes.push(
+                internal_state_lock
+                    .handshakes
+                    .get(relay)
+                    .ok_or_else(|| anyhow::anyhow!("Handshake not found for relay"))?
+                    .clone(),
+            );
         }
-        let mut buffer = serde_json::to_vec(&introduce1_payload).unwrap();
+        let mut buffer = serde_json::to_vec(&introduce1_payload)
+            .context("Failed to serialize introduce1 payload")?;
         for handshake in handshakes.iter().rev() {
             Logger::info(
                 &self.nickname,
@@ -591,42 +763,21 @@ impl User {
                     hex::encode(&handshake[0..32])
                 ),
             );
-            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
+            buffer =
+                encrypt_buffer_with_aes(handshake, &buffer).context("Failed to encrypt buffer")?;
         }
         let relay_cell = RelayCell {
             circuit_id,
             payload: buffer,
         };
-        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell)
+            .context("Failed to send communication")?;
         Logger::info(
             &self.nickname,
             format!("Sent INTRODUCE1 payload to relay {}", relay_id),
         );
         drop(internal_state_lock);
-        self.listen_for_event(Event(PayloadType::IntroduceAck, relay_id))
-            .unwrap();
-        Ok(())
-    }
-
-    pub fn establish_circuit(
-        &self,
-        circuit_id: CircuitId,
-        relay_id_1: RelayId,
-        relay_id_2: RelayId,
-        relay_id_3: RelayId,
-    ) -> Result<()> {
-        self.send_create(relay_id_1, circuit_id).unwrap();
-        self.send_extend(relay_id_1, relay_id_2, circuit_id)
-            .unwrap();
-        self.send_extend(relay_id_1, relay_id_3, circuit_id)
-            .unwrap();
-        Logger::info(
-            &self.nickname,
-            format!(
-                "Established a circuit with 3 relays, {} {} {}",
-                relay_id_1, relay_id_2, relay_id_3
-            ),
-        );
+        self.listen_for_event(Event(PayloadType::IntroduceAck, relay_id))?;
         Ok(())
     }
 
@@ -636,7 +787,10 @@ impl User {
         rendezvous_cookie: RendezvousCookieId,
         circuit_id: CircuitId,
     ) -> Result<()> {
-        let internal_state_lock = self.internal_state.lock().unwrap();
+        let internal_state_lock = self
+            .internal_state
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Failed to lock internal state: {}", e))?;
         Logger::info(
             &self.nickname,
             format!("Sending RENDEZVOUS1 to relay {}", relay_id),
@@ -645,12 +799,22 @@ impl User {
             rendezvous_cookie,
             dh_key: internal_state_lock.keys.dh.public_key().to_vec(),
         });
-        let circuit = internal_state_lock.circuits.get(&circuit_id).unwrap();
+        let circuit = internal_state_lock
+            .circuits
+            .get(&circuit_id)
+            .ok_or_else(|| anyhow::anyhow!("Circuit not found"))?;
         let mut handshakes = vec![];
         for relay in circuit {
-            handshakes.push(internal_state_lock.handshakes.get(relay).unwrap().clone());
+            handshakes.push(
+                internal_state_lock
+                    .handshakes
+                    .get(relay)
+                    .ok_or_else(|| anyhow::anyhow!("Handshake not found for relay"))?
+                    .clone(),
+            );
         }
-        let mut buffer = serde_json::to_vec(&rendezvous1_payload).unwrap();
+        let mut buffer = serde_json::to_vec(&rendezvous1_payload)
+            .context("Failed to serialize rendezvous1 payload")?;
         for handshake in handshakes.iter().rev() {
             Logger::info(
                 &self.nickname,
@@ -659,65 +823,18 @@ impl User {
                     hex::encode(&handshake[0..32])
                 ),
             );
-            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
+            buffer =
+                encrypt_buffer_with_aes(handshake, &buffer).context("Failed to encrypt buffer")?;
         }
         let relay_cell = RelayCell {
             circuit_id,
             payload: buffer,
         };
-        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
+        Communication::send(self.user_descriptor.id, relay_id, relay_cell)
+            .context("Failed to send communication")?;
         Logger::info(
             &self.nickname,
             format!("Sent RENDEZVOUS1 payload to relay {}", relay_id),
-        );
-        Ok(())
-    }
-
-    pub fn send_data(
-        &self,
-        relay_id: RelayId,
-        rendezvous_cookie: RendezvousCookieId,
-        circuit_id: CircuitId,
-        data: Vec<u8>,
-    ) -> Result<()> {
-        Logger::info(
-            &self.nickname,
-            format!("Sending DATA to relay at address: {}", relay_id),
-        );
-        let internal_state_lock = self.internal_state.lock().unwrap();
-        let user_handshake = internal_state_lock
-            .connected_users
-            .get(&rendezvous_cookie)
-            .unwrap();
-        let encrypted_data = encrypt_buffer_with_aes(user_handshake, &data).unwrap();
-        let data_payload: Payload = Payload::Data(crate::DataPayload {
-            data: encrypted_data,
-            rendezvous_cookie,
-        });
-        let circuit = internal_state_lock.circuits.get(&circuit_id).unwrap();
-        let mut handshakes = vec![];
-        for relay in circuit {
-            handshakes.push(internal_state_lock.handshakes.get(relay).unwrap().clone());
-        }
-        let mut buffer = serde_json::to_vec(&data_payload).unwrap();
-        for handshake in handshakes.iter().rev() {
-            Logger::info(
-                &self.nickname,
-                format!(
-                    "Encoding with handshake: {}",
-                    hex::encode(&handshake[0..32])
-                ),
-            );
-            buffer = encrypt_buffer_with_aes(handshake, &buffer).unwrap();
-        }
-        let relay_cell = RelayCell {
-            circuit_id,
-            payload: buffer,
-        };
-        Communication::send(self.user_descriptor.id, relay_id, relay_cell);
-        Logger::info(
-            &self.nickname,
-            format!("Sent DATA payload to relay {}", relay_id),
         );
         Ok(())
     }

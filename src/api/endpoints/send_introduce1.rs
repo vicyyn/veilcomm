@@ -1,5 +1,8 @@
-use crate::{CircuitId, IntroductionPointId, RelayId, RendezvousCookieId, StreamId, User, UserId};
+use crate::{
+    CircuitId, IntroductionPointId, Logger, RelayId, RendezvousCookieId, StreamId, User, UserId,
+};
 use actix_web::{post, web, HttpResponse, Responder};
+use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -16,25 +19,36 @@ pub struct SendIntroduce1Body {
 }
 
 #[post("/users/{user_id}/send_introduce1")]
-async fn send_introduce1(
+pub async fn send_introduce1(
     data: web::Data<Arc<Mutex<Vec<User>>>>,
     user_id: web::Path<UserId>,
     body: web::Json<SendIntroduce1Body>,
 ) -> impl Responder {
-    let data_lock = data.lock().await;
-    let user = data_lock
-        .iter()
-        .find(|u| u.user_descriptor.id == *user_id)
-        .unwrap();
-    user.send_introduce1(
-        body.relay_id,
-        body.introduction_id,
-        body.stream_id,
-        body.rendezvous_point_relay_id,
-        body.rendezvous_cookie,
-        body.introduction_rsa_public.clone(),
-        body.circuit_id,
-    )
-    .unwrap();
-    HttpResponse::Ok().finish()
+    let result: Result<()> = async {
+        let data_lock = data.lock().await;
+        let user = data_lock
+            .iter()
+            .find(|u| u.user_descriptor.id == *user_id)
+            .ok_or_else(|| anyhow::anyhow!("User not found"))?;
+        user.send_introduce1(
+            body.relay_id,
+            body.introduction_id,
+            body.stream_id,
+            body.rendezvous_point_relay_id,
+            body.rendezvous_cookie,
+            body.introduction_rsa_public.clone(),
+            body.circuit_id,
+        )
+        .context("Failed to send introduce1")?;
+        Ok(())
+    }
+    .await;
+
+    match result {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(e) => {
+            Logger::error("API", format!("Error in send_introduce1: {}", e));
+            HttpResponse::InternalServerError().json(format!("Internal server error: {}", e))
+        }
+    }
 }

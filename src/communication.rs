@@ -1,4 +1,5 @@
 use crate::RelayCell;
+use anyhow::Result;
 use lazy_static::lazy_static;
 use std::{
     collections::HashMap,
@@ -23,9 +24,13 @@ impl Communication {
         rx
     }
 
-    pub fn send(sender: Uuid, receiver: Uuid, cell: RelayCell) {
-        if let Some(tx) = communication.connections.lock().unwrap().get(&receiver) {
-            tx.send((sender, cell)).unwrap();
+    pub fn send(sender: Uuid, receiver: Uuid, cell: RelayCell) -> Result<()> {
+        let connections = communication.connections.lock().unwrap();
+        if let Some(tx) = connections.get(&receiver) {
+            tx.send((sender, cell))?;
+            return Ok(());
+        } else {
+            return Err(anyhow::anyhow!("Receiver not found"));
         }
     }
 }

@@ -1,6 +1,7 @@
 use crate::relay::RelayDescriptor;
 use crate::user::UserDescriptor;
 use crate::{IntroductionPointId, Logger, RelayId};
+use anyhow::Result;
 use lazy_static::lazy_static;
 use std::sync::Mutex;
 use uuid::Uuid;
@@ -62,18 +63,18 @@ impl Directory {
         user_id: Uuid,
         introduction_points: IntroductionPointId,
         relay_id: RelayId,
-    ) {
+    ) -> Result<()> {
         Logger::info(
             "Directory",
             format!("Adding introduction point for user {}", user_id),
         );
         let mut users = directory.users.lock().unwrap();
-        for user in users.iter_mut() {
-            if user.id == user_id {
-                user.introduction_points
-                    .insert(introduction_points, relay_id);
-                return;
-            }
-        }
+        let user = users
+            .iter_mut()
+            .find(|u| u.id == user_id)
+            .ok_or(anyhow::anyhow!("User not found"))?;
+        user.introduction_points
+            .insert(introduction_points, relay_id);
+        Ok(())
     }
 }
