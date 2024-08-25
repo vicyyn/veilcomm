@@ -75,7 +75,7 @@ mod tests {
         let rx = Communication::register(receiver_id);
         let cell = create_mock_relay_cell();
 
-        Communication::send(sender_id, receiver_id, cell.clone());
+        Communication::send(sender_id, receiver_id, cell.clone()).unwrap();
 
         let (received_sender, received_cell) = rx.recv().unwrap();
         assert_eq!(received_sender, sender_id);
@@ -91,8 +91,8 @@ mod tests {
         let cell1 = create_mock_relay_cell();
         let cell2 = create_mock_relay_cell();
 
-        Communication::send(sender_id, receiver_id, cell1.clone());
-        Communication::send(sender_id, receiver_id, cell2.clone());
+        Communication::send(sender_id, receiver_id, cell1.clone()).unwrap();
+        Communication::send(sender_id, receiver_id, cell2.clone()).unwrap();
 
         let (received_sender1, received_cell1) = rx.recv().unwrap();
         let (received_sender2, received_cell2) = rx.recv().unwrap();
@@ -107,12 +107,13 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_send_to_nonexistent_receiver() {
         let sender_id = Uuid::new_v4();
         let nonexistent_receiver_id = Uuid::new_v4();
         let cell = create_mock_relay_cell();
 
-        Communication::send(sender_id, nonexistent_receiver_id, cell);
+        Communication::send(sender_id, nonexistent_receiver_id, cell).unwrap();
     }
 
     #[test]
@@ -123,7 +124,7 @@ mod tests {
 
         for sender_id in &sender_ids {
             let cell = create_mock_relay_cell();
-            Communication::send(*sender_id, receiver_id, cell);
+            Communication::send(*sender_id, receiver_id, cell).unwrap();
         }
 
         for _ in &sender_ids {
@@ -166,7 +167,7 @@ mod tests {
             let handle = thread::spawn(move || {
                 let sender_id = Uuid::new_v4();
                 let cell = create_mock_relay_cell();
-                Communication::send(sender_id, receiver_id, cell);
+                Communication::send(sender_id, receiver_id, cell).unwrap();
                 sender_id
             });
             handles.push(handle);
@@ -190,7 +191,7 @@ mod tests {
         let sender_id = Uuid::new_v4();
         let cell = create_mock_relay_cell();
 
-        Communication::send(sender_id, receiver_id, cell);
+        Communication::send(sender_id, receiver_id, cell).unwrap();
     }
 
     #[test]
@@ -216,7 +217,7 @@ mod tests {
             payload: large_payload.clone(),
         };
 
-        Communication::send(sender_id, receiver_id, cell);
+        Communication::send(sender_id, receiver_id, cell).unwrap();
 
         let (received_sender, received_cell) = rx.recv().unwrap();
         assert_eq!(received_sender, sender_id);
@@ -234,7 +235,7 @@ mod tests {
 
         thread::spawn(move || {
             thread::sleep(Duration::from_millis(100));
-            Communication::send(sender_id, receiver_id, cell);
+            Communication::send(sender_id, receiver_id, cell).unwrap();
         });
 
         let (received_sender, received_cell) = rx.recv().unwrap();

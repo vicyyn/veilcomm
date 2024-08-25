@@ -142,7 +142,7 @@ impl Relay {
                                             payload: encrypted_payload,
                                         };
                                         Logger::info(&nickname, "forwarding data payload");
-                                        Communication::send(my_id, *id, relay_cell);
+                                        Communication::send(my_id, *id, relay_cell).unwrap();
                                         Logger::info(&nickname, "forwarded data payload");
                                     } else {
                                         Logger::error(
@@ -163,7 +163,7 @@ impl Relay {
                                         .get(next_circuit_id)
                                         .unwrap();
                                     Logger::info(&nickname, "forwarding relay cell to next relay");
-                                    Communication::send(my_id, *id, relay_cell);
+                                    Communication::send(my_id, *id, relay_cell).unwrap();
                                     Logger::info(
                                         &nickname,
                                         &"Forwarded relay cell to next relay".to_string(),
@@ -226,7 +226,7 @@ impl Relay {
                                         circuit_id: *next_circuit_id,
                                         payload: encrypted_payload,
                                     };
-                                    Communication::send(my_id, *id, relay_cell);
+                                    Communication::send(my_id, *id, relay_cell).unwrap();
                                     Logger::info(
                                         &nickname,
                                         &"Forwarded payload to previous relay".to_string(),
@@ -296,7 +296,7 @@ impl Relay {
                                     payload: serde_json::to_vec(&created_payload).unwrap(),
                                 };
 
-                                Communication::send(my_id, sender_id, relay_cell);
+                                Communication::send(my_id, sender_id, relay_cell).unwrap();
                                 Logger::info(&nickname, &"Sent created payload".to_string());
                             }
                             Payload::Created(created_payload) => {
@@ -333,7 +333,7 @@ impl Relay {
                                             circuit_id: *next_circuit_id,
                                             payload: encrypted_payload,
                                         };
-                                        Communication::send(my_id, *id, relay_cell);
+                                        Communication::send(my_id, *id, relay_cell).unwrap();
                                         Logger::info(
                                             &nickname,
                                             "Forwarded payload to previous relay".to_string(),
@@ -382,7 +382,7 @@ impl Relay {
                                     payload: serde_json::to_vec(&create_payload)
                                         .expect("Failed to serialize JSON"),
                                 };
-                                Communication::send(my_id, id, relay_cell);
+                                Communication::send(my_id, id, relay_cell).unwrap();
                             }
                             Payload::EstablishRendezvous(establish_rendezvous) => {
                                 let rendezvous_cookie = establish_rendezvous.rendezvous_cookie;
@@ -406,7 +406,7 @@ impl Relay {
                                     circuit_id: relay_cell.circuit_id,
                                     payload: encrypted_payload,
                                 };
-                                Communication::send(my_id, sender_id, relay_cell);
+                                Communication::send(my_id, sender_id, relay_cell).unwrap();
                                 Logger::info(
                                     &nickname,
                                     &format!(
@@ -438,7 +438,7 @@ impl Relay {
                                     circuit_id: relay_cell.circuit_id,
                                     payload: encrypted_payload,
                                 };
-                                Communication::send(my_id, sender_id, relay_cell);
+                                Communication::send(my_id, sender_id, relay_cell).unwrap();
                                 Logger::info(
                                     &nickname,
                                     &format!("Established introduction, id: {}", introduction_id),
@@ -463,7 +463,7 @@ impl Relay {
                                     begin_payload.stream_id,
                                     begin_payload.relay_descriptor.id,
                                 );
-                                Communication::send(my_id, sender_id, begin_relay_cell);
+                                Communication::send(my_id, sender_id, begin_relay_cell).unwrap();
                             }
                             Payload::Introduce1(introduce1_payload) => {
                                 // verify that introduction id matches and that the stream exists
@@ -486,7 +486,7 @@ impl Relay {
                                         circuit_id: relay_cell.circuit_id,
                                         payload: serde_json::to_vec(&introduce1_payload).unwrap(),
                                     };
-                                    Communication::send(my_id, *id, relay_cell.clone());
+                                    Communication::send(my_id, *id, relay_cell.clone()).unwrap();
                                     Logger::info(
                                         &nickname,
                                         format!("Sent introduce1 payload to stream {}", stream_id),
@@ -509,7 +509,7 @@ impl Relay {
                                         circuit_id: relay_cell.circuit_id,
                                         payload: encrypted_payload,
                                     };
-                                    Communication::send(my_id, sender_id, relay_cell);
+                                    Communication::send(my_id, sender_id, relay_cell).unwrap();
                                     Logger::info(&nickname, "Sent introduce ack payload");
                                 } else {
                                     Logger::warn(&nickname, "Stream not found");
@@ -554,7 +554,8 @@ impl Relay {
                                             my_id,
                                             *introduction_relay_id,
                                             relay_cell,
-                                        );
+                                        )
+                                        .unwrap();
                                     } else {
                                         Logger::error(&nickname, "Introduction point not found");
                                         continue;
@@ -598,7 +599,7 @@ impl Relay {
                                         .circuits_ids
                                         .get(&original_circuit_id)
                                         .expect("Original circuit not found");
-                                    Communication::send(my_id, *id, relay_cell);
+                                    Communication::send(my_id, *id, relay_cell).unwrap();
                                 } else {
                                     Logger::error(&nickname, "Rendezvous point not found");
                                     continue;
@@ -624,7 +625,7 @@ impl Relay {
                                     payload: encrypted_payload,
                                 };
                                 let id = internal_state_lock.circuits_ids.get(&circuit_id).unwrap();
-                                Communication::send(my_id, *id, relay_cell);
+                                Communication::send(my_id, *id, relay_cell).unwrap();
                                 Logger::info(&nickname, "Forwarded data payload");
                             }
                             _ => {

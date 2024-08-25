@@ -124,12 +124,9 @@ const AppContainer = styled.div`
 `;
 
 function App() {
-  const [selectedUser, setSelectedUser] = useState<UserState | undefined>(undefined);
-  const [selectedRelay, setSelectedRelay] = useState<RelayState | undefined>(undefined);
   const [users, setUsers] = useState<UserState[]>([]);
   const [relays, setRelays] = useState<RelayState[]>([]);
   const [positions, setPositions] = useState<{ [key: string]: Position }>({});
-  const [cardSize, setCardSize] = useState({ width: 150, height: 60 });
 
   const [selectedCreateRelay, setSelectedCreateRelay] = useState<RelayState | undefined>(undefined);
   const [selectedCircuit, setSelectedCircuit] = useState<string>("");
@@ -371,7 +368,6 @@ function App() {
     setRelays(currentRelays => {
       const r = currentRelays.find(r => r.id === relayId);
       if (r) {
-        setSelectedRelay(r);
         setSelectedData(r);
       }
       return currentRelays;
@@ -384,7 +380,6 @@ function App() {
     setUsers(currentUsers => {
       const u = currentUsers.find(u => u.id === userId);
       if (u) {
-        setSelectedUser(u);
         setSelectedData(u);
       }
       return currentUsers;
@@ -398,7 +393,7 @@ function App() {
       <ToastContainer autoClose={1000} position='top-left' />
       <Dashboard>
         <ConnectionLinesWrapper>
-          <ConnectionLines users={users} relays={relays} positions={positions} cardSize={cardSize} />
+          <ConnectionLines users={users} relays={relays} positions={positions} cardSize={{ 'width': 150, 'height': 60 }} />
         </ConnectionLinesWrapper>
         <CardsWrapper>
           <AnimatePresence>
