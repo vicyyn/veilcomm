@@ -139,6 +139,9 @@ function App() {
   const [selectedBeginRelay, setSelectedBeginRelay] = useState<RelayState | undefined>(undefined);
   const [selectedRendezvousRelay, setSelectedRendezvousRelay] = useState<RelayState | undefined>(undefined);
 
+  const [isRendezvousRelays, setIsRendezvousRelays] = useState<Record<string, boolean>>({});
+  const [isIntroductionRelays, setIsIntroductionRelays] = useState<Record<string, boolean>>({});
+
   const [selectedCookie, setSelectedCookie] = useState<string>("");
   const [selectedIntroduction, setSelectedIntroduction] = useState<string>("");
   const [selectedStream, setSelectedStream] = useState<string>("");
@@ -191,6 +194,21 @@ function App() {
 
       setUsers(newState?.user_states || []);
       setRelays(newState?.relay_states || []);
+
+      const rendezvousRelays: Record<string, boolean> = {};
+      const introductionRelays: Record<string, boolean> = {};
+
+      newState?.relay_states.forEach(relay => {
+        if (relay.is_rendezvous_point) {
+          rendezvousRelays[relay.id] = true;
+        }
+        if (relay.is_introduction_point) {
+          introductionRelays[relay.id] = true;
+        }
+      });
+
+      setIsRendezvousRelays(rendezvousRelays);
+      setIsIntroductionRelays(introductionRelays);
     }
 
     updateState();
@@ -385,13 +403,11 @@ function App() {
         <CardsWrapper>
           <AnimatePresence>
             {users.map(user => (
-              <Draggable key={user.id} bounds="parent" defaultPosition={positions[user.id]} onStop={(e, data) => handleDrag(user.id, data)}>
+              <Draggable key={`${user.id}-${user.logs.length}`} bounds="parent" defaultPosition={positions[user.id]} onStop={(e, data) => handleDrag(user.id, data)}>
                 <CardContainer>
                   <Card
-                    key={`${user.id}-${user.logs.length}`}
                     type='user'
                     item={user}
-                    isSelected={selectedUser?.id === user.id}
                     onClick={(event: React.MouseEvent<HTMLElement>) => {
                       setUser(event, user.id);
                     }}
@@ -400,13 +416,13 @@ function App() {
               </Draggable>
             ))}
             {relays.map(relay => (
-              <Draggable key={relay.nickname} bounds="parent" defaultPosition={positions[relay.id]} onStop={(e, data) => handleDrag(relay.id, data)}>
+              <Draggable key={`${relay.id}-${relay.logs.length}`} bounds="parent" defaultPosition={positions[relay.id]} onStop={(e, data) => handleDrag(relay.id, data)}>
                 <CardContainer>
                   <Card
-                    key={`${relay.id}-${relay.logs.length}`}
+                    isRendezvous={isRendezvousRelays[relay.id]}
+                    isIntroduction={isIntroductionRelays[relay.id]}
                     item={relay}
                     type='relay'
-                    isSelected={selectedRelay?.id === relay.id}
                     onClick={(event: React.MouseEvent<HTMLElement>) => {
                       setRelay(event, relay.id);
                     }}

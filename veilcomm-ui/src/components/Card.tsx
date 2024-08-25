@@ -5,7 +5,6 @@ import { UserState, RelayState } from '../data';
 
 interface StyledCardProps {
   $isUser: boolean;
-  $isSelected: boolean;
   $isRendezvous: boolean;
   $isIntroduction: boolean;
 }
@@ -33,8 +32,8 @@ const StyledCard = styled(motion.div) <StyledCardProps>`
   border: ${props =>
     props.$isRendezvous ? '2px solid #faad14' :
       props.$isIntroduction ? '2px solid #eb2f96' :
-        props.$isSelected ? `2px solid ${props.$isUser ? '#1890ff' : '#52c41a'}` :
-          'none'};
+        props.$isUser ? '#1890ff'
+          : 'none'};
   transition: all 0.3s ease;
   z-index: ${props => props.$isRendezvous || props.$isIntroduction ? 20 : 10};
   position: relative;
@@ -64,21 +63,18 @@ const IdText = styled.p<{ $isSpecial: boolean }>`
 type CardProps = {
   item: UserState | RelayState;
   onClick: (event: React.MouseEvent<HTMLElement>) => void;
-  isSelected: boolean;
+  isRendezvous?: boolean;
+  isIntroduction?: boolean;
   type: 'user' | 'relay';
 };
 
-function Card({ item, onClick, isSelected, type }: CardProps): JSX.Element {
+function Card({ item, onClick, type, isRendezvous = false, isIntroduction = false }: CardProps): JSX.Element {
   const isUser = type === 'user';
-  const isRelay = type === 'relay';
-  const isRendezvous = isRelay && (item as RelayState).is_rendezvous_point;
-  const isIntroduction = isRelay && (item as RelayState).is_introduction_point;
   const isSpecial = isRendezvous || isIntroduction;
 
   return (
     <StyledCard
       $isUser={isUser}
-      $isSelected={isSelected}
       $isRendezvous={isRendezvous}
       $isIntroduction={isIntroduction}
       layout
