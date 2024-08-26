@@ -134,7 +134,6 @@ function App() {
   const [selectedReceiveRelay, setSelectedReceiveRelay] = useState<RelayState | undefined>(undefined);
   const [selectedExtendToRelay, setSelectedExtendToRelay] = useState<RelayState | undefined>(undefined);
   const [selectedBeginRelay, setSelectedBeginRelay] = useState<RelayState | undefined>(undefined);
-  const [selectedRendezvousRelay, setSelectedRendezvousRelay] = useState<RelayState | undefined>(undefined);
 
   const [isRendezvousRelays, setIsRendezvousRelays] = useState<Record<string, boolean>>({});
   const [isIntroductionRelays, setIsIntroductionRelays] = useState<Record<string, boolean>>({});
@@ -312,7 +311,7 @@ function App() {
   }
 
   const handleSendIntroduce1 = () => {
-    if (!selectedSendUser || !selectedReceiveRelay || !selectedCircuit || !selectedRendezvousRelay || !selectedCookie || !selectedIntroduction || !selectedStream || !forUser) {
+    if (!selectedSendUser || !selectedReceiveRelay || !selectedCircuit || !selectedCookie || !selectedIntroduction || !selectedStream || !forUser) {
       toast.error('Please select a user, relay, circuit, rendezvous relay, and provide a rendezvous cookie');
       return;
     }
@@ -322,7 +321,6 @@ function App() {
       selectedReceiveRelay,
       selectedIntroduction,
       selectedStream,
-      selectedRendezvousRelay,
       selectedCookie,
       forUser.rsa_public_key,
       selectedCircuit
@@ -393,7 +391,7 @@ function App() {
       <ToastContainer autoClose={1000} position='top-left' />
       <Dashboard>
         <ConnectionLinesWrapper>
-          <ConnectionLines users={users} relays={relays} positions={positions} cardSize={{ 'width': 150, 'height': 60 }} />
+          <ConnectionLines users={users} relays={relays} positions={positions} />
         </ConnectionLinesWrapper>
         <CardsWrapper>
           <AnimatePresence>
@@ -568,15 +566,6 @@ function App() {
               <option value="">Select User to Communicate with</option>
               {users.map(user => (
                 <option key={user.nickname} value={user.nickname}>{user.nickname}</option>
-              ))}
-            </Select>
-            <Select
-              value={selectedRendezvousRelay ? selectedRendezvousRelay.nickname : ''}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedRendezvousRelay(relays.find(r => r.nickname === e.target.value))}
-            >
-              <option value="">Select Rendezvous Relay</option>
-              {relays.map(relay => (
-                <option key={relay.nickname} value={relay.nickname}>{relay.nickname}</option>
               ))}
             </Select>
             <Button onClick={handleSendIntroduce1}>Send Introduce 1</Button>

@@ -44,7 +44,6 @@ async fn main() {
 
     let relay_6 = Relay::new("Relay6".to_string());
     let relay_id_6 = relay_6.get_relay_descriptor().id;
-    let rendezvous_point_descriptor = relay_6.get_relay_descriptor();
     thread::spawn(move || {
         relay_6.start();
     });
@@ -92,7 +91,6 @@ async fn main() {
                 relay_id_4,
                 introduction_id,
                 stream_id,
-                rendezvous_point_descriptor.id,
                 rendezvous_cookie,
                 introduction_rsa_public,
                 circuit_id,

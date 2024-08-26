@@ -219,7 +219,7 @@ impl User {
                             .unwrap();
                             Logger::info(&nickname,format!(
                                     "Circuit id {} is used for the circuit to the rendezvous point {}",
-                                    relay_cell.circuit_id, introduce2_payload.rendezvous_point_descriptor.nickname
+                                    relay_cell.circuit_id, introduce2_payload.rendezvous_cookie,
                                 ));
                             internal_state_lock
                                 .connected_users
@@ -710,7 +710,6 @@ impl User {
         relay_id: RelayId,
         introduction_id: IntroductionPointId,
         stream_id: StreamId,
-        rendezvous_point_relay_id: RelayId,
         rendezvous_cookie: RendezvousCookieId,
         introduction_rsa_public: Vec<u8>,
         circuit_id: CircuitId,
@@ -723,8 +722,6 @@ impl User {
             &self.nickname,
             format!("Sending INTRODUCE1 to relay {}", relay_id),
         );
-        let relay_descriptor = Directory::get_relay(rendezvous_point_relay_id)
-            .context("Failed to get relay from directory")?;
         let rsa_public = Rsa::public_key_from_pem(&introduction_rsa_public)
             .context("Failed to parse RSA public key")?;
         let half_dh_bytes: Vec<u8> = internal_state_lock.keys.dh.public_key().to_vec();
@@ -734,7 +731,6 @@ impl User {
         let introduce1_payload = Introduce1Payload {
             stream_id,
             introduction_id,
-            rendezvous_point_descriptor: relay_descriptor,
             rendezvous_cookie,
             onion_skin,
         };

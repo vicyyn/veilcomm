@@ -21,10 +21,10 @@ interface Props {
   users: UserState[];
   relays: RelayState[];
   positions: { [key: string]: Position };
-  cardSize: { width: number; height: number };
+  cardSize?: { width: number; height: number };
 }
 
-const ConnectionLines: React.FC<Props> = ({ users, relays, positions, cardSize }) => {
+const ConnectionLines: React.FC<Props> = ({ users, relays, positions, cardSize = { 'height': 60, 'width': 150 } }) => {
   const [lines, setLines] = useState<JSX.Element[]>([]);
 
   const getCircuitColor = useCallback(() => {

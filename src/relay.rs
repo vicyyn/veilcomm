@@ -476,8 +476,6 @@ impl Relay {
                                         Payload::Introduce1(payloads::Introduce1Payload {
                                             stream_id,
                                             introduction_id,
-                                            rendezvous_point_descriptor: introduce1_payload
-                                                .rendezvous_point_descriptor,
                                             rendezvous_cookie: introduce1_payload.rendezvous_cookie,
                                             onion_skin: introduce1_payload.onion_skin,
                                         });
@@ -531,8 +529,6 @@ impl Relay {
                                         );
                                         let introduce2_payload =
                                             Payload::Introduce2(payloads::Introduce2Payload {
-                                                rendezvous_point_descriptor: introduce1_payload
-                                                    .rendezvous_point_descriptor,
                                                 rendezvous_cookie: introduce1_payload
                                                     .rendezvous_cookie,
                                                 onion_skin: introduce1_payload.onion_skin,

@@ -1,8 +1,8 @@
 import { toast } from "react-toastify";
 import { RelayState, UserState } from "../data";
 
-async function sendIntroduce1(user: UserState, relay: RelayState, introductionId: string, streamId: string, rendezvousPointRelay: RelayState, rendezvousCookie: string, introductionRsaPublic: number[], circuitId: string) {
-  if (!user || !relay || !introductionId || !streamId || !rendezvousPointRelay || !rendezvousCookie || !introductionRsaPublic || !circuitId) {
+async function sendIntroduce1(user: UserState, relay: RelayState, introductionId: string, streamId: string, rendezvousCookie: string, introductionRsaPublic: number[], circuitId: string) {
+  if (!user || !relay || !introductionId || !streamId || !rendezvousCookie || !introductionRsaPublic || !circuitId) {
     toast.error('All parameters are required to send Introduce1');
     return;
   }
@@ -17,7 +17,6 @@ async function sendIntroduce1(user: UserState, relay: RelayState, introductionId
         relay_id: relay.id,
         introduction_id: introductionId,
         stream_id: streamId,
-        rendezvous_point_relay_id: rendezvousPointRelay.id,
         rendezvous_cookie: rendezvousCookie,
         introduction_rsa_public: Array.from(introductionRsaPublic),
         circuit_id: circuitId
