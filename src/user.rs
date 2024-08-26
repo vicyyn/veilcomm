@@ -625,10 +625,9 @@ impl User {
         Directory::add_user_introduction_point(
             self.id,
             introduction_id,
-            circuit
+            *circuit
                 .last()
-                .ok_or_else(|| anyhow::anyhow!("Circuit is empty"))?
-                .clone(),
+                .ok_or_else(|| anyhow::anyhow!("Circuit is empty"))?,
         )
         .context("Failed to add user introduction point to directory")?;
         Logger::info(

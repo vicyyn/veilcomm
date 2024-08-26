@@ -28,9 +28,9 @@ impl Communication {
         let connections = communication.connections.lock().unwrap();
         if let Some(tx) = connections.get(&receiver) {
             tx.send((sender, cell))?;
-            return Ok(());
+            Ok(())
         } else {
-            return Err(anyhow::anyhow!("Receiver not found"));
+            Err(anyhow::anyhow!("Receiver not found"))
         }
     }
 }

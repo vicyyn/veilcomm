@@ -45,7 +45,7 @@ impl Logger {
         let new_message = format!(
             "[{}] [{}] {} : {}",
             timestamp,
-            _type.to_string().clear().to_string(),
+            _type.to_string().clear(),
             id,
             message,
         );

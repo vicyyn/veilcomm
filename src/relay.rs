@@ -73,8 +73,8 @@ impl Relay {
             circuits: internal_state_lock.circuits_ids.clone(),
             streams: internal_state_lock.streams.clone(),
             logs: Logger::get_logs(self.relay_descriptor.nickname.clone()),
-            is_rendezvous_point: internal_state_lock.rendezvous_points.len() > 0,
-            is_introduction_point: internal_state_lock.introduction_points.len() > 0,
+            is_rendezvous_point: !internal_state_lock.rendezvous_points.is_empty(),
+            is_introduction_point: !internal_state_lock.introduction_points.is_empty(),
         }
     }
 
