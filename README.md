@@ -1,5 +1,6 @@
 <p align="center">
-  <img src=https://user-images.githubusercontent.com/55297234/159432446-03bd1ad2-9ecf-4ef7-aa1b-4b57f610b365.gif>
+  <img width="982" alt="Screenshot 2024-08-26 at 13 18 38" src="https://github.com/user-attachments/assets/160df162-1efd-41f7-ab72-ec61a70b2607">
+>
 </p>
 <h1 align="center">Veilcomm</h1>
 <p align="center"><strong>Tor in Rust</strong></p>
